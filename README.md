@@ -1,70 +1,102 @@
 # Moon
 
-Tutto quello che serve sul tuo computer per giocare a **Project Zomboid** (Build 42) sul server **RiversideMoon**, in un solo file da lanciare: **`installa.bat`**.
+Le mod per giocare a **Project Zomboid** (Build 42) sul server **RiversideMoon**, con un solo file da lanciare: **`mod-moon-server.bat`**.
 
-Installa due cose:
-
-1. **La mod dei silenziatori** «Simple Suppressors (Moon IT)»: è la mod Simple Suppressors di Kiidxatlas, tradotta in italiano e con alcuni bug corretti (vedi [Cosa cambia rispetto all'originale](#cosa-cambia-rispetto-alloriginale)). Il server la usa, quindi **senza questa mod non puoi entrare**.
-2. **Le finestre di ZomBOT per gli admin**, per gestire le scorte delle basi. Le vede solo chi è admin sul server: per tutti gli altri non fanno niente, quindi le installa chiunque e non ci si pensa più.
+| Mod | A chi serve | Cos'è |
+| --- | --- | --- |
+| **Silenziatori** | **a tutti**: il server la usa, senza non si entra | I silenziatori per le armi: la mod Simple Suppressors di Kiidxatlas, tradotta in italiano e corretta (vedi [Cosa cambia rispetto all'originale](#cosa-cambia-rispetto-alloriginale)). |
+| **Admin-Scorte** | **solo agli admin** del server | Le finestre di ZomBOT per gestire le basi e le loro scorte. Funzionano solo se sei admin sul server: per chiunque altro non mostrano niente e non danno nessun potere. |
 
 ---
 
 ## Installazione (2 minuti)
 
 1. **Scarica il pacchetto.** In questa pagina, in alto, premi il pulsante verde **`<> Code`** e poi **`Download ZIP`**.
-2. **Estrai lo ZIP.** Tasto destro sul file scaricato, **«Estrai tutto...»**, poi **«Estrai»**. Non lanciare `installa.bat` da dentro lo ZIP senza estrarlo: non troverebbe i file da installare.
+2. **Estrai lo ZIP.** Tasto destro sul file scaricato, **«Estrai tutto...»**, poi **«Estrai»**. Non lanciare il file da dentro lo ZIP senza estrarlo: non troverebbe le mod da installare.
 3. **Chiudi Project Zomboid**, se è aperto.
-4. **Doppio clic su `installa.bat`** nella cartella estratta.
-   - Se compare la finestra blu **«Windows ha protetto il PC»**, premi **«Ulteriori informazioni»** e poi **«Esegui comunque»**; se invece compare **«Avviso di sicurezza»**, premi **«Esegui»**. Windows avvisa così per i file scaricati da internet che non hanno una firma: `installa.bat` è testo semplice e chiunque può leggerlo prima (tasto destro, «Modifica»).
-5. Premi **`I`** (Installa o aggiorna) e aspetta il messaggio **«Tutto pronto»**. Premi un tasto per chiudere.
+4. **Doppio clic su `mod-moon-server.bat`** nella cartella estratta.
+   - Se compare la finestra blu **«Windows ha protetto il PC»**, premi **«Ulteriori informazioni»** e poi **«Esegui comunque»**; se invece compare **«Avviso di sicurezza»**, premi **«Esegui»**. Windows avvisa così per i file scaricati da internet che non hanno una firma: `mod-moon-server.bat` è testo semplice e chiunque può leggerlo prima (tasto destro, «Modifica»).
+5. Si apre questo menu. Ti dice cosa hai già e dove ha trovato il gioco:
+
+   ```
+     ╔════════════════════════════════════════════════════════╗
+     ║  MOON  ·  le mod per giocare su RiversideMoon          ║
+     ╚════════════════════════════════════════════════════════╝
+     Silenziatori 1.5.31-moon.1  ·  Admin-Scorte
+
+     Sul tuo computer
+
+       Silenziatori      non installata
+       Admin-Scorte      non installata, serve solo agli admin
+       Project Zomboid   C:\Program Files (x86)\Steam\steamapps\common\ProjectZomboid
+
+     Cosa vuoi fare?
+
+       [1]  Installa o aggiorna le mod per giocare      Silenziatori
+       [2]  Installa o aggiorna tutto, anche da admin   Silenziatori + Admin-Scorte
+       [3]  Disinstalla
+       [0]  Esci
+   ```
+
+   - Premi **`1`** se sei un giocatore: installa **Silenziatori**.
+   - Premi **`2`** se sei admin del server: installa **Silenziatori** e **Admin-Scorte**.
+
+   Il file mostra ogni passo mentre lo fa: controlla che il gioco sia chiuso, prepara la cartella delle mod, copia i file e dice dove. Alla fine scrive **«Tutto pronto»**. Premi un tasto per tornare al menu e **`0`** per uscire.
 6. **Avvia Project Zomboid ed entra su RiversideMoon** come sempre. Non devi attivare niente nel menu Mod: in multiplayer le mod le attiva il server.
 
-Il file trova da solo il gioco nelle librerie di Steam, anche su un altro disco. Se non ci riesce te lo dice: in quel caso **trascina la cartella `ProjectZomboid` sopra `installa.bat`** (di solito è in `...\Steam\steamapps\common\ProjectZomboid`; da Steam: tasto destro sul gioco, «Gestisci», «Sfoglia i file locali»).
+Il file trova da solo il gioco nelle librerie di Steam, anche su un altro disco. Se non ci riesce te lo dice: in quel caso **trascina la cartella `ProjectZomboid` sopra `mod-moon-server.bat`** (di solito è in `...\Steam\steamapps\common\ProjectZomboid`; da Steam: tasto destro sul gioco, «Gestisci», «Sfoglia i file locali»).
 
 ## Aggiornare
 
-Quando esce una nuova versione: scarica di nuovo lo ZIP, estrailo, doppio clic su `installa.bat` e premi **`I`**. La versione vecchia viene sostituita del tutto, non serve disinstallare prima.
+Quando esce una nuova versione: scarica di nuovo lo ZIP, estrailo, lancia `mod-moon-server.bat` e premi di nuovo **`1`** o **`2`**. Il menu ti dice se hai una versione vecchia («da aggiornare»); quella vecchia viene sostituita del tutto, non serve disinstallare prima.
 
 ## Disinstallare
 
-Doppio clic su `installa.bat` e premi **`D`**. Toglie la mod e le finestre di ZomBOT. Ricorda che senza la mod non puoi entrare su RiversideMoon.
+Lancia `mod-moon-server.bat`, premi **`3`** e scegli:
+
+- **`1`** toglie solo **Admin-Scorte**, per esempio se non sei più admin;
+- **`2`** toglie tutto: **Silenziatori** e **Admin-Scorte**. Senza Silenziatori non puoi entrare su RiversideMoon.
 
 ## Cosa installa, esattamente
 
-| Cosa | Dove |
-| --- | --- |
-| La mod dei silenziatori (cartella `SimpleSuppressorsMoon`) | `C:\Users\<il tuo nome>\Zomboid\mods\` |
-| `ZomBotData.lua` | `<cartella del gioco>\media\lua\shared\` |
-| `ZomBotStockUI.lua` | `<cartella del gioco>\media\lua\client\` |
+| Mod | File | Dove |
+| --- | --- | --- |
+| Silenziatori | la cartella `Silenziatori` | `C:\Users\<il tuo nome>\Zomboid\mods\` |
+| Admin-Scorte | `ZomBotData.lua` | `<cartella del gioco>\media\lua\shared\` |
+| Admin-Scorte | `ZomBotStockUI.lua` | `<cartella del gioco>\media\lua\client\` |
 
 Non tocca nient'altro: i salvataggi, le impostazioni e le altre mod restano come sono.
 
+Perché Admin-Scorte va nella cartella del gioco e non tra le mod? In multiplayer il gioco carica solo le mod che il server elenca, e se il server elencasse Admin-Scorte tutti dovrebbero installarla per entrare. Così invece la installa solo chi la vuole, e il server (che accetta file in più dai giocatori) la lascia funzionare solo per gli admin.
+
 ## Problemi frequenti
 
-**«Non riesco a scrivere nella cartella del gioco».** Chiudi il gioco e riprova. Se non basta: tasto destro su `installa.bat`, **«Esegui come amministratore»**.
+**«Non riesco a scrivere nella cartella del gioco».** Chiudi il gioco e riprova. Se non basta: tasto destro su `mod-moon-server.bat`, **«Esegui come amministratore»**.
 
-**Entrando nel server il gioco dice che manca una mod, o che le mod non corrispondono.** Rilancia `installa.bat` e premi `I`: probabilmente sul server c'è una versione più nuova. Se il problema resta, scrivi nel canale del server su Discord.
+**Entrando nel server il gioco dice che manca una mod, o che le mod non corrispondono.** Rilancia `mod-moon-server.bat` e premi `1`: probabilmente sul server c'è una versione più nuova. Se il problema resta, scrivi nel canale del server su Discord.
 
-**Ero iscritto alla mod originale Simple Suppressors sul Workshop.** Puoi lasciarla: sul server si usa questa. In una partita in single player però non attivarle tutte e due insieme.
+**I colori del menu non si vedono e compaiono simboli strani.** Succede con le versioni di Windows più vecchie di Windows 10: il file funziona lo stesso.
 
-**Voglio usare i silenziatori anche in single player.** Dal menu principale: **Mod**, attiva **«Simple Suppressors (Moon IT)»**, poi crea una nuova partita.
+**Ero iscritto alla mod originale Simple Suppressors sul Workshop.** Puoi lasciarla: sul server si usa Silenziatori. In una partita in single player però non attivarle tutte e due insieme.
 
-**Ho un Mac o Linux.** `installa.bat` funziona solo su Windows. A mano: copia la cartella `mods/SimpleSuppressorsMoon` in `~/Zomboid/mods/`. Le finestre di ZomBOT servono solo agli admin: copia `zombot/shared/ZomBotData.lua` e `zombot/client/ZomBotStockUI.lua` in `media/lua/shared/` e `media/lua/client/` dentro la cartella del gioco.
+**Voglio usare i silenziatori anche in single player.** Dal menu principale: **Mod**, attiva **«Silenziatori»**, poi crea una nuova partita.
 
-## Per gli admin: le finestre di ZomBOT
+**Ho un Mac o Linux.** `mod-moon-server.bat` funziona solo su Windows. A mano: copia la cartella `mods/Silenziatori` in `~/Zomboid/mods/`. Admin-Scorte serve solo agli admin: copia `admin-scorte/shared/ZomBotData.lua` e `admin-scorte/client/ZomBotStockUI.lua` in `media/lua/shared/` e `media/lua/client/` dentro la cartella del gioco.
 
-ZomBOT è il bot Discord del server. Conta le scorte delle basi (cibo, munizioni, medicine, libri...) e le mostra su Discord, per esempio con `/scorte` e `/basi`. Con queste finestre gli admin decidono, dentro il gioco, quali basi ci sono e cosa tenere d'occhio:
+## Admin-Scorte: cosa fa
+
+ZomBOT è il bot Discord del server. Conta le scorte delle basi (cibo, munizioni, medicine, libri...) e le mostra su Discord, per esempio con `/scorte` e `/basi`. Con Admin-Scorte gli admin decidono, dentro il gioco, quali basi ci sono e cosa tenere d'occhio:
 
 - **tasto destro sul pavimento, «ZomBOT: basi...»**: crea, modifica o elimina le basi, disegnandole sulla mappa;
 - **tasto destro sul pavimento dentro una base, «ZomBOT: scorte di questa base»**: le scorte tracciate, con la possibilità di smettere di tracciarne una;
 - **tasto destro su un oggetto, «Aggiungi a scorta»**: tiene d'occhio quell'oggetto nella base, con le soglie «presente», «scarseggia» e «critico»;
 - **«Controlla i libri» / «Controlla le riviste»**: quali libri delle abilità e quali riviste di ricette mancano nella base.
 
-Il server accetta queste modifiche solo dagli admin: per chi non lo è, i menu non compaiono e il file non dà nessun potere.
+Funziona solo per gli admin: per chi non lo è i menu non compaiono, e il server rifiuta comunque ogni modifica che non arrivi da un admin.
 
 ## Cosa cambia rispetto all'originale
 
-La mod di partenza è **[Simple Suppressors](https://steamcommunity.com/sharedfiles/filedetails/?id=3782565181) 1.5.31** di **Kiidxatlas**. Abbiamo riletto tutto il codice confrontandolo con quello del gioco (Build 42.21) e corretto questo.
+**Silenziatori** nasce da **[Simple Suppressors](https://steamcommunity.com/sharedfiles/filedetails/?id=3782565181) 1.5.31** di **Kiidxatlas**. Abbiamo riletto tutto il codice confrontandolo con quello del gioco (Build 42.21) e corretto questo.
 
 ### Crash ed errori
 
@@ -105,6 +137,6 @@ Ogni modifica nel codice è segnata con `[moon]`, così si ritrova facilmente. N
 
 ## Crediti
 
-- **Simple Suppressors**: Kiidxatlas ([Steam Workshop](https://steamcommunity.com/sharedfiles/filedetails/?id=3782565181)). Modelli, suoni, ricette e quasi tutto il codice sono suoi. Se la mod ti piace, lascia un pollice in su sulla sua pagina del Workshop.
+- **Simple Suppressors**, da cui nasce Silenziatori: Kiidxatlas ([Steam Workshop](https://steamcommunity.com/sharedfiles/filedetails/?id=3782565181)). Modelli, suoni, ricette e quasi tutto il codice sono suoi. Se la mod ti piace, lascia un pollice in su sulla sua pagina del Workshop.
 - **Traduzione italiana e correzioni**: Moon, per il server RiversideMoon.
-- **ZomBOT**: il bot Discord del server RiversideMoon.
+- **ZomBOT e Admin-Scorte**: il bot Discord del server RiversideMoon.
