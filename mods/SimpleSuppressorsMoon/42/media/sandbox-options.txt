@@ -1,0 +1,124 @@
+VERSION = 1,
+
+option SimpleSuppressors.MachinedSoundRadiusReduction
+{
+	type = integer, min = 1, max = 100, default = 25,
+	page = SimpleSuppressors, translation = SimpleSuppressors_MachinedSoundRadiusReduction,
+}
+option SimpleSuppressors.OilFilterSoundRadiusReduction
+{
+	type = integer, min = 1, max = 100, default = 35,
+	page = SimpleSuppressors, translation = SimpleSuppressors_OilFilterSoundRadiusReduction,
+}
+option SimpleSuppressors.SoundVolumeReduction
+{
+	type = integer, min = 1, max = 100, default = 55,
+	page = SimpleSuppressors, translation = SimpleSuppressors_SoundVolumeReduction,
+}
+option SimpleSuppressors.SuppressorDurability
+{
+	type = enum, default = 2, numValues = 4,
+	page = SimpleSuppressors, translation = SimpleSuppressors_SuppressorDurability,
+}
+option SimpleSuppressors.HeatAcceleratesWear
+{
+	type = boolean, default = true,
+	page = SimpleSuppressors, translation = SimpleSuppressors_HeatAcceleratesWear,
+}
+option SimpleSuppressors.EnableSuppressorRepairs
+{
+	type = boolean, default = true,
+	page = SimpleSuppressors, translation = SimpleSuppressors_EnableSuppressorRepairs,
+}
+option SimpleSuppressors.EnableSuppressorHeat
+{
+	type = boolean, default = true,
+	page = SimpleSuppressors, translation = SimpleSuppressors_EnableSuppressorHeat,
+}
+option SimpleSuppressors.LootRarity
+{
+	type = integer, min = 0, max = 500, default = 75,
+	page = SimpleSuppressors, translation = SimpleSuppressors_LootRarity,
+}
+option SimpleSuppressors.FindSuppressorsNaturally
+{
+	type = boolean, default = true,
+	page = SimpleSuppressors, translation = SimpleSuppressors_FindSuppressorsNaturally,
+}
+option SimpleSuppressors.ContentScope
+{
+	type = enum, default = 1, numValues = 3,
+	page = SimpleSuppressors, translation = SimpleSuppressors_ContentScope,
+}
+
+option SimpleSuppressors.OilFilterCraftLevel
+{
+	type = integer, min = 1, max = 10, default = 3,
+	page = SimpleSuppressors, translation = SimpleSuppressors_OilFilterCraftLevel,
+}
+option SimpleSuppressors.AdapterCraftLevel
+{
+	type = integer, min = 1, max = 10, default = 2,
+	page = SimpleSuppressors, translation = SimpleSuppressors_AdapterCraftLevel,
+}
+option SimpleSuppressors.Machined9mmCraftLevel
+{
+	type = integer, min = 1, max = 10, default = 5,
+	page = SimpleSuppressors, translation = SimpleSuppressors_Machined9mmCraftLevel,
+}
+option SimpleSuppressors.Machined45ACPCraftLevel
+{
+	type = integer, min = 1, max = 10, default = 5,
+	page = SimpleSuppressors, translation = SimpleSuppressors_Machined45ACPCraftLevel,
+}
+option SimpleSuppressors.Machined44CraftLevel
+{
+	type = integer, min = 1, max = 10, default = 5,
+	page = SimpleSuppressors, translation = SimpleSuppressors_Machined44CraftLevel,
+}
+option SimpleSuppressors.Machined357CraftLevel
+{
+	type = integer, min = 1, max = 10, default = 6,
+	page = SimpleSuppressors, translation = SimpleSuppressors_Machined357CraftLevel,
+}
+option SimpleSuppressors.Machined3030CraftLevel
+{
+	type = integer, min = 1, max = 10, default = 6,
+	page = SimpleSuppressors, translation = SimpleSuppressors_Machined3030CraftLevel,
+}
+option SimpleSuppressors.Machined556CraftLevel
+{
+	type = integer, min = 1, max = 10, default = 7,
+	page = SimpleSuppressors, translation = SimpleSuppressors_Machined556CraftLevel,
+}
+option SimpleSuppressors.Machined308CraftLevel
+{
+	type = integer, min = 1, max = 10, default = 7,
+	page = SimpleSuppressors, translation = SimpleSuppressors_Machined308CraftLevel,
+}
+option SimpleSuppressors.Machined12GaugeCraftLevel
+{
+	type = integer, min = 1, max = 10, default = 8,
+	page = SimpleSuppressors, translation = SimpleSuppressors_Machined12GaugeCraftLevel,
+}
+
+option SimpleSuppressors.EnableVehicleOil
+{
+	type = boolean, default = true,
+	page = SimpleSuppressors, translation = SimpleSuppressors_EnableVehicleOil,
+}
+option SimpleSuppressors.VehicleOilSeverity
+{
+	type = enum, default = 2, numValues = 3,
+	page = SimpleSuppressors, translation = SimpleSuppressors_VehicleOilSeverity,
+}
+option SimpleSuppressors.DevStartingKit
+{
+	type = boolean, default = false,
+	page = SimpleSuppressors, translation = SimpleSuppressors_DevStartingKit,
+}
+option SimpleSuppressors.Debug
+{
+	type = boolean, default = false,
+	page = SimpleSuppressors, translation = SimpleSuppressors_Debug,
+}

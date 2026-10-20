@@ -1,0 +1,333 @@
+module SimpleSuppressors
+{
+	model Suppressor_12Gauge_r134    {
+        mesh = suppressors/Suppressor_12Gauge,
+        texture = SimpleSuppressorGunmetal,
+        cullFace = None,
+        scale = 0.005,
+        attachment canon { offset = 0 0 0, rotate = 0 0 0, scale = 1.0, }
+        attachment world { offset = 0 0.15875 0, rotate = 0 0 0, }
+    }
+	model Suppressor_556_r134    {
+        mesh = suppressors/Suppressor_556,
+        texture = SimpleSuppressorGunmetal,
+        cullFace = None,
+        scale = 0.01,
+        attachment canon { offset = 0 0 0, rotate = 0 0 0, scale = 1.0, }
+        attachment world { offset = 0 0.0813 0, rotate = 0 0 0, }
+    }
+	model Suppressor_9mm_r134    {
+        mesh = suppressors/Suppressor_9mm,
+        texture = SimpleSuppressorGunmetal,
+        cullFace = None,
+        scale = 0.01,
+		attachment canon { offset = 0 0 0, rotate = 0 0 0, scale = 1.0, }
+        attachment world { offset = 0 0.0579 0, rotate = 0 0 0, }
+    }
+	model Suppressor_9mm_Pistol_r134    {
+        mesh = suppressors/Suppressor_9mm,
+        texture = SimpleSuppressorGunmetal,
+        cullFace = None,
+        scale = 0.01,
+		/* Pistol-only clone.  SMGs retain the full 9 mm profile above. */
+		attachment canon { offset = 0 0 0, rotate = 0 0 0, scale = 0.8, }
+        attachment world { offset = 0 0.0579 0, rotate = 0 0 0, }
+    }
+	model Suppressor_45ACP_r134    {
+        mesh = suppressors/Suppressor_45ACP,
+        texture = SimpleSuppressorGunmetal,
+        cullFace = None,
+        scale = 0.01,
+        attachment canon { offset = 0 0 0, rotate = 0 0 0, scale = 1.0, }
+        attachment world { offset = 0 0.1092 0, rotate = 0 0 0, }
+    }
+	model Suppressor_45ACP_Pistol_r134    {
+        mesh = suppressors/Suppressor_45ACP,
+        texture = SimpleSuppressorGunmetal,
+        cullFace = None,
+        scale = 0.01,
+		/* The .45 mesh is longer than the 9mm mesh.  This is the pistol-only
+		   variant; the carbine model intentionally keeps its full scale. */
+		attachment canon { offset = 0 0 0, rotate = 0 0 0, scale = 0.6, }
+        attachment world { offset = 0 0.1092 0, rotate = 0 0 0, }
+    }
+	model Suppressor_44_r134    {
+        mesh = suppressors/Suppressor_44,
+        texture = SimpleSuppressorGunmetal,
+        cullFace = None,
+        scale = 0.0066,
+        attachment canon { offset = 0 0 0, rotate = 0 0 0, scale = 1.0, }
+        attachment world { offset = 0 0.1092 0, rotate = 0 0 0, }
+    }
+	model Suppressor_308_r134    {
+        mesh = suppressors/Suppressor_308,
+        texture = SimpleSuppressorGunmetal,
+        cullFace = None,
+        scale = 0.01,
+        attachment canon { offset = 0 0 0, rotate = 0 0 0, scale = 1.0, }
+        attachment world { offset = 0 0.0813 0, rotate = 0 0 0, }
+    }
+	model Suppressor_3030_r134    {
+        mesh = suppressors/Suppressor_308,
+        texture = SimpleSuppressorGunmetal,
+        cullFace = None,
+        scale = 0.01,
+        attachment canon { offset = 0 0 0, rotate = 0 0 0, scale = 1.0, }
+        attachment world { offset = 0 0.0813 0, rotate = 0 0 0, }
+    }
+	model Suppressor_357_r134    {
+        mesh = suppressors/Suppressor_357,
+        texture = SimpleSuppressorGunmetal,
+        cullFace = None,
+        scale = 0.01,
+        attachment canon { offset = 0 0 0, rotate = 0 0 0, scale = 1.0, }
+        attachment world { offset = 0 0.1 0, rotate = 0 0 0, }
+    }
+	model Adapter_Shotgun
+    {
+        mesh = suppressors/Adapter_Shotgun,
+        texture = SimpleSuppressorMachinedSteel,
+        cullFace = None,
+        scale = 0.01,
+        attachment world { offset = 0 0 0, rotate = 0 0 0, }
+    }
+	model Adapter_556
+    {
+        mesh = suppressors/Adapter_556,
+        texture = SimpleSuppressorMachinedSteel,
+        cullFace = None,
+        scale = 0.01,
+        attachment world { offset = 0 0 0, rotate = 0 0 0, }
+    }
+	model Adapter_9mm
+    {
+        mesh = suppressors/Adapter_9mm,
+        texture = SimpleSuppressorMachinedSteel,
+        cullFace = None,
+        scale = 0.01,
+        attachment world { offset = 0 0 0, rotate = 0 0 0, }
+    }
+	model Adapter_45ACP
+    {
+        mesh = suppressors/Adapter_45ACP,
+        texture = SimpleSuppressorMachinedSteel,
+        cullFace = None,
+        scale = 0.01,
+        attachment world { offset = 0 0 0, rotate = 0 0 0, }
+    }
+	model Adapter_44
+    {
+        mesh = suppressors/Adapter_44,
+        texture = SimpleSuppressorMachinedSteel,
+        cullFace = None,
+        scale = 0.01,
+        attachment world { offset = 0 0 0, rotate = 0 0 0, }
+    }
+	model Adapter_308
+    {
+        mesh = suppressors/Adapter_308,
+        texture = SimpleSuppressorMachinedSteel,
+        cullFace = None,
+        scale = 0.01,
+        attachment world { offset = 0 0 0, rotate = 0 0 0, }
+    }
+	model Adapter_357
+    {
+        mesh = suppressors/Adapter_357,
+        texture = SimpleSuppressorMachinedSteel,
+        cullFace = None,
+        scale = 0.01,
+        attachment world { offset = 0 0 0, rotate = 0 0 0, }
+    }
+	model Baffle
+    {
+        mesh = suppressors/Baffle,
+        texture = SimpleSuppressorMachinedSteel,
+        cullFace = None,
+        scale = 0.01,
+        attachment world { offset = 0 0 0, rotate = 0 0 0, }
+    }
+	model BaffleStack
+    {
+        mesh = suppressors/BaffleStack,
+        texture = SimpleSuppressorMachinedSteel,
+        cullFace = None,
+        scale = 0.01,
+        attachment world { offset = 0 0 0, rotate = 0 0 0, }
+    }
+	model ScavengedOilFilter
+    {
+        mesh = suppressors/ScavengedOilFilter,
+        texture = SimpleSuppressorOilFilter,
+        cullFace = None,
+        scale = 0.01,
+        attachment world { offset = 0 0 0, rotate = 0 0 0, }
+    }
+	model WorldScavengedOilFilter
+    {
+        mesh = suppressors/ScavengedOilFilter_Ground,
+        texture = SimpleSuppressorOilFilter,
+        cullFace = None,
+        scale = 0.01,
+        static = true,
+    }
+	model WorldOilFilterSuppressor_r134    {
+        mesh = suppressors/ScavengedOilFilter_Ground,
+        texture = SimpleSuppressorOilFilter,
+        cullFace = None,
+        scale = 0.01,
+        static = true,
+    }
+	model OilFilterSuppressor_r134    {
+        mesh = suppressors/ScavengedOilFilter,
+        texture = SimpleSuppressorOilFilter,
+        cullFace = None,
+        scale = 0.01,
+        attachment canon { offset = 0 0 0, rotate = 0 0 0, scale = 1.0, zoffset = 0.0300, }
+        attachment world { offset = 0 0.0324 0, rotate = 0 0 0, }
+    }
+	model OilFilterSuppressor_9mm_Pistol_r134    {
+        mesh = suppressors/ScavengedOilFilter,
+        texture = SimpleSuppressorOilFilter,
+        cullFace = None,
+        scale = 0.01,
+		attachment canon { offset = 0 0 0, rotate = 0 0 0, scale = 0.8, zoffset = 0.0300, }
+        attachment world { offset = 0 0.0324 0, rotate = 0 0 0, }
+    }
+	model OilFilterSuppressor_45ACP_Pistol_r134    {
+        mesh = suppressors/ScavengedOilFilter,
+        texture = SimpleSuppressorOilFilter,
+        cullFace = None,
+        scale = 0.01,
+		attachment canon { offset = 0 0 0, rotate = 0 0 0, scale = 0.6, zoffset = 0.0300, }
+        attachment world { offset = 0 0.0324 0, rotate = 0 0 0, }
+    }
+	model WorldSuppressor_12Gauge_r134    {
+        mesh = suppressors/Suppressor_12Gauge_Ground,
+        texture = SimpleSuppressorGunmetal,
+        cullFace = None,
+        scale = 0.005,
+        static = true,
+    }
+	model WorldSuppressor_556_r134    {
+        mesh = suppressors/Suppressor_556_Ground,
+        texture = SimpleSuppressorGunmetal,
+        cullFace = None,
+        scale = 0.01,
+        static = true,
+    }
+	model WorldSuppressor_9mm_r134    {
+        mesh = suppressors/Suppressor_9mm_Ground,
+        texture = SimpleSuppressorGunmetal,
+        cullFace = None,
+        scale = 0.01,
+        static = true,
+    }
+	model WorldSuppressor_45ACP_r134    {
+        mesh = suppressors/Suppressor_45ACP_Ground,
+        texture = SimpleSuppressorGunmetal,
+        cullFace = None,
+        scale = 0.01,
+        static = true,
+    }
+	model WorldSuppressor_308_r134    {
+        mesh = suppressors/Suppressor_308_Ground,
+        texture = SimpleSuppressorGunmetal,
+        cullFace = None,
+        scale = 0.01,
+        static = true,
+    }
+	model WorldSuppressor_3030_r134    {
+        mesh = suppressors/Suppressor_308_Ground,
+        texture = SimpleSuppressorGunmetal,
+        cullFace = None,
+        scale = 0.01,
+        static = true,
+    }
+	model WorldSuppressor_357_r134    {
+        mesh = suppressors/Suppressor_357_Ground,
+        texture = SimpleSuppressorGunmetal,
+        cullFace = None,
+        scale = 0.01,
+        static = true,
+    }
+	model WorldSuppressor_44_r134    {
+        mesh = suppressors/Suppressor_44_Ground,
+        texture = SimpleSuppressorGunmetal,
+        cullFace = None,
+        scale = 0.0066,
+        static = true,
+    }
+	model WorldAdapter_Shotgun
+    {
+        mesh = suppressors/Adapter_Shotgun_Ground,
+        texture = SimpleSuppressorMachinedSteel,
+        cullFace = None,
+        scale = 0.01,
+        static = true,
+    }
+	model WorldAdapter_556
+    {
+        mesh = suppressors/Adapter_556_Ground,
+        texture = SimpleSuppressorMachinedSteel,
+        cullFace = None,
+        scale = 0.01,
+        static = true,
+    }
+	model WorldAdapter_9mm
+    {
+        mesh = suppressors/Adapter_9mm_Ground,
+        texture = SimpleSuppressorMachinedSteel,
+        cullFace = None,
+        scale = 0.01,
+        static = true,
+    }
+	model WorldAdapter_45ACP
+    {
+        mesh = suppressors/Adapter_45ACP_Ground,
+        texture = SimpleSuppressorMachinedSteel,
+        cullFace = None,
+        scale = 0.01,
+        static = true,
+    }
+	model WorldAdapter_44
+    {
+        mesh = suppressors/Adapter_44_Ground,
+        texture = SimpleSuppressorMachinedSteel,
+        cullFace = None,
+        scale = 0.01,
+        static = true,
+    }
+	model WorldAdapter_308
+    {
+        mesh = suppressors/Adapter_308_Ground,
+        texture = SimpleSuppressorMachinedSteel,
+        cullFace = None,
+        scale = 0.01,
+        static = true,
+    }
+	model WorldAdapter_357
+    {
+        mesh = suppressors/Adapter_357_Ground,
+        texture = SimpleSuppressorMachinedSteel,
+        cullFace = None,
+        scale = 0.01,
+        static = true,
+    }
+	model WorldBaffle
+    {
+        mesh = suppressors/Baffle_Ground,
+        texture = SimpleSuppressorMachinedSteel,
+        cullFace = None,
+        scale = 0.01,
+        static = true,
+    }
+	model WorldBaffleStack
+    {
+        mesh = suppressors/BaffleStack_Ground,
+        texture = SimpleSuppressorMachinedSteel,
+        cullFace = None,
+        scale = 0.01,
+        static = true,
+    }
+}

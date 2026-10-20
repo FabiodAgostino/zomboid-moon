@@ -1,0 +1,194 @@
+module Base
+{
+	sound SimpleSuppressors_Suppressed9mm
+	{
+		category = Item,
+		maxInstancesPerEmitter = 2,
+		clip
+		{
+			file = media/sound/simple-suppressors/suppressed-9mm.wav,
+			volume = 1.0,
+			distanceMax = 400,
+		}
+	}
+
+	sound SimpleSuppressors_Suppressed9mmFullAuto
+	{
+		category = Item,
+		maxInstancesPerEmitter = 4,
+		clip
+		{
+			file = media/sound/simple-suppressors/suppressed-9mm.wav,
+			volume = 1.0,
+			distanceMax = 400,
+		}
+	}
+
+	sound SimpleSuppressors_Suppressed45ACP
+	{
+		category = Item,
+		maxInstancesPerEmitter = 2,
+		clip
+		{
+			file = media/sound/simple-suppressors/suppressed-45acp.wav,
+			volume = 1.0,
+			distanceMax = 400,
+		}
+	}
+
+	sound SimpleSuppressors_Suppressed45ACPFullAuto
+	{
+		category = Item,
+		maxInstancesPerEmitter = 4,
+		clip
+		{
+			file = media/sound/simple-suppressors/suppressed-45acp.wav,
+			volume = 1.0,
+			distanceMax = 400,
+		}
+	}
+
+	sound SimpleSuppressors_Suppressed44
+	{
+		category = Item,
+		maxInstancesPerEmitter = 2,
+		clip
+		{
+			file = media/sound/simple-suppressors/suppressed-44.wav,
+			volume = 1.0,
+			distanceMax = 400,
+		}
+	}
+
+	sound SimpleSuppressors_Suppressed44FullAuto
+	{
+		category = Item,
+		maxInstancesPerEmitter = 4,
+		clip
+		{
+			file = media/sound/simple-suppressors/suppressed-44.wav,
+			volume = 1.0,
+			distanceMax = 400,
+		}
+	}
+
+	sound SimpleSuppressors_Suppressed357
+	{
+		category = Item,
+		maxInstancesPerEmitter = 2,
+		clip
+		{
+			file = media/sound/simple-suppressors/suppressed-357.wav,
+			volume = 1.0,
+			distanceMax = 400,
+		}
+	}
+
+	sound SimpleSuppressors_Suppressed357FullAuto
+	{
+		category = Item,
+		maxInstancesPerEmitter = 4,
+		clip
+		{
+			file = media/sound/simple-suppressors/suppressed-357.wav,
+			volume = 1.0,
+			distanceMax = 400,
+		}
+	}
+
+	sound SimpleSuppressors_Suppressed556
+	{
+		category = Item,
+		maxInstancesPerEmitter = 2,
+		clip
+		{
+			file = media/sound/simple-suppressors/suppressed-556.wav,
+			volume = 1.0,
+			distanceMax = 400,
+		}
+	}
+
+	sound SimpleSuppressors_Suppressed556FullAuto
+	{
+		category = Item,
+		maxInstancesPerEmitter = 4,
+		clip
+		{
+			file = media/sound/simple-suppressors/suppressed-556.wav,
+			volume = 1.0,
+			distanceMax = 400,
+		}
+	}
+
+	sound SimpleSuppressors_Suppressed308
+	{
+		category = Item,
+		maxInstancesPerEmitter = 2,
+		clip
+		{
+			file = media/sound/simple-suppressors/suppressed-308.wav,
+			volume = 1.0,
+			distanceMax = 400,
+		}
+	}
+
+	sound SimpleSuppressors_Suppressed308FullAuto
+	{
+		category = Item,
+		maxInstancesPerEmitter = 4,
+		clip
+		{
+			file = media/sound/simple-suppressors/suppressed-308.wav,
+			volume = 1.0,
+			distanceMax = 400,
+		}
+	}
+
+	sound SimpleSuppressors_Suppressed3030
+	{
+		category = Item,
+		maxInstancesPerEmitter = 2,
+		clip
+		{
+			file = media/sound/simple-suppressors/suppressed-3030.wav,
+			volume = 1.0,
+			distanceMax = 400,
+		}
+	}
+
+	sound SimpleSuppressors_Suppressed3030FullAuto
+	{
+		category = Item,
+		maxInstancesPerEmitter = 4,
+		clip
+		{
+			file = media/sound/simple-suppressors/suppressed-3030.wav,
+			volume = 1.0,
+			distanceMax = 400,
+		}
+	}
+
+	sound SimpleSuppressors_SuppressedShotgun
+	{
+		category = Item,
+		maxInstancesPerEmitter = 2,
+		clip
+		{
+			file = media/sound/simple-suppressors/suppressed-shotgun.wav,
+			volume = 1.0,
+			distanceMax = 400,
+		}
+	}
+
+	sound SimpleSuppressors_SuppressedShotgunFullAuto
+	{
+		category = Item,
+		maxInstancesPerEmitter = 4,
+		clip
+		{
+			file = media/sound/simple-suppressors/suppressed-shotgun.wav,
+			volume = 1.0,
+			distanceMax = 400,
+		}
+	}
+}

@@ -1,0 +1,494 @@
+module SimpleSuppressors
+{
+	item Suppressor_12Gauge
+	{
+		DisplayCategory = WeaponPart,
+		ItemType = base:weaponpart,
+		primaryAnimMask = HoldingTorchRight,
+		secondaryAnimMask = HoldingTorchLeft,
+		Icon = SS_Suppressor_12Gauge,
+		StaticModel = Suppressor_12Gauge_r134,
+		WorldStaticModel = WorldSuppressor_12Gauge_r134,
+		Weight = 1.0,
+		WeightModifier = 1.0,
+		ConditionMax = 100,
+		Tags = base:hasmetal;base:showcondition,
+		MountOn = Base.Shotgun;Base.JS3T_Shotgun,
+		PartType = Suppressor,
+		Tooltip = Tooltip_SimpleSuppressors_MachinedSuppressor,
+		MetalValue = 20.0,
+		CanAttach = SimpleSuppressorsCompatibility.canAttach,
+		CanDetach = ItemCodeOnTest.hasScrewdriver,
+		OnCreate = SimpleSuppressorsCompatibility.onCreate,
+	}
+
+	item Suppressor_556
+	{
+		DisplayCategory = WeaponPart,
+		ItemType = base:weaponpart,
+		primaryAnimMask = HoldingTorchRight,
+		secondaryAnimMask = HoldingTorchLeft,
+		Icon = SS_Suppressor_556,
+		StaticModel = Suppressor_556_r134,
+		WorldStaticModel = WorldSuppressor_556_r134,
+		Weight = 0.9,
+		WeightModifier = 0.9,
+		ConditionMax = 100,
+		Tags = base:hasmetal;base:showcondition,
+		MountOn = Base.AssaultRifle;Base.VarmintRifle;Base.JS14_Rifle,
+		PartType = Suppressor,
+		Tooltip = Tooltip_SimpleSuppressors_MachinedSuppressor,
+		MetalValue = 18.0,
+		CanAttach = SimpleSuppressorsCompatibility.canAttach,
+		CanDetach = ItemCodeOnTest.hasScrewdriver,
+		OnCreate = SimpleSuppressorsCompatibility.onCreate,
+	}
+
+	item Suppressor_9mm
+	{
+		DisplayCategory = WeaponPart,
+		ItemType = base:weaponpart,
+		primaryAnimMask = HoldingTorchRight,
+		secondaryAnimMask = HoldingTorchLeft,
+		Icon = SS_Suppressor_9mm,
+		StaticModel = Suppressor_9mm_r134,
+		WorldStaticModel = WorldSuppressor_9mm_r134,
+		Weight = 0.9,
+		WeightModifier = 0.9,
+		ConditionMax = 100,
+		Tags = base:hasmetal;base:showcondition,
+		MountOn = Base.Pistol,
+		PartType = Suppressor,
+		Tooltip = Tooltip_SimpleSuppressors_MachinedSuppressor,
+		MetalValue = 18.0,
+		CanAttach = SimpleSuppressorsCompatibility.canAttach,
+		CanDetach = ItemCodeOnTest.hasScrewdriver,
+		OnCreate = SimpleSuppressorsCompatibility.onCreate,
+	}
+
+	item Suppressor_45ACP
+	{
+		DisplayCategory = WeaponPart,
+		ItemType = base:weaponpart,
+		primaryAnimMask = HoldingTorchRight,
+		secondaryAnimMask = HoldingTorchLeft,
+		Icon = SS_Suppressor_45ACP,
+		StaticModel = Suppressor_45ACP_r134,
+		WorldStaticModel = WorldSuppressor_45ACP_r134,
+		Weight = 0.9,
+		WeightModifier = 0.9,
+		ConditionMax = 100,
+		Tags = base:hasmetal;base:showcondition,
+		MountOn = Base.Pistol2;Base.TrapperCarbine,
+		PartType = Suppressor,
+		Tooltip = Tooltip_SimpleSuppressors_MachinedSuppressor,
+		MetalValue = 18.0,
+		CanAttach = SimpleSuppressorsCompatibility.canAttach,
+		CanDetach = ItemCodeOnTest.hasScrewdriver,
+		OnCreate = SimpleSuppressorsCompatibility.onCreate,
+	}
+
+	item Suppressor_308
+	{
+		DisplayCategory = WeaponPart,
+		ItemType = base:weaponpart,
+		primaryAnimMask = HoldingTorchRight,
+		secondaryAnimMask = HoldingTorchLeft,
+		Icon = SS_Suppressor_308,
+		StaticModel = Suppressor_308_r134,
+		WorldStaticModel = WorldSuppressor_308_r134,
+		Weight = 0.9,
+		WeightModifier = 0.9,
+		ConditionMax = 100,
+		Tags = base:hasmetal;base:showcondition,
+		MountOn = Base.AssaultRifle2;Base.HuntingRifle;Base.MSR7T_Rifle,
+		PartType = Suppressor,
+		Tooltip = Tooltip_SimpleSuppressors_MachinedSuppressor,
+		MetalValue = 18.0,
+		CanAttach = SimpleSuppressorsCompatibility.canAttach,
+		CanDetach = ItemCodeOnTest.hasScrewdriver,
+		OnCreate = SimpleSuppressorsCompatibility.onCreate,
+	}
+
+	/* .30-30 lever-action (Base.L94_Rifle). Uses its own cloned .30-caliber
+	   suppressor model and dedicated mounting hardware. */
+	item Suppressor_3030
+	{
+		DisplayCategory = WeaponPart,
+		ItemType = base:weaponpart,
+		primaryAnimMask = HoldingTorchRight,
+		secondaryAnimMask = HoldingTorchLeft,
+		Icon = SS_Suppressor_308,
+		StaticModel = Suppressor_3030_r134,
+		WorldStaticModel = WorldSuppressor_3030_r134,
+		Weight = 0.9,
+		WeightModifier = 0.9,
+		ConditionMax = 100,
+		Tags = base:hasmetal;base:showcondition,
+		MountOn = Base.L94_Rifle,
+		PartType = Suppressor,
+		Tooltip = Tooltip_SimpleSuppressors_MachinedSuppressor,
+		MetalValue = 18.0,
+		CanAttach = SimpleSuppressorsCompatibility.canAttach,
+		CanDetach = ItemCodeOnTest.hasScrewdriver,
+		OnCreate = SimpleSuppressorsCompatibility.onCreate,
+	}
+
+	item Suppressor_357
+	{
+		DisplayCategory = WeaponPart,
+		ItemType = base:weaponpart,
+		primaryAnimMask = HoldingTorchRight,
+		secondaryAnimMask = HoldingTorchLeft,
+		Icon = SS_Suppressor_357,
+		StaticModel = Suppressor_357_r134,
+		WorldStaticModel = WorldSuppressor_357_r134,
+		Weight = 0.9,
+		WeightModifier = 0.9,
+		ConditionMax = 100,
+		Tags = base:hasmetal;base:showcondition,
+		MountOn = Base.L92_Carbine,
+		PartType = Suppressor,
+		Tooltip = Tooltip_SimpleSuppressors_MachinedSuppressor,
+		MetalValue = 18.0,
+		CanAttach = SimpleSuppressorsCompatibility.canAttach,
+		CanDetach = ItemCodeOnTest.hasScrewdriver,
+		OnCreate = SimpleSuppressorsCompatibility.onCreate,
+	}
+
+	/* .44 Magnum (Base.Pistol3, the Desert Eagle) has its own dedicated
+	   suppressor and mounting hardware. */
+	item Suppressor_44
+	{
+		DisplayCategory = WeaponPart,
+		ItemType = base:weaponpart,
+		primaryAnimMask = HoldingTorchRight,
+		secondaryAnimMask = HoldingTorchLeft,
+		Icon = SS_Suppressor_44,
+		StaticModel = Suppressor_44_r134,
+		WorldStaticModel = WorldSuppressor_44_r134,
+		Weight = 0.9,
+		WeightModifier = 0.9,
+		ConditionMax = 100,
+		Tags = base:hasmetal;base:showcondition,
+		MountOn = Base.Pistol3,
+		PartType = Suppressor,
+		Tooltip = Tooltip_SimpleSuppressors_MachinedSuppressor,
+		MetalValue = 18.0,
+		CanAttach = SimpleSuppressorsCompatibility.canAttach,
+		CanDetach = ItemCodeOnTest.hasScrewdriver,
+		OnCreate = SimpleSuppressorsCompatibility.onCreate,
+	}
+
+	item Adapter_Shotgun
+	{
+		DisplayCategory = WeaponPart,
+		ItemType = base:normal,
+		Icon = SS_Adapter_Shotgun,
+		StaticModel = Adapter_Shotgun,
+		WorldStaticModel = WorldAdapter_Shotgun,
+		Weight = 0.2,
+		Tooltip = Tooltip_SimpleSuppressors_Adapter_Shotgun,
+	}
+
+	item Adapter_556
+	{
+		DisplayCategory = WeaponPart,
+		ItemType = base:normal,
+		Icon = SS_Adapter_556,
+		StaticModel = Adapter_556,
+		WorldStaticModel = WorldAdapter_556,
+		Weight = 0.2,
+		Tooltip = Tooltip_SimpleSuppressors_Adapter_556,
+	}
+
+	item Adapter_9mm
+	{
+		DisplayCategory = WeaponPart,
+		ItemType = base:normal,
+		Icon = SS_Adapter_9mm,
+		StaticModel = Adapter_9mm,
+		WorldStaticModel = WorldAdapter_9mm,
+		Weight = 0.2,
+		Tooltip = Tooltip_SimpleSuppressors_Adapter_9mm,
+	}
+
+	item Adapter_45ACP
+	{
+		DisplayCategory = WeaponPart,
+		ItemType = base:normal,
+		Icon = SS_Adapter_45ACP,
+		StaticModel = Adapter_45ACP,
+		WorldStaticModel = WorldAdapter_45ACP,
+		Weight = 0.2,
+		Tooltip = Tooltip_SimpleSuppressors_Adapter_45ACP,
+	}
+
+	item Adapter_44
+	{
+		DisplayCategory = WeaponPart,
+		ItemType = base:normal,
+		Icon = SS_Adapter_44,
+		StaticModel = Adapter_44,
+		WorldStaticModel = WorldAdapter_44,
+		Weight = 0.2,
+		Tooltip = Tooltip_SimpleSuppressors_Adapter_44,
+	}
+
+	item Adapter_308
+	{
+		DisplayCategory = WeaponPart,
+		ItemType = base:normal,
+		Icon = SS_Adapter_308,
+		StaticModel = Adapter_308,
+		WorldStaticModel = WorldAdapter_308,
+		Weight = 0.2,
+		Tooltip = Tooltip_SimpleSuppressors_Adapter_308,
+	}
+
+	item Adapter_3030
+	{
+		DisplayCategory = WeaponPart,
+		ItemType = base:normal,
+		Icon = SS_Adapter_3030,
+		StaticModel = Adapter_308,
+		WorldStaticModel = WorldAdapter_308,
+		Weight = 0.2,
+		Tooltip = Tooltip_SimpleSuppressors_Adapter_3030,
+	}
+
+	item Adapter_357
+	{
+		DisplayCategory = WeaponPart,
+		ItemType = base:normal,
+		Icon = SS_Adapter_357,
+		StaticModel = Adapter_357,
+		WorldStaticModel = WorldAdapter_357,
+		Weight = 0.2,
+		Tooltip = Tooltip_SimpleSuppressors_Adapter_357,
+	}
+
+	item ScavengedOilFilter
+	{
+		DisplayCategory = VehicleMaintenance,
+		ItemType = base:normal,
+		Icon = SS_ScavengedOilFilter,
+		StaticModel = ScavengedOilFilter,
+		WorldStaticModel = WorldScavengedOilFilter,
+		Weight = 0.5,
+		Tooltip = Tooltip_SimpleSuppressors_ScavengedOilFilter,
+	}
+
+	item Baffle
+	{
+		DisplayCategory = WeaponPart,
+		ItemType = base:normal,
+		Icon = SS_Baffle,
+		WorldStaticModel = WorldBaffle,
+		Weight = 0.1,
+		Tooltip = Tooltip_SimpleSuppressors_Baffle,
+	}
+
+	item BaffleStack
+	{
+		DisplayCategory = WeaponPart,
+		ItemType = base:normal,
+		Icon = SS_BaffleStack,
+		WorldStaticModel = WorldBaffleStack,
+		Weight = 0.6,
+		Tooltip = Tooltip_SimpleSuppressors_BaffleStack,
+	}
+
+	item SuppressorManual
+	{
+		DisplayName = Improvised Suppressors Manual,
+		DisplayCategory = RecipeResource,
+		ItemType = base:literature,
+		Weight = 0.3,
+		Icon = Magazine_Outdoors1,
+		BoredomChange = -20,
+		StressChange = -15,
+		StaticModel = Magazine,
+		WorldStaticModel = TailoringMag7,
+		Tags = base:magazine,
+		LearnedRecipes = MakeAdapterShotgun;MakeAdapter556;MakeAdapter9mm;MakeAdapter45ACP;MakeAdapter44;MakeAdapter308;MakeAdapter3030;MakeAdapter357;MakeSuppressor12Gauge;MakeSuppressor556;MakeSuppressor9mm;MakeSuppressor45ACP;MakeSuppressor308;MakeSuppressor3030;MakeSuppressor357;MakeSuppressor44;MakeOilFilterSuppressor12Gauge;MakeOilFilterSuppressor556;MakeOilFilterSuppressor9mm;MakeOilFilterSuppressor45ACP;MakeOilFilterSuppressor308;MakeOilFilterSuppressor3030;MakeOilFilterSuppressor357;MakeOilFilterSuppressor44,
+		OnCreate = ItemCodeOnCreate.onCreateRecipeMagazine,
+	}
+
+	item Suppressor_OilFilter_12Gauge
+	{
+		DisplayCategory = WeaponPart,
+		ItemType = base:weaponpart,
+		primaryAnimMask = HoldingTorchRight,
+		secondaryAnimMask = HoldingTorchLeft,
+		Icon = SS_ScavengedOilFilter,
+		StaticModel = OilFilterSuppressor_r134,
+		WorldStaticModel = WorldOilFilterSuppressor_r134,
+		Weight = 0.6,
+		WeightModifier = 0.6,
+		ConditionMax = 100,
+		Tags = base:hasmetal;base:showcondition,
+		MountOn = Base.Shotgun;Base.JS3T_Shotgun,
+		PartType = Suppressor,
+		Tooltip = Tooltip_SimpleSuppressors_OilFilterSuppressor,
+		MetalValue = 8.0,
+		CanAttach = SimpleSuppressorsCompatibility.canAttach,
+		CanDetach = ItemCodeOnTest.hasScrewdriver,
+		OnCreate = SimpleSuppressorsCompatibility.onCreate,
+	}
+
+	item Suppressor_OilFilter_556
+	{
+		DisplayCategory = WeaponPart,
+		ItemType = base:weaponpart,
+		primaryAnimMask = HoldingTorchRight,
+		secondaryAnimMask = HoldingTorchLeft,
+		Icon = SS_ScavengedOilFilter,
+		StaticModel = OilFilterSuppressor_r134,
+		WorldStaticModel = WorldOilFilterSuppressor_r134,
+		Weight = 0.6,
+		WeightModifier = 0.6,
+		ConditionMax = 100,
+		Tags = base:hasmetal;base:showcondition,
+		MountOn = Base.AssaultRifle;Base.VarmintRifle;Base.JS14_Rifle,
+		PartType = Suppressor,
+		Tooltip = Tooltip_SimpleSuppressors_OilFilterSuppressor,
+		MetalValue = 8.0,
+		CanAttach = SimpleSuppressorsCompatibility.canAttach,
+		CanDetach = ItemCodeOnTest.hasScrewdriver,
+		OnCreate = SimpleSuppressorsCompatibility.onCreate,
+	}
+
+	item Suppressor_OilFilter_9mm
+	{
+		DisplayCategory = WeaponPart,
+		ItemType = base:weaponpart,
+		primaryAnimMask = HoldingTorchRight,
+		secondaryAnimMask = HoldingTorchLeft,
+		Icon = SS_ScavengedOilFilter,
+		StaticModel = OilFilterSuppressor_r134,
+		WorldStaticModel = WorldOilFilterSuppressor_r134,
+		Weight = 0.6,
+		WeightModifier = 0.6,
+		ConditionMax = 100,
+		Tags = base:hasmetal;base:showcondition,
+		MountOn = Base.Pistol,
+		PartType = Suppressor,
+		Tooltip = Tooltip_SimpleSuppressors_OilFilterSuppressor,
+		MetalValue = 8.0,
+		CanAttach = SimpleSuppressorsCompatibility.canAttach,
+		CanDetach = ItemCodeOnTest.hasScrewdriver,
+		OnCreate = SimpleSuppressorsCompatibility.onCreate,
+	}
+
+	item Suppressor_OilFilter_45ACP
+	{
+		DisplayCategory = WeaponPart,
+		ItemType = base:weaponpart,
+		primaryAnimMask = HoldingTorchRight,
+		secondaryAnimMask = HoldingTorchLeft,
+		Icon = SS_ScavengedOilFilter,
+		StaticModel = OilFilterSuppressor_r134,
+		WorldStaticModel = WorldOilFilterSuppressor_r134,
+		Weight = 0.6,
+		WeightModifier = 0.6,
+		ConditionMax = 100,
+		Tags = base:hasmetal;base:showcondition,
+		MountOn = Base.Pistol2;Base.TrapperCarbine,
+		PartType = Suppressor,
+		Tooltip = Tooltip_SimpleSuppressors_OilFilterSuppressor,
+		MetalValue = 8.0,
+		CanAttach = SimpleSuppressorsCompatibility.canAttach,
+		CanDetach = ItemCodeOnTest.hasScrewdriver,
+		OnCreate = SimpleSuppressorsCompatibility.onCreate,
+	}
+
+	item Suppressor_OilFilter_308
+	{
+		DisplayCategory = WeaponPart,
+		ItemType = base:weaponpart,
+		primaryAnimMask = HoldingTorchRight,
+		secondaryAnimMask = HoldingTorchLeft,
+		Icon = SS_ScavengedOilFilter,
+		StaticModel = OilFilterSuppressor_r134,
+		WorldStaticModel = WorldOilFilterSuppressor_r134,
+		Weight = 0.6,
+		WeightModifier = 0.6,
+		ConditionMax = 100,
+		Tags = base:hasmetal;base:showcondition,
+		MountOn = Base.AssaultRifle2;Base.HuntingRifle;Base.MSR7T_Rifle,
+		PartType = Suppressor,
+		Tooltip = Tooltip_SimpleSuppressors_OilFilterSuppressor,
+		MetalValue = 8.0,
+		CanAttach = SimpleSuppressorsCompatibility.canAttach,
+		CanDetach = ItemCodeOnTest.hasScrewdriver,
+		OnCreate = SimpleSuppressorsCompatibility.onCreate,
+	}
+
+	item Suppressor_OilFilter_3030
+	{
+		DisplayCategory = WeaponPart,
+		ItemType = base:weaponpart,
+		primaryAnimMask = HoldingTorchRight,
+		secondaryAnimMask = HoldingTorchLeft,
+		Icon = SS_ScavengedOilFilter,
+		StaticModel = OilFilterSuppressor_r134,
+		WorldStaticModel = WorldOilFilterSuppressor_r134,
+		Weight = 0.6,
+		WeightModifier = 0.6,
+		ConditionMax = 100,
+		Tags = base:hasmetal;base:showcondition,
+		MountOn = Base.L94_Rifle,
+		PartType = Suppressor,
+		Tooltip = Tooltip_SimpleSuppressors_OilFilterSuppressor,
+		MetalValue = 8.0,
+		CanAttach = SimpleSuppressorsCompatibility.canAttach,
+		CanDetach = ItemCodeOnTest.hasScrewdriver,
+		OnCreate = SimpleSuppressorsCompatibility.onCreate,
+	}
+
+	item Suppressor_OilFilter_357
+	{
+		DisplayCategory = WeaponPart,
+		ItemType = base:weaponpart,
+		primaryAnimMask = HoldingTorchRight,
+		secondaryAnimMask = HoldingTorchLeft,
+		Icon = SS_ScavengedOilFilter,
+		StaticModel = OilFilterSuppressor_r134,
+		WorldStaticModel = WorldOilFilterSuppressor_r134,
+		Weight = 0.6,
+		WeightModifier = 0.6,
+		ConditionMax = 100,
+		Tags = base:hasmetal;base:showcondition,
+		MountOn = Base.L92_Carbine,
+		PartType = Suppressor,
+		Tooltip = Tooltip_SimpleSuppressors_OilFilterSuppressor,
+		MetalValue = 8.0,
+		CanAttach = SimpleSuppressorsCompatibility.canAttach,
+		CanDetach = ItemCodeOnTest.hasScrewdriver,
+		OnCreate = SimpleSuppressorsCompatibility.onCreate,
+	}
+
+
+	item Suppressor_OilFilter_44
+	{
+		DisplayCategory = WeaponPart,
+		ItemType = base:weaponpart,
+		primaryAnimMask = HoldingTorchRight,
+		secondaryAnimMask = HoldingTorchLeft,
+		Icon = SS_ScavengedOilFilter,
+		StaticModel = OilFilterSuppressor_r134,
+		WorldStaticModel = WorldOilFilterSuppressor_r134,
+		Weight = 0.6,
+		WeightModifier = 0.6,
+		ConditionMax = 100,
+		Tags = base:hasmetal;base:showcondition,
+		MountOn = Base.Pistol3,
+		PartType = Suppressor,
+		Tooltip = Tooltip_SimpleSuppressors_OilFilterSuppressor,
+		MetalValue = 8.0,
+		CanAttach = SimpleSuppressorsCompatibility.canAttach,
+		CanDetach = ItemCodeOnTest.hasScrewdriver,
+		OnCreate = SimpleSuppressorsCompatibility.onCreate,
+	}
+}

@@ -1,0 +1,22 @@
+{
+  "Tooltip_SimpleSuppressors_EngineOil": "Una bottiglia da 1 L di olio motore. Usa Fluido > Travasa in per versarlo in un contenitore adatto.",
+  "Tooltip_SimpleSuppressors_MachinedSuppressor": "Un silenziatore tornito per un calibro preciso. Montalo su un'arma compatibile per attutirne lo sparo.",
+  "Tooltip_SimpleSuppressors_OilFilterSuppressor": "Un silenziatore improvvisato con un filtro dell'olio, per un calibro preciso. Più leggero di uno tornito, ma dura meno e non si può riparare.",
+  "Tooltip_Recipe_SimpleSuppressorsManual": "Si impara una volta sola leggendo il Manuale dei silenziatori improvvisati: chi l'ha già letto conosce già questa ricetta. Servono anche il livello di Saldatura, gli attrezzi e i materiali indicati qui. Il manuale si trova in librerie, biblioteche, armerie, ferramenta e garage.",
+  "Tooltip_Recipe_SimpleSuppressorsRepair": "Riporta a nuovo un silenziatore tornito usurato: il silenziatore consumato entra nella ricetta ed esce riparato, per questo compare tra i materiali. I silenziatori a filtro dell'olio non si riparano.",
+  "Tooltip_SimpleSuppressors_Adapter_Shotgun": "Attacco per fucili a pompa calibro 12. Unito a un pacco di deflettori o a un filtro dell'olio diventa un silenziatore di quel calibro.",
+  "Tooltip_SimpleSuppressors_Adapter_556": "Attacco per armi calibro 5.56. Unito a un pacco di deflettori o a un filtro dell'olio diventa un silenziatore di quel calibro.",
+  "Tooltip_SimpleSuppressors_Adapter_9mm": "Attacco per armi calibro 9mm. Unito a un pacco di deflettori o a un filtro dell'olio diventa un silenziatore di quel calibro.",
+  "Tooltip_SimpleSuppressors_Adapter_45ACP": "Attacco per armi calibro .45. Unito a un pacco di deflettori o a un filtro dell'olio diventa un silenziatore di quel calibro.",
+  "Tooltip_SimpleSuppressors_Adapter_44": "Attacco per armi calibro .44. Unito a un pacco di deflettori o a un filtro dell'olio diventa un silenziatore di quel calibro.",
+  "Tooltip_SimpleSuppressors_Adapter_308": "Attacco per armi calibro .308. Unito a un pacco di deflettori o a un filtro dell'olio diventa un silenziatore di quel calibro.",
+  "Tooltip_SimpleSuppressors_Adapter_3030": "Attacco per fucili a leva calibro .30-30. Unito a un pacco di deflettori o a un filtro dell'olio diventa un silenziatore di quel calibro.",
+  "Tooltip_SimpleSuppressors_Adapter_357": "Attacco per armi calibro .357. Unito a un pacco di deflettori o a un filtro dell'olio diventa un silenziatore di quel calibro.",
+  "Tooltip_SimpleSuppressors_ScavengedOilFilter": "Un filtro dell'olio smontato da un veicolo. Serve per costruire silenziatori. Un veicolo guidato senza filtro rovina pian piano il motore.",
+  "Tooltip_SimpleSuppressors_Baffle": "Un deflettore interno da silenziatore. Saldane diversi in un pacco di deflettori, poi uniscilo a un adattatore per costruire un silenziatore.",
+  "Tooltip_SimpleSuppressors_BaffleStack": "Deflettori saldati insieme. Uniscilo all'adattatore del calibro giusto per costruire un silenziatore.",
+  "Tooltip_weapon_muzzle": "Bocca",
+  "Tooltip_weapon_Muzzle": "Bocca",
+  "Tooltip_weapon_suppressor": "Silenziatore",
+  "Tooltip_weapon_Suppressor": "Silenziatore"
+}

@@ -1,0 +1,25 @@
+module Base
+{
+    item Shotgun { ModelWeaponPart = SimpleSuppressors.Suppressor_12Gauge SimpleSuppressors.Suppressor_12Gauge_r134 canon canon, ModelWeaponPart = SimpleSuppressors.Suppressor_OilFilter_12Gauge SimpleSuppressors.OilFilterSuppressor_r134 canon canon, }
+    item JS3T_Shotgun { ModelWeaponPart = SimpleSuppressors.Suppressor_12Gauge SimpleSuppressors.Suppressor_12Gauge_r134 canon canon, ModelWeaponPart = SimpleSuppressors.Suppressor_OilFilter_12Gauge SimpleSuppressors.OilFilterSuppressor_r134 canon canon, }
+
+    /* All supported weapons use the authored suppressor socket. ShotgunSawnoff
+       is intentionally omitted. */
+    item AssaultRifle { ModelWeaponPart = SimpleSuppressors.Suppressor_556 SimpleSuppressors.Suppressor_556_r134 canon canon, ModelWeaponPart = SimpleSuppressors.Suppressor_OilFilter_556 SimpleSuppressors.OilFilterSuppressor_r134 canon canon, }
+    item VarmintRifle { ModelWeaponPart = SimpleSuppressors.Suppressor_556 SimpleSuppressors.Suppressor_556_r134 canon canon, ModelWeaponPart = SimpleSuppressors.Suppressor_OilFilter_556 SimpleSuppressors.OilFilterSuppressor_r134 canon canon, }
+    item JS14_Rifle { ModelWeaponPart = SimpleSuppressors.Suppressor_556 SimpleSuppressors.Suppressor_556_r134 canon canon, ModelWeaponPart = SimpleSuppressors.Suppressor_OilFilter_556 SimpleSuppressors.OilFilterSuppressor_r134 canon canon, }
+
+    item Pistol { ModelWeaponPart = SimpleSuppressors.Suppressor_9mm SimpleSuppressors.Suppressor_9mm_Pistol_r134 canon canon, ModelWeaponPart = SimpleSuppressors.Suppressor_OilFilter_9mm SimpleSuppressors.OilFilterSuppressor_9mm_Pistol_r134 canon canon, }
+    item Pistol2 { ModelWeaponPart = SimpleSuppressors.Suppressor_45ACP SimpleSuppressors.Suppressor_45ACP_Pistol_r134 canon canon, ModelWeaponPart = SimpleSuppressors.Suppressor_OilFilter_45ACP SimpleSuppressors.OilFilterSuppressor_45ACP_Pistol_r134 canon canon, }
+    /* Base.Pistol3 (Desert Eagle) uses .44 ammunition. Magnum is intentionally
+       excluded even though its ammunition matches. */
+    item Pistol3 { ModelWeaponPart = SimpleSuppressors.Suppressor_44 SimpleSuppressors.Suppressor_44_r134 canon canon, ModelWeaponPart = SimpleSuppressors.Suppressor_OilFilter_44 SimpleSuppressors.OilFilterSuppressor_r134 canon canon, }
+    item TrapperCarbine { ModelWeaponPart = SimpleSuppressors.Suppressor_45ACP SimpleSuppressors.Suppressor_45ACP_r134 canon canon, ModelWeaponPart = SimpleSuppressors.Suppressor_OilFilter_45ACP SimpleSuppressors.OilFilterSuppressor_r134 canon canon, }
+    item L92_Carbine { ModelWeaponPart = SimpleSuppressors.Suppressor_357 SimpleSuppressors.Suppressor_357_r134 canon canon, ModelWeaponPart = SimpleSuppressors.Suppressor_OilFilter_357 SimpleSuppressors.OilFilterSuppressor_r134 canon canon, }
+
+    item L94_Rifle { ModelWeaponPart = SimpleSuppressors.Suppressor_3030 SimpleSuppressors.Suppressor_3030_r134 canon canon, ModelWeaponPart = SimpleSuppressors.Suppressor_OilFilter_3030 SimpleSuppressors.OilFilterSuppressor_r134 canon canon, }
+    item AssaultRifle2 { ModelWeaponPart = SimpleSuppressors.Suppressor_308 SimpleSuppressors.Suppressor_308_r134 canon canon, ModelWeaponPart = SimpleSuppressors.Suppressor_OilFilter_308 SimpleSuppressors.OilFilterSuppressor_r134 canon canon, }
+    item HuntingRifle { ModelWeaponPart = SimpleSuppressors.Suppressor_308 SimpleSuppressors.Suppressor_308_r134 canon canon, ModelWeaponPart = SimpleSuppressors.Suppressor_OilFilter_308 SimpleSuppressors.OilFilterSuppressor_r134 canon canon, }
+    item MSR7T_Rifle { ModelWeaponPart = SimpleSuppressors.Suppressor_308 SimpleSuppressors.Suppressor_308_r134 canon canon, ModelWeaponPart = SimpleSuppressors.Suppressor_OilFilter_308 SimpleSuppressors.OilFilterSuppressor_r134 canon canon, }
+
+}

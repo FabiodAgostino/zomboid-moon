@@ -1,0 +1,4 @@
+# store and export every file exactly as it is (the mod's models, sounds and scripts)...
+* -text
+# ...except the installer: cmd needs Windows line endings, also in GitHub's ZIP
+*.bat text eol=crlf

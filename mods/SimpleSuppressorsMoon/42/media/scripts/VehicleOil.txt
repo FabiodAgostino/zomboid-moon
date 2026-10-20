@@ -1,0 +1,42 @@
+module SimpleSuppressors
+{
+    fluid EngineOil
+    {
+        ColorReference = Black,
+        DisplayName = Fluid_Name_SimpleSuppressors_EngineOil,
+        Categories
+        {
+            Industrial,
+            Hazardous,
+        }
+        BlendWhiteList
+        {
+            whitelist = true,
+            fluids
+            {
+                EngineOil,
+            }
+        }
+    }
+
+    item EngineOil
+    {
+        ItemType = base:normal,
+        DisplayCategory = VehicleMaintenance,
+        Weight = 1.0,
+        Icon = Petrol,
+        StaticModel = GasCan,
+        WorldStaticModel = GasCan_Ground,
+        Tooltip = Tooltip_SimpleSuppressors_EngineOil,
+        component FluidContainer
+        {
+            ContainerName = EngineOilBottle,
+            Capacity = 1.0,
+            TransferRate = 1.0,
+            Fluids
+            {
+                fluid = EngineOil:1.0,
+            }
+        }
+    }
+}

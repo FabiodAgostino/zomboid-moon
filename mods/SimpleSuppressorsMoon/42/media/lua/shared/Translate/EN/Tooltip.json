@@ -1,0 +1,22 @@
+{
+  "Tooltip_SimpleSuppressors_EngineOil": "A 1 L bottle of engine oil. Use Fluid > Transfer fluids to decant it into compatible containers.",
+  "Tooltip_SimpleSuppressors_MachinedSuppressor": "A caliber-matched machined suppressor. Install it on a compatible firearm to reduce its report.",
+  "Tooltip_SimpleSuppressors_OilFilterSuppressor": "An improvised, caliber-matched oil-filter suppressor. It is lighter and less durable than a machined suppressor.",
+  "Tooltip_Recipe_SimpleSuppressorsManual": "Learned once from the Improvised Suppressors Manual; characters who already read it keep this recipe. Also requires the Metalworking level, tools, and materials shown here. The manual can be found in bookstores, libraries, gun stores, tool stores, and garages.",
+  "Tooltip_weapon_muzzle": "Muzzle",
+  "Tooltip_weapon_Muzzle": "Muzzle",
+  "Tooltip_weapon_suppressor": "Suppressor",
+  "Tooltip_weapon_Suppressor": "Suppressor",
+  "Tooltip_SimpleSuppressors_Adapter_Shotgun": "Caliber-specific mounting hardware for a shotgun. Combine with a baffle stack or oil filter to build a matching suppressor.",
+  "Tooltip_SimpleSuppressors_Adapter_556": "Caliber-specific mounting hardware for 5.56 firearms. Combine with a baffle stack or oil filter to build a matching suppressor.",
+  "Tooltip_SimpleSuppressors_Adapter_9mm": "Caliber-specific mounting hardware for 9mm firearms. Combine with a baffle stack or oil filter to build a matching suppressor.",
+  "Tooltip_SimpleSuppressors_Adapter_45ACP": "Caliber-specific mounting hardware for .45 firearms. Combine with a baffle stack or oil filter to build a matching suppressor.",
+  "Tooltip_SimpleSuppressors_Adapter_44": "Caliber-specific mounting hardware for .44 firearms. Combine with a baffle stack or oil filter to build a matching suppressor.",
+  "Tooltip_SimpleSuppressors_Adapter_308": "Caliber-specific mounting hardware for .308 firearms. Combine with a baffle stack or oil filter to build a matching suppressor.",
+  "Tooltip_SimpleSuppressors_Adapter_3030": "Caliber-specific mounting hardware for .30-30 lever-action rifles. Combine with a baffle stack or oil filter to build a matching suppressor.",
+  "Tooltip_SimpleSuppressors_Adapter_357": "Caliber-specific mounting hardware for .357 firearms. Combine with a baffle stack or oil filter to build a matching suppressor.",
+  "Tooltip_SimpleSuppressors_ScavengedOilFilter": "A scavenged oil filter. Useful as a suppressor-crafting component. Driving a vehicle without its filter gradually damages the engine.",
+  "Tooltip_SimpleSuppressors_Baffle": "An internal suppressor baffle. Weld several together into a baffle stack then combine with an adapter to build a suppressor.",
+  "Tooltip_SimpleSuppressors_BaffleStack": "A welded stack of suppressor baffles. Combine with a caliber-matched adapter to build a suppressor.",
+  "Tooltip_Recipe_SimpleSuppressorsRepair": "Restores a worn machined suppressor to full condition: the worn suppressor goes in and comes back repaired. Oil-filter suppressors cannot be repaired."
+}

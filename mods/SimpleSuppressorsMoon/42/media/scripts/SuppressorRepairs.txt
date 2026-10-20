@@ -1,0 +1,194 @@
+module SimpleSuppressors
+{
+    craftRecipe RepairSuppressor12Gauge
+    {
+        Tooltip = Tooltip_Recipe_SimpleSuppressorsRepair,
+        time = 240,
+        Tags = InHandCraft;Welding,
+        category = Metalworking,
+        SkillRequired = MetalWelding:3,
+        timedAction = Welding,
+        AllowBatchCraft = false,
+        OnTest = RecipeCodeOnTest.simpleSuppressorRepair,
+        inputs
+        {
+            item 1 [Base.BlowTorch] mode:keep,
+            item 1 [Base.WeldingRods],
+            item 1 tags[base:weldingmask] mode:keep,
+            item 2 [Base.ScrapMetal],
+            item 1 [SimpleSuppressors.Suppressor_12Gauge] mode:destroy flags[AllowDestroyedItem;InheritFavorite;Prop2],
+        }
+        outputs
+        {
+            item 1 SimpleSuppressors.Suppressor_12Gauge,
+        }
+    }
+
+    craftRecipe RepairSuppressor556
+    {
+        Tooltip = Tooltip_Recipe_SimpleSuppressorsRepair,
+        time = 180,
+        Tags = InHandCraft;Welding,
+        category = Metalworking,
+        SkillRequired = MetalWelding:2,
+        timedAction = Welding,
+        AllowBatchCraft = false,
+        OnTest = RecipeCodeOnTest.simpleSuppressorRepair,
+        inputs
+        {
+            item 1 [Base.BlowTorch] mode:keep,
+            item 1 [Base.WeldingRods],
+            item 1 tags[base:weldingmask] mode:keep,
+            item 1 [Base.ScrapMetal],
+            item 1 [SimpleSuppressors.Suppressor_556] mode:destroy flags[AllowDestroyedItem;InheritFavorite;Prop2],
+        }
+        outputs
+        {
+            item 1 SimpleSuppressors.Suppressor_556,
+        }
+    }
+
+    craftRecipe RepairSuppressor9mm
+    {
+        Tooltip = Tooltip_Recipe_SimpleSuppressorsRepair,
+        time = 180,
+        Tags = InHandCraft;Welding,
+        category = Metalworking,
+        SkillRequired = MetalWelding:2,
+        timedAction = Welding,
+        AllowBatchCraft = false,
+        OnTest = RecipeCodeOnTest.simpleSuppressorRepair,
+        inputs
+        {
+            item 1 [Base.BlowTorch] mode:keep,
+            item 1 [Base.WeldingRods],
+            item 1 tags[base:weldingmask] mode:keep,
+            item 1 [Base.ScrapMetal],
+            item 1 [SimpleSuppressors.Suppressor_9mm] mode:destroy flags[AllowDestroyedItem;InheritFavorite;Prop2],
+        }
+        outputs
+        {
+            item 1 SimpleSuppressors.Suppressor_9mm,
+        }
+    }
+
+    craftRecipe RepairSuppressor45ACP
+    {
+        Tooltip = Tooltip_Recipe_SimpleSuppressorsRepair,
+        time = 180,
+        Tags = InHandCraft;Welding,
+        category = Metalworking,
+        SkillRequired = MetalWelding:2,
+        timedAction = Welding,
+        AllowBatchCraft = false,
+        OnTest = RecipeCodeOnTest.simpleSuppressorRepair,
+        inputs
+        {
+            item 1 [Base.BlowTorch] mode:keep,
+            item 1 [Base.WeldingRods],
+            item 1 tags[base:weldingmask] mode:keep,
+            item 1 [Base.ScrapMetal],
+            item 1 [SimpleSuppressors.Suppressor_45ACP] mode:destroy flags[AllowDestroyedItem;InheritFavorite;Prop2],
+        }
+        outputs
+        {
+            item 1 SimpleSuppressors.Suppressor_45ACP,
+        }
+    }
+
+    craftRecipe RepairSuppressor308
+    {
+        Tooltip = Tooltip_Recipe_SimpleSuppressorsRepair,
+        time = 210,
+        Tags = InHandCraft;Welding,
+        category = Metalworking,
+        SkillRequired = MetalWelding:3,
+        timedAction = Welding,
+        AllowBatchCraft = false,
+        OnTest = RecipeCodeOnTest.simpleSuppressorRepair,
+        inputs
+        {
+            item 1 [Base.BlowTorch] mode:keep,
+            item 1 [Base.WeldingRods],
+            item 1 tags[base:weldingmask] mode:keep,
+            item 2 [Base.ScrapMetal],
+            item 1 [SimpleSuppressors.Suppressor_308] mode:destroy flags[AllowDestroyedItem;InheritFavorite;Prop2],
+        }
+        outputs
+        {
+            item 1 SimpleSuppressors.Suppressor_308,
+        }
+    }
+
+    craftRecipe RepairSuppressor3030
+    {
+        Tooltip = Tooltip_Recipe_SimpleSuppressorsRepair,
+        time = 210,
+        Tags = InHandCraft;Welding,
+        category = Metalworking,
+        SkillRequired = MetalWelding:3,
+        timedAction = Welding,
+        AllowBatchCraft = false,
+        OnTest = RecipeCodeOnTest.simpleSuppressorRepair,
+        inputs
+        {
+            item 1 [Base.BlowTorch] mode:keep,
+            item 1 [Base.WeldingRods],
+            item 1 tags[base:weldingmask] mode:keep,
+            item 2 [Base.ScrapMetal],
+            item 1 [SimpleSuppressors.Suppressor_3030] mode:destroy flags[AllowDestroyedItem;InheritFavorite;Prop2],
+        }
+        outputs
+        {
+            item 1 SimpleSuppressors.Suppressor_3030,
+        }
+    }
+
+    craftRecipe RepairSuppressor357
+    {
+        Tooltip = Tooltip_Recipe_SimpleSuppressorsRepair,
+        time = 180,
+        Tags = InHandCraft;Welding,
+        category = Metalworking,
+        SkillRequired = MetalWelding:2,
+        timedAction = Welding,
+        AllowBatchCraft = false,
+        OnTest = RecipeCodeOnTest.simpleSuppressorRepair,
+        inputs
+        {
+            item 1 [Base.BlowTorch] mode:keep,
+            item 1 [Base.WeldingRods],
+            item 1 tags[base:weldingmask] mode:keep,
+            item 1 [Base.ScrapMetal],
+            item 1 [SimpleSuppressors.Suppressor_357] mode:destroy flags[AllowDestroyedItem;InheritFavorite;Prop2],
+        }
+        outputs
+        {
+            item 1 SimpleSuppressors.Suppressor_357,
+        }
+    }
+
+    craftRecipe RepairSuppressor44
+    {
+        Tooltip = Tooltip_Recipe_SimpleSuppressorsRepair,
+        time = 180,
+        Tags = InHandCraft;Welding,
+        category = Metalworking,
+        SkillRequired = MetalWelding:2,
+        timedAction = Welding,
+        AllowBatchCraft = false,
+        OnTest = RecipeCodeOnTest.simpleSuppressorRepair,
+        inputs
+        {
+            item 1 [Base.BlowTorch] mode:keep,
+            item 1 [Base.WeldingRods],
+            item 1 tags[base:weldingmask] mode:keep,
+            item 1 [Base.ScrapMetal],
+            item 1 [SimpleSuppressors.Suppressor_44] mode:destroy flags[AllowDestroyedItem;InheritFavorite;Prop2],
+        }
+        outputs
+        {
+            item 1 SimpleSuppressors.Suppressor_44,
+        }
+    }
+}

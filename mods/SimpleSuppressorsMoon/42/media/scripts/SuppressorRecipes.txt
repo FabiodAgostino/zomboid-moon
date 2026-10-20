@@ -1,0 +1,675 @@
+module SimpleSuppressors
+{
+
+	craftRecipe CutBaffleHacksaw
+	{
+		timedAction = SawSmallItemMetal,
+		time = 60,
+		category = Metalworking,
+		Tags = AnySurfaceCraft,
+		xpAward = MetalWelding:5,
+		inputs
+		{
+			item 1 [Base.SmallSheetMetal],
+			item 1 tags[base:metalsaw] mode:keep flags[Prop1;MayDegrade],
+		}
+		outputs
+		{
+			item 2 SimpleSuppressors.Baffle,
+		}
+	}
+
+	craftRecipe CutBaffleTorch
+	{
+		timedAction = Welding,
+		time = 30,
+		category = Metalworking,
+		Tags = InHandCraft;Welding,
+		xpAward = MetalWelding:5,
+		inputs
+		{
+			item 1 [Base.SmallSheetMetal],
+			item 1 [Base.BlowTorch] mode:keep,
+			item 1 tags[base:weldingmask] mode:keep,
+		}
+		outputs
+		{
+			item 3 SimpleSuppressors.Baffle,
+		}
+	}
+
+	craftRecipe WeldBaffleStack
+	{
+		timedAction = Welding,
+		time = 150,
+		category = Metalworking,
+		Tags = InHandCraft;Welding,
+		xpAward = MetalWelding:10,
+		SkillRequired = MetalWelding:3,
+		inputs
+		{
+			item 6 [SimpleSuppressors.Baffle],
+			item 1 [Base.BlowTorch] mode:keep,
+			item 1 tags[base:weldingmask] mode:keep,
+		}
+		outputs
+		{
+			item 1 SimpleSuppressors.BaffleStack,
+		}
+	}
+
+	/***** Caliber adapters: machine a threaded mount from nuts and bolts *****/
+
+	craftRecipe MakeAdapterShotgun
+	{
+		NeedToBeLearn = true,
+		Tooltip = Tooltip_Recipe_SimpleSuppressorsManual,
+		OnTest = SimpleSuppressorsRecipeOnTest.shotgun,
+		timedAction = Welding,
+		time = 80,
+		category = Metalworking,
+		Tags = InHandCraft;Welding,
+		xpAward = MetalWelding:5,
+		SkillRequired = MetalWelding:1,
+		inputs
+		{
+			item 1 [Base.NutsBolts],
+			item 1 [Base.HandDrill] mode:keep,
+			item 1 [Base.BlowTorch] mode:keep,
+			item 1 tags[base:weldingmask] mode:keep,
+		}
+		outputs
+		{
+			item 1 SimpleSuppressors.Adapter_Shotgun,
+		}
+	}
+
+	craftRecipe MakeAdapter556
+	{
+		NeedToBeLearn = true,
+		Tooltip = Tooltip_Recipe_SimpleSuppressorsManual,
+		OnTest = SimpleSuppressorsRecipeOnTest.caliber556,
+		timedAction = Welding,
+		time = 80,
+		category = Metalworking,
+		Tags = InHandCraft;Welding,
+		xpAward = MetalWelding:5,
+		SkillRequired = MetalWelding:1,
+		inputs
+		{
+			item 1 [Base.NutsBolts],
+			item 1 [Base.HandDrill] mode:keep,
+			item 1 [Base.BlowTorch] mode:keep,
+			item 1 tags[base:weldingmask] mode:keep,
+		}
+		outputs
+		{
+			item 1 SimpleSuppressors.Adapter_556,
+		}
+	}
+
+	craftRecipe MakeAdapter9mm
+	{
+		NeedToBeLearn = true,
+		Tooltip = Tooltip_Recipe_SimpleSuppressorsManual,
+		OnTest = SimpleSuppressorsRecipeOnTest.caliber9mm,
+		timedAction = Welding,
+		time = 80,
+		category = Metalworking,
+		Tags = InHandCraft;Welding,
+		xpAward = MetalWelding:5,
+		SkillRequired = MetalWelding:1,
+		inputs
+		{
+			item 1 [Base.NutsBolts],
+			item 1 [Base.HandDrill] mode:keep,
+			item 1 [Base.BlowTorch] mode:keep,
+			item 1 tags[base:weldingmask] mode:keep,
+		}
+		outputs
+		{
+			item 1 SimpleSuppressors.Adapter_9mm,
+		}
+	}
+
+	craftRecipe MakeAdapter45ACP
+	{
+		NeedToBeLearn = true,
+		Tooltip = Tooltip_Recipe_SimpleSuppressorsManual,
+		OnTest = SimpleSuppressorsRecipeOnTest.caliber45ACP,
+		timedAction = Welding,
+		time = 80,
+		category = Metalworking,
+		Tags = InHandCraft;Welding,
+		xpAward = MetalWelding:5,
+		SkillRequired = MetalWelding:1,
+		inputs
+		{
+			item 1 [Base.NutsBolts],
+			item 1 [Base.HandDrill] mode:keep,
+			item 1 [Base.BlowTorch] mode:keep,
+			item 1 tags[base:weldingmask] mode:keep,
+		}
+		outputs
+		{
+			item 1 SimpleSuppressors.Adapter_45ACP,
+		}
+	}
+
+	craftRecipe MakeAdapter308
+	{
+		NeedToBeLearn = true,
+		Tooltip = Tooltip_Recipe_SimpleSuppressorsManual,
+		OnTest = SimpleSuppressorsRecipeOnTest.caliber308,
+		timedAction = Welding,
+		time = 80,
+		category = Metalworking,
+		Tags = InHandCraft;Welding,
+		xpAward = MetalWelding:5,
+		SkillRequired = MetalWelding:1,
+		inputs
+		{
+			item 1 [Base.NutsBolts],
+			item 1 [Base.HandDrill] mode:keep,
+			item 1 [Base.BlowTorch] mode:keep,
+			item 1 tags[base:weldingmask] mode:keep,
+		}
+		outputs
+		{
+			item 1 SimpleSuppressors.Adapter_308,
+		}
+	}
+
+	craftRecipe MakeAdapter3030
+	{
+		NeedToBeLearn = true,
+		Tooltip = Tooltip_Recipe_SimpleSuppressorsManual,
+		OnTest = SimpleSuppressorsRecipeOnTest.caliber3030,
+		timedAction = Welding,
+		time = 80,
+		category = Metalworking,
+		Tags = InHandCraft;Welding,
+		xpAward = MetalWelding:5,
+		SkillRequired = MetalWelding:1,
+		inputs
+		{
+			item 1 [Base.NutsBolts],
+			item 1 [Base.HandDrill] mode:keep,
+			item 1 tags[base:weldingmask] mode:keep,
+			item 1 [Base.BlowTorch] mode:keep,
+		}
+		outputs
+		{
+			item 1 SimpleSuppressors.Adapter_3030,
+		}
+	}
+
+	craftRecipe MakeAdapter357
+	{
+		NeedToBeLearn = true,
+		Tooltip = Tooltip_Recipe_SimpleSuppressorsManual,
+		OnTest = SimpleSuppressorsRecipeOnTest.caliber357,
+		timedAction = Welding,
+		time = 80,
+		category = Metalworking,
+		Tags = InHandCraft;Welding,
+		xpAward = MetalWelding:5,
+		SkillRequired = MetalWelding:1,
+		inputs
+		{
+			item 1 [Base.NutsBolts],
+			item 1 [Base.HandDrill] mode:keep,
+			item 1 tags[base:weldingmask] mode:keep,
+			item 1 [Base.BlowTorch] mode:keep,
+		}
+		outputs
+		{
+			item 1 SimpleSuppressors.Adapter_357,
+		}
+	}
+
+	craftRecipe MakeAdapter44
+	{
+		NeedToBeLearn = true,
+		Tooltip = Tooltip_Recipe_SimpleSuppressorsManual,
+		OnTest = SimpleSuppressorsRecipeOnTest.caliber44,
+		timedAction = Welding,
+		time = 80,
+		category = Metalworking,
+		Tags = InHandCraft;Welding,
+		xpAward = MetalWelding:5,
+		SkillRequired = MetalWelding:1,
+		inputs
+		{
+			item 1 [Base.NutsBolts],
+			item 1 [Base.HandDrill] mode:keep,
+			item 1 tags[base:weldingmask] mode:keep,
+			item 1 [Base.BlowTorch] mode:keep,
+		}
+		outputs
+		{
+			item 1 SimpleSuppressors.Adapter_44,
+		}
+	}
+
+	/***** Manufactured suppressors: baffle stack + sheet-metal sleeve + caliber adapter *****/
+
+	craftRecipe MakeSuppressor12Gauge
+	{
+		NeedToBeLearn = true,
+		Tooltip = Tooltip_Recipe_SimpleSuppressorsManual,
+		OnTest = SimpleSuppressorsRecipeOnTest.shotgun,
+		timedAction = Welding,
+		time = 120,
+		category = Metalworking,
+		Tags = InHandCraft;Welding,
+		xpAward = MetalWelding:10,
+		SkillRequired = MetalWelding:2,
+		OnCreate = SimpleSuppressorsCompatibility.onCraftCreate,
+		inputs
+		{
+			item 1 [SimpleSuppressors.BaffleStack],
+			item 1 [SimpleSuppressors.Adapter_Shotgun],
+			item 1 [Base.SheetMetal],
+			item 1 [Base.BlowTorch] mode:keep,
+			item 1 tags[base:weldingmask] mode:keep,
+		}
+		outputs
+		{
+			item 1 SimpleSuppressors.Suppressor_12Gauge,
+		}
+	}
+
+	craftRecipe MakeSuppressor556
+	{
+		NeedToBeLearn = true,
+		Tooltip = Tooltip_Recipe_SimpleSuppressorsManual,
+		OnTest = SimpleSuppressorsRecipeOnTest.caliber556,
+		timedAction = Welding,
+		time = 120,
+		category = Metalworking,
+		Tags = InHandCraft;Welding,
+		xpAward = MetalWelding:10,
+		SkillRequired = MetalWelding:2,
+		OnCreate = SimpleSuppressorsCompatibility.onCraftCreate,
+		inputs
+		{
+			item 1 [SimpleSuppressors.BaffleStack],
+			item 1 [SimpleSuppressors.Adapter_556],
+			item 1 [Base.SheetMetal],
+			item 1 [Base.BlowTorch] mode:keep,
+			item 1 tags[base:weldingmask] mode:keep,
+		}
+		outputs
+		{
+			item 1 SimpleSuppressors.Suppressor_556,
+		}
+	}
+
+	craftRecipe MakeSuppressor9mm
+	{
+		NeedToBeLearn = true,
+		Tooltip = Tooltip_Recipe_SimpleSuppressorsManual,
+		OnTest = SimpleSuppressorsRecipeOnTest.caliber9mm,
+		timedAction = Welding,
+		time = 120,
+		category = Metalworking,
+		Tags = InHandCraft;Welding,
+		xpAward = MetalWelding:10,
+		SkillRequired = MetalWelding:2,
+		OnCreate = SimpleSuppressorsCompatibility.onCraftCreate,
+		inputs
+		{
+			item 1 [SimpleSuppressors.BaffleStack],
+			item 1 [SimpleSuppressors.Adapter_9mm],
+			item 1 [Base.SheetMetal],
+			item 1 [Base.BlowTorch] mode:keep,
+			item 1 tags[base:weldingmask] mode:keep,
+		}
+		outputs
+		{
+			item 1 SimpleSuppressors.Suppressor_9mm,
+		}
+	}
+
+	craftRecipe MakeSuppressor45ACP
+	{
+		NeedToBeLearn = true,
+		Tooltip = Tooltip_Recipe_SimpleSuppressorsManual,
+		OnTest = SimpleSuppressorsRecipeOnTest.caliber45ACP,
+		timedAction = Welding,
+		time = 120,
+		category = Metalworking,
+		Tags = InHandCraft;Welding,
+		xpAward = MetalWelding:10,
+		SkillRequired = MetalWelding:2,
+		OnCreate = SimpleSuppressorsCompatibility.onCraftCreate,
+		inputs
+		{
+			item 1 [SimpleSuppressors.BaffleStack],
+			item 1 [SimpleSuppressors.Adapter_45ACP],
+			item 1 [Base.SheetMetal],
+			item 1 [Base.BlowTorch] mode:keep,
+			item 1 tags[base:weldingmask] mode:keep,
+		}
+		outputs
+		{
+			item 1 SimpleSuppressors.Suppressor_45ACP,
+		}
+	}
+
+	craftRecipe MakeSuppressor308
+	{
+		NeedToBeLearn = true,
+		Tooltip = Tooltip_Recipe_SimpleSuppressorsManual,
+		OnTest = SimpleSuppressorsRecipeOnTest.caliber308,
+		timedAction = Welding,
+		time = 120,
+		category = Metalworking,
+		Tags = InHandCraft;Welding,
+		xpAward = MetalWelding:10,
+		SkillRequired = MetalWelding:2,
+		OnCreate = SimpleSuppressorsCompatibility.onCraftCreate,
+		inputs
+		{
+			item 1 [SimpleSuppressors.BaffleStack],
+			item 1 [SimpleSuppressors.Adapter_308],
+			item 1 [Base.SheetMetal],
+			item 1 [Base.BlowTorch] mode:keep,
+			item 1 tags[base:weldingmask] mode:keep,
+		}
+		outputs
+		{
+			item 1 SimpleSuppressors.Suppressor_308,
+		}
+	}
+
+	craftRecipe MakeSuppressor3030
+	{
+		NeedToBeLearn = true,
+		Tooltip = Tooltip_Recipe_SimpleSuppressorsManual,
+		OnTest = SimpleSuppressorsRecipeOnTest.caliber3030,
+		timedAction = Welding,
+		time = 120,
+		category = Metalworking,
+		Tags = InHandCraft;Welding,
+		xpAward = MetalWelding:10,
+		SkillRequired = MetalWelding:2,
+		OnCreate = SimpleSuppressorsCompatibility.onCraftCreate,
+		inputs
+		{
+			item 1 [SimpleSuppressors.BaffleStack],
+			item 1 [SimpleSuppressors.Adapter_3030],
+			item 1 [Base.SheetMetal],
+			item 1 [Base.BlowTorch] mode:keep,
+			item 1 tags[base:weldingmask] mode:keep,
+		}
+		outputs
+		{
+			item 1 SimpleSuppressors.Suppressor_3030,
+		}
+	}
+
+	craftRecipe MakeSuppressor357
+	{
+		NeedToBeLearn = true,
+		Tooltip = Tooltip_Recipe_SimpleSuppressorsManual,
+		OnTest = SimpleSuppressorsRecipeOnTest.caliber357,
+		timedAction = Welding,
+		time = 120,
+		category = Metalworking,
+		Tags = InHandCraft;Welding,
+		xpAward = MetalWelding:10,
+		SkillRequired = MetalWelding:2,
+		OnCreate = SimpleSuppressorsCompatibility.onCraftCreate,
+		inputs
+		{
+			item 1 [SimpleSuppressors.BaffleStack],
+			item 1 [SimpleSuppressors.Adapter_357],
+			item 1 [Base.SheetMetal],
+			item 1 [Base.BlowTorch] mode:keep,
+			item 1 tags[base:weldingmask] mode:keep,
+		}
+		outputs
+		{
+			item 1 SimpleSuppressors.Suppressor_357,
+		}
+	}
+	/* .44 Magnum (Base.Pistol3) uses its own dedicated mounting hardware. */
+	craftRecipe MakeSuppressor44
+	{
+		NeedToBeLearn = true,
+		Tooltip = Tooltip_Recipe_SimpleSuppressorsManual,
+		OnTest = SimpleSuppressorsRecipeOnTest.caliber44,
+		timedAction = Welding,
+		time = 120,
+		category = Metalworking,
+		Tags = InHandCraft;Welding,
+		xpAward = MetalWelding:10,
+		SkillRequired = MetalWelding:2,
+		OnCreate = SimpleSuppressorsCompatibility.onCraftCreate,
+		inputs
+		{
+			item 1 [SimpleSuppressors.BaffleStack],
+			item 1 [SimpleSuppressors.Adapter_44],
+			item 1 [Base.SheetMetal],
+			item 1 [Base.BlowTorch] mode:keep,
+			item 1 tags[base:weldingmask] mode:keep,
+		}
+		outputs
+		{
+			item 1 SimpleSuppressors.Suppressor_44,
+		}
+	}
+
+
+	/***** Oil-filter suppressors: oil filter + hand drill + caliber adapter (weaker) *****/
+
+	craftRecipe MakeOilFilterSuppressor12Gauge
+	{
+		NeedToBeLearn = true,
+		Tooltip = Tooltip_Recipe_SimpleSuppressorsManual,
+		OnTest = SimpleSuppressorsRecipeOnTest.shotgun,
+		timedAction = Welding,
+		time = 100,
+		category = Metalworking,
+		Tags = InHandCraft;Welding,
+		xpAward = MetalWelding:5,
+		SkillRequired = MetalWelding:1,
+		OnCreate = SimpleSuppressorsCompatibility.onCraftCreate,
+		inputs
+		{
+			item 1 [SimpleSuppressors.ScavengedOilFilter],
+			item 1 [SimpleSuppressors.Adapter_Shotgun],
+			item 1 [Base.HandDrill] mode:keep,
+			item 1 [Base.BlowTorch] mode:keep,
+			item 1 tags[base:weldingmask] mode:keep,
+		}
+		outputs
+		{
+			item 1 SimpleSuppressors.Suppressor_OilFilter_12Gauge,
+		}
+	}
+
+	craftRecipe MakeOilFilterSuppressor556
+	{
+		NeedToBeLearn = true,
+		Tooltip = Tooltip_Recipe_SimpleSuppressorsManual,
+		OnTest = SimpleSuppressorsRecipeOnTest.caliber556,
+		timedAction = Welding,
+		time = 100,
+		category = Metalworking,
+		Tags = InHandCraft;Welding,
+		xpAward = MetalWelding:5,
+		SkillRequired = MetalWelding:1,
+		OnCreate = SimpleSuppressorsCompatibility.onCraftCreate,
+		inputs
+		{
+			item 1 [SimpleSuppressors.ScavengedOilFilter],
+			item 1 [SimpleSuppressors.Adapter_556],
+			item 1 [Base.HandDrill] mode:keep,
+			item 1 [Base.BlowTorch] mode:keep,
+			item 1 tags[base:weldingmask] mode:keep,
+		}
+		outputs
+		{
+			item 1 SimpleSuppressors.Suppressor_OilFilter_556,
+		}
+	}
+
+	craftRecipe MakeOilFilterSuppressor9mm
+	{
+		NeedToBeLearn = true,
+		Tooltip = Tooltip_Recipe_SimpleSuppressorsManual,
+		OnTest = SimpleSuppressorsRecipeOnTest.caliber9mm,
+		timedAction = Welding,
+		time = 100,
+		category = Metalworking,
+		Tags = InHandCraft;Welding,
+		xpAward = MetalWelding:5,
+		SkillRequired = MetalWelding:1,
+		OnCreate = SimpleSuppressorsCompatibility.onCraftCreate,
+		inputs
+		{
+			item 1 [SimpleSuppressors.ScavengedOilFilter],
+			item 1 [SimpleSuppressors.Adapter_9mm],
+			item 1 [Base.HandDrill] mode:keep,
+			item 1 [Base.BlowTorch] mode:keep,
+			item 1 tags[base:weldingmask] mode:keep,
+		}
+		outputs
+		{
+			item 1 SimpleSuppressors.Suppressor_OilFilter_9mm,
+		}
+	}
+
+	craftRecipe MakeOilFilterSuppressor45ACP
+	{
+		NeedToBeLearn = true,
+		Tooltip = Tooltip_Recipe_SimpleSuppressorsManual,
+		OnTest = SimpleSuppressorsRecipeOnTest.caliber45ACP,
+		timedAction = Welding,
+		time = 100,
+		category = Metalworking,
+		Tags = InHandCraft;Welding,
+		xpAward = MetalWelding:5,
+		SkillRequired = MetalWelding:1,
+		OnCreate = SimpleSuppressorsCompatibility.onCraftCreate,
+		inputs
+		{
+			item 1 [SimpleSuppressors.ScavengedOilFilter],
+			item 1 [SimpleSuppressors.Adapter_45ACP],
+			item 1 [Base.HandDrill] mode:keep,
+			item 1 [Base.BlowTorch] mode:keep,
+			item 1 tags[base:weldingmask] mode:keep,
+		}
+		outputs
+		{
+			item 1 SimpleSuppressors.Suppressor_OilFilter_45ACP,
+		}
+	}
+
+	craftRecipe MakeOilFilterSuppressor308
+	{
+		NeedToBeLearn = true,
+		Tooltip = Tooltip_Recipe_SimpleSuppressorsManual,
+		OnTest = SimpleSuppressorsRecipeOnTest.caliber308,
+		timedAction = Welding,
+		time = 100,
+		category = Metalworking,
+		Tags = InHandCraft;Welding,
+		xpAward = MetalWelding:5,
+		SkillRequired = MetalWelding:1,
+		OnCreate = SimpleSuppressorsCompatibility.onCraftCreate,
+		inputs
+		{
+			item 1 [SimpleSuppressors.ScavengedOilFilter],
+			item 1 [SimpleSuppressors.Adapter_308],
+			item 1 [Base.HandDrill] mode:keep,
+			item 1 [Base.BlowTorch] mode:keep,
+			item 1 tags[base:weldingmask] mode:keep,
+		}
+		outputs
+		{
+			item 1 SimpleSuppressors.Suppressor_OilFilter_308,
+		}
+	}
+
+	craftRecipe MakeOilFilterSuppressor3030
+	{
+		NeedToBeLearn = true,
+		Tooltip = Tooltip_Recipe_SimpleSuppressorsManual,
+		OnTest = SimpleSuppressorsRecipeOnTest.caliber3030,
+		timedAction = Welding,
+		time = 100,
+		category = Metalworking,
+		Tags = InHandCraft;Welding,
+		xpAward = MetalWelding:5,
+		SkillRequired = MetalWelding:1,
+		OnCreate = SimpleSuppressorsCompatibility.onCraftCreate,
+		inputs
+		{
+			item 1 [SimpleSuppressors.ScavengedOilFilter],
+			item 1 [SimpleSuppressors.Adapter_3030],
+			item 1 [Base.HandDrill] mode:keep,
+			item 1 [Base.BlowTorch] mode:keep,
+			item 1 tags[base:weldingmask] mode:keep,
+		}
+		outputs
+		{
+			item 1 SimpleSuppressors.Suppressor_OilFilter_3030,
+		}
+	}
+
+	craftRecipe MakeOilFilterSuppressor357
+	{
+		NeedToBeLearn = true,
+		Tooltip = Tooltip_Recipe_SimpleSuppressorsManual,
+		OnTest = SimpleSuppressorsRecipeOnTest.caliber357,
+		timedAction = Welding,
+		time = 100,
+		category = Metalworking,
+		Tags = InHandCraft;Welding,
+		xpAward = MetalWelding:5,
+		SkillRequired = MetalWelding:1,
+		OnCreate = SimpleSuppressorsCompatibility.onCraftCreate,
+		inputs
+		{
+			item 1 [SimpleSuppressors.ScavengedOilFilter],
+			item 1 [SimpleSuppressors.Adapter_357],
+			item 1 [Base.HandDrill] mode:keep,
+			item 1 [Base.BlowTorch] mode:keep,
+			item 1 tags[base:weldingmask] mode:keep,
+		}
+		outputs
+		{
+			item 1 SimpleSuppressors.Suppressor_OilFilter_357,
+		}
+	}
+
+	craftRecipe MakeOilFilterSuppressor44
+	{
+		NeedToBeLearn = true,
+		Tooltip = Tooltip_Recipe_SimpleSuppressorsManual,
+		OnTest = SimpleSuppressorsRecipeOnTest.caliber44,
+		timedAction = Welding,
+		time = 100,
+		category = Metalworking,
+		Tags = InHandCraft;Welding,
+		xpAward = MetalWelding:5,
+		SkillRequired = MetalWelding:1,
+		OnCreate = SimpleSuppressorsCompatibility.onCraftCreate,
+		inputs
+		{
+			item 1 [SimpleSuppressors.ScavengedOilFilter],
+			item 1 [SimpleSuppressors.Adapter_44],
+			item 1 [Base.HandDrill] mode:keep,
+			item 1 [Base.BlowTorch] mode:keep,
+			item 1 tags[base:weldingmask] mode:keep,
+		}
+		outputs
+		{
+			item 1 SimpleSuppressors.Suppressor_OilFilter_44,
+		}
+	}
+}

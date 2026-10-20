@@ -1,0 +1,18 @@
+{
+  "ContextMenu_SimpleSuppressors_OilFilterMissing": "Oil Filter: Missing",
+  "ContextMenu_SimpleSuppressors_InstallOilFilter": "Install Oil Filter",
+  "ContextMenu_SimpleSuppressors_RemoveOilFilter": "Remove Oil Filter",
+  "ContextMenu_SimpleSuppressors_Menu": "Suppressor",
+  "ContextMenu_SimpleSuppressors_Attach": "Attach %1",
+  "ContextMenu_SimpleSuppressors_Remove": "Remove %1",
+  "ContextMenu_SimpleSuppressors_Replace": "Attach %1 (replaces %2)",
+  "ContextMenu_SimpleSuppressors_Attaching": "Attaching suppressor",
+  "ContextMenu_SimpleSuppressors_Removing": "Removing suppressor",
+  "ContextMenu_SimpleSuppressors_EngineOil": "Engine oil: %1 / %2 (%3%% full)",
+  "ContextMenu_SimpleSuppressors_TopUpOil": "Add engine oil (%1 available)",
+  "ContextMenu_SimpleSuppressors_CollectOil": "Drain engine oil into %1 (%2 free)",
+  "ContextMenu_SimpleSuppressors_DrainOil": "Drain engine oil onto ground",
+  "ContextMenu_SimpleSuppressors_StopEngine": "Turn off the engine before servicing",
+  "ContextMenu_SimpleSuppressors_FitFilterFirst": "Install an oil filter before refilling",
+  "ContextMenu_SimpleSuppressors_NeedScrewdriver": "Requires a working screwdriver (a multitool or a handiknife will do)."
+}

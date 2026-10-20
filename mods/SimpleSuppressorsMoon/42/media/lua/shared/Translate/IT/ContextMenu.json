@@ -1,0 +1,18 @@
+{
+  "ContextMenu_SimpleSuppressors_OilFilterMissing": "Filtro dell'olio: mancante",
+  "ContextMenu_SimpleSuppressors_InstallOilFilter": "Monta il filtro dell'olio",
+  "ContextMenu_SimpleSuppressors_RemoveOilFilter": "Smonta il filtro dell'olio",
+  "ContextMenu_SimpleSuppressors_Menu": "Silenziatore",
+  "ContextMenu_SimpleSuppressors_Attach": "Monta %1",
+  "ContextMenu_SimpleSuppressors_Remove": "Smonta %1",
+  "ContextMenu_SimpleSuppressors_Replace": "Monta %1 (al posto di %2)",
+  "ContextMenu_SimpleSuppressors_Attaching": "Montaggio del silenziatore",
+  "ContextMenu_SimpleSuppressors_Removing": "Smontaggio del silenziatore",
+  "ContextMenu_SimpleSuppressors_EngineOil": "Olio motore: %1 / %2 (pieno al %3%%)",
+  "ContextMenu_SimpleSuppressors_TopUpOil": "Rabbocca l'olio motore (%1 disponibili)",
+  "ContextMenu_SimpleSuppressors_CollectOil": "Scarica l'olio motore in %1 (%2 liberi)",
+  "ContextMenu_SimpleSuppressors_DrainOil": "Scarica l'olio motore a terra",
+  "ContextMenu_SimpleSuppressors_StopEngine": "Spegni il motore prima di metterci mano",
+  "ContextMenu_SimpleSuppressors_FitFilterFirst": "Monta un filtro dell'olio prima di rabboccare",
+  "ContextMenu_SimpleSuppressors_NeedScrewdriver": "Serve un cacciavite funzionante (vanno bene anche il multiutensile o il coltello a mano)."
+}
