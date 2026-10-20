@@ -1,6 +1,6 @@
 # Moon
 
-Le mod per giocare a **Project Zomboid** (Build 42) sul server **RiversideMoon**, con un solo file da lanciare: **`mod-moon-server.bat`**.
+Le mod per giocare a **Project Zomboid** (Build 42) sul server **Moon**, con un solo file da lanciare: **`mod-moon-server.bat`**.
 
 | Mod | A chi serve | Cos'è |
 | --- | --- | --- |
@@ -20,7 +20,7 @@ Le mod per giocare a **Project Zomboid** (Build 42) sul server **RiversideMoon**
 
    ```
      ╔════════════════════════════════════════════════════════╗
-     ║  MOON  ·  le mod per giocare su RiversideMoon          ║
+     ║  MOON  ·  le mod per giocare sul server Moon           ║
      ╚════════════════════════════════════════════════════════╝
      Silenziatori 1.5.31-moon.1  ·  Admin-Scorte
 
@@ -42,7 +42,7 @@ Le mod per giocare a **Project Zomboid** (Build 42) sul server **RiversideMoon**
    - Premi **`2`** se sei admin del server: installa **Silenziatori** e **Admin-Scorte**.
 
    Il file mostra ogni passo mentre lo fa: controlla che il gioco sia chiuso, prepara la cartella delle mod, copia i file e dice dove. Alla fine scrive **«Tutto pronto»**. Premi un tasto per tornare al menu e **`0`** per uscire.
-6. **Avvia Project Zomboid ed entra su RiversideMoon** come sempre. Non devi attivare niente nel menu Mod: in multiplayer le mod le attiva il server.
+6. **Avvia Project Zomboid ed entra sul server Moon** come sempre. Non devi attivare niente nel menu Mod: in multiplayer le mod le attiva il server.
 
 Il file trova da solo il gioco nelle librerie di Steam, anche su un altro disco. Se non ci riesce te lo dice: in quel caso **trascina la cartella `ProjectZomboid` sopra `mod-moon-server.bat`** (di solito è in `...\Steam\steamapps\common\ProjectZomboid`; da Steam: tasto destro sul gioco, «Gestisci», «Sfoglia i file locali»).
 
@@ -55,7 +55,7 @@ Quando esce una nuova versione: scarica di nuovo lo ZIP, estrailo, lancia `mod-m
 Lancia `mod-moon-server.bat`, premi **`3`** e scegli:
 
 - **`1`** toglie solo **Admin-Scorte**, per esempio se non sei più admin;
-- **`2`** toglie tutto: **Silenziatori** e **Admin-Scorte**. Senza Silenziatori non puoi entrare su RiversideMoon.
+- **`2`** toglie tutto: **Silenziatori** e **Admin-Scorte**. Senza Silenziatori non puoi entrare sul server Moon.
 
 ## Cosa installa, esattamente
 
@@ -138,5 +138,5 @@ Ogni modifica nel codice è segnata con `[moon]`, così si ritrova facilmente. N
 ## Crediti
 
 - **Simple Suppressors**, da cui nasce Silenziatori: Kiidxatlas ([Steam Workshop](https://steamcommunity.com/sharedfiles/filedetails/?id=3782565181)). Modelli, suoni, ricette e quasi tutto il codice sono suoi. Se la mod ti piace, lascia un pollice in su sulla sua pagina del Workshop.
-- **Traduzione italiana e correzioni**: Moon, per il server RiversideMoon.
-- **ZomBOT e Admin-Scorte**: il bot Discord del server RiversideMoon.
+- **Traduzione italiana e correzioni**: per il server Moon.
+- **ZomBOT e Admin-Scorte**: il bot Discord del server Moon.

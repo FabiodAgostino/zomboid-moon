@@ -1,6 +1,6 @@
 @echo off
 rem ==============================================================================================================
-rem  Moon: installs, updates or removes on YOUR computer the mods for playing on RiversideMoon:
+rem  Moon: installs, updates or removes on YOUR computer the mods for playing on the Moon server:
 rem    Silenziatori  - the suppressor mod (a fixed, Italian copy of Kiidxatlas' Simple Suppressors), copied into
 rem                    %UserProfile%\Zomboid\mods. Everybody needs it: the server runs it.
 rem    Admin-Scorte  - ZomBOT's windows for the bases' stocks (ZomBotData.lua and ZomBotStockUI.lua), copied into
@@ -13,7 +13,7 @@ rem ============================================================================
 setlocal EnableExtensions DisableDelayedExpansion
 for /f "tokens=2 delims=:." %%c in ('chcp') do set "OLDCP=%%c"
 chcp 65001 >nul
-title Moon - le mod per RiversideMoon
+title Moon - le mod per il server Moon
 for /f %%a in ('echo prompt $E ^| cmd') do set "ESC=%%a"
 set "N=%ESC%[0m"
 set "B=%ESC%[1m"
@@ -133,7 +133,7 @@ echo   %G%╔══════════════════════�
 echo   %G%║%N%  %B%Tutto pronto.%N%                                         %G%║%N%
 echo   %G%╚════════════════════════════════════════════════════════╝%N%
 echo.
-echo   Avvia Project Zomboid ed entra su RiversideMoon come sempre:
+echo   Avvia Project Zomboid ed entra sul server Moon come sempre:
 echo   le mod le attiva il server, non devi attivare niente tu.
 if defined WITH_ADMIN echo   Da admin: tasto destro sul pavimento, %C%«ZomBOT: basi...»%N%.
 echo   Quando esce una nuova versione, scaricala e rilancia questo file.
@@ -149,7 +149,7 @@ echo     %C%[1]%N%  Togli solo Admin-Scorte
 echo     %C%[2]%N%  Togli tutto                %D%Silenziatori + Admin-Scorte%N%
 echo     %C%[0]%N%  Torna indietro
 echo.
-echo   %D%Senza Silenziatori non puoi entrare su RiversideMoon.%N%
+echo   %D%Senza Silenziatori non puoi entrare sul server Moon.%N%
 echo.
 choice /c 120 /n /m "  Premi il numero: "
 if errorlevel 3 goto menu
@@ -244,7 +244,7 @@ rem subroutines
 :banner
 echo.
 echo   %C%╔════════════════════════════════════════════════════════╗%N%
-echo   %C%║%N%  %B%MOON%N%  ·  le mod per giocare su %B%RiversideMoon%N%          %C%║%N%
+echo   %C%║%N%  %B%MOON%N%  ·  le mod per giocare sul server %B%Moon%N%           %C%║%N%
 echo   %C%╚════════════════════════════════════════════════════════╝%N%
 echo   %D%Silenziatori %VERSION%  ·  Admin-Scorte%N%
 echo.
