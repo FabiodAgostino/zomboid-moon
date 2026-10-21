@@ -7,6 +7,7 @@ rem    Admin-Scorte  - ZomBOT's windows for the bases' stocks (ZomBotData.lua an
 rem                    the game's media\lua folders. They show something only to the server's admins, and the server
 rem                    refuses their changes from anyone else. It is not a mod of the server's list on purpose: then
 rem                    everybody would have to install it to join.
+rem  The menu installs the players' mods, everything, or only the mods ticked in a list (for example only Admin-Scorte).
 rem  Double click it. If the game is not in a Steam library, drag the ProjectZomboid folder onto this file.
 rem  The file must keep Windows line endings (CRLF): see .gitattributes. Colours need Windows 10 or later.
 rem ==============================================================================================================
@@ -64,42 +65,99 @@ echo   %B%Cosa vuoi fare?%N%
 echo.
 echo     %C%[1]%N%  Installa o aggiorna le mod per giocare      %D%Silenziatori%N%
 echo     %C%[2]%N%  Installa o aggiorna tutto, anche da admin   %D%Silenziatori + Admin-Scorte%N%
-echo     %C%[3]%N%  Disinstalla
+echo     %C%[3]%N%  Scegli tu quali installare                  %D%per esempio solo Admin-Scorte%N%
+echo     %C%[4]%N%  Disinstalla
 echo     %C%[0]%N%  Esci
 echo.
-choice /c 1230 /n /m "  Premi il numero: "
-if errorlevel 4 goto quit
-if errorlevel 3 goto uninstall_menu
+choice /c 12340 /n /m "  Premi il numero: "
+if errorlevel 5 goto quit
+if errorlevel 4 goto uninstall_menu
+if errorlevel 3 goto choose_start
 if errorlevel 2 goto install_all
 goto install_user
 
 rem ==============================================================================================================
 :install_user
+set "WITH_SIL=1"
 set "WITH_ADMIN="
-set "STEPS=3"
 goto install
 
 :install_all
+set "WITH_SIL=1"
 set "WITH_ADMIN=1"
-set "STEPS=4"
+goto install
 
-:install
+rem the list where every mod is ticked or not: its number ticks it, I installs the ticked ones
+:choose_start
+set "PICK_SIL="
+set "PICK_ADM="
+set "PICK_NONE="
+
+:choose_menu
+call :status
+if defined PICK_SIL (set "BOXSIL=%G%[√]%N%") else set "BOXSIL=%D%[ ]%N%"
+if defined PICK_ADM (set "BOXADM=%G%[√]%N%") else set "BOXADM=%D%[ ]%N%"
 cls
 call :banner
-if defined WITH_ADMIN (echo   %B%Installo Silenziatori e Admin-Scorte%N%) else echo   %B%Installo Silenziatori%N%
+echo   %B%Scegli cosa installare%N%
+echo   %D%Premi il numero di una mod per sceglierla, premilo di nuovo per toglierla.%N%
 echo.
-echo   %C%[1/%STEPS%]%N% Controllo che Project Zomboid sia chiuso
+echo     %C%[1]%N%  %BOXSIL%  Silenziatori      %SILSTATE%
+echo     %C%[2]%N%  %BOXADM%  Admin-Scorte      %ADMSTATE%
+echo.
+echo     %C%[I]%N%  Installa le mod scelte
+echo     %C%[0]%N%  Torna indietro
+echo.
+if defined PICK_NONE echo   %Y%Prima scegli almeno una mod: premi 1 o 2.%N%
+if defined PICK_NONE echo.
+set "PICK_NONE="
+choice /c 12i0 /n /m "  Premi un numero o I: "
+if errorlevel 4 goto menu
+if errorlevel 3 goto choose_install
+if errorlevel 2 goto choose_admin
+if defined PICK_SIL (set "PICK_SIL=") else set "PICK_SIL=1"
+goto choose_menu
+
+:choose_admin
+if defined PICK_ADM (set "PICK_ADM=") else set "PICK_ADM=1"
+goto choose_menu
+
+:choose_install
+if not defined PICK_SIL if not defined PICK_ADM set "PICK_NONE=1"
+if defined PICK_NONE goto choose_menu
+set "WITH_SIL=%PICK_SIL%"
+set "WITH_ADMIN=%PICK_ADM%"
+
+:install
+rem the steps are numbered on what is installed: 1 check, 2 for Silenziatori, 1 for Admin-Scorte
+set "STEP=0"
+set "STEPS=1"
+if defined WITH_SIL set /a STEPS+=2
+if defined WITH_ADMIN set /a STEPS+=1
+set "WHAT="
+if defined WITH_SIL set "WHAT=Silenziatori"
+if defined WITH_ADMIN if defined WHAT set "WHAT=%WHAT% e Admin-Scorte"
+if defined WITH_ADMIN if not defined WITH_SIL set "WHAT=Admin-Scorte"
+cls
+call :banner
+echo   %B%Installo %WHAT%%N%
+echo.
+set /a STEP+=1
+echo   %C%[%STEP%/%STEPS%]%N% Controllo che Project Zomboid sia chiuso
 echo         %D%i file di una mod non si possono cambiare mentre il gioco li sta usando%N%
 call :wait_game_closed
 echo         %OK% il gioco è chiuso
+if not defined WITH_SIL goto install_admin
 echo.
-echo   %C%[2/%STEPS%]%N% Preparo la cartella delle mod
+set /a STEP+=1
+echo   %C%[%STEP%/%STEPS%]%N% Preparo la cartella delle mod
 echo         %D%» %ZOMBOID%\mods%N%
 if not exist "%ZOMBOID%\mods\" mkdir "%ZOMBOID%\mods" 2>nul
 if not exist "%ZOMBOID%\mods\" goto failed_mods
 echo         %OK% pronta
 echo.
-echo   %C%[3/%STEPS%]%N% Installo %B%Silenziatori%N% %D%%VERSION%%N%
+set /a STEP+=1
+echo   %C%[%STEP%/%STEPS%]%N% Installo %B%Silenziatori%N% %D%%VERSION%%N%
 echo         %D%i silenziatori per le armi, in italiano e senza i bug dell'originale%N%
 call :installed_version
 if defined INSTALLED echo         %D%» sostituisco la versione %INSTALLED% che hai già%N%
@@ -108,8 +166,11 @@ robocopy "%SILSRC%" "%SILDEST%" /MIR /R:1 /W:1 /NFL /NDL /NJH /NJS /NP >nul
 if errorlevel 8 goto failed_mods
 echo         %OK% Silenziatori installata
 if not defined WITH_ADMIN goto install_done
+
+:install_admin
 echo.
-echo   %C%[4/%STEPS%]%N% Installo %B%Admin-Scorte%N%
+set /a STEP+=1
+echo   %C%[%STEP%/%STEPS%]%N% Installo %B%Admin-Scorte%N%
 echo         %D%le finestre di ZomBOT per gestire le basi e le loro scorte%N%
 echo         %D%funzionano solo se sei admin sul server: per gli altri non fanno niente%N%
 if not defined GAME goto install_no_game
@@ -124,7 +185,7 @@ goto install_done
 echo         %KO% non trovo Project Zomboid: Admin-Scorte non è installata
 echo         %D%chiudi questa finestra e trascina la cartella ProjectZomboid su mod-moon-server.bat%N%
 echo.
-echo   %Y%Silenziatori è pronta, Admin-Scorte no.%N%
+if defined WITH_SIL (echo   %Y%Silenziatori è pronta, Admin-Scorte no.%N%) else echo   %Y%Admin-Scorte non è installata.%N%
 goto back_to_menu
 
 :install_done
@@ -133,6 +194,7 @@ echo   %G%╔══════════════════════�
 echo   %G%║%N%  %B%Tutto pronto.%N%                                         %G%║%N%
 echo   %G%╚════════════════════════════════════════════════════════╝%N%
 echo.
+if not defined WITH_SIL call :remind_sil
 echo   Avvia Project Zomboid ed entra sul server Moon come sempre:
 echo   le mod le attiva il server, non devi attivare niente tu.
 if defined WITH_ADMIN echo   Da admin: tasto destro sul pavimento, %C%«ZomBOT: basi...»%N%.
@@ -195,7 +257,7 @@ echo   %G%╔══════════════════════�
 echo   %G%║%N%  %B%Fatto.%N%                                                %G%║%N%
 echo   %G%╚════════════════════════════════════════════════════════╝%N%
 echo.
-echo   Per rimettere le mod rilancia questo file e premi 1 o 2.
+echo   Per rimettere le mod rilancia questo file e premi 1, 2 o 3.
 goto back_to_menu
 
 rem ==============================================================================================================
@@ -277,6 +339,21 @@ set "INSTALLED="
 if not exist "%SILDEST%\42\mod.info" exit /b 0
 for /f "tokens=1,* delims==" %%a in ('findstr /b /c:"modversion=" "%SILDEST%\42\mod.info"') do set "INSTALLED=%%b"
 if not defined INSTALLED set "INSTALLED=?"
+exit /b 0
+
+:remind_sil
+rem only Admin-Scorte was installed: Silenziatori is still needed to join the server
+call :installed_version
+if not defined INSTALLED goto remind_sil_missing
+if "%INSTALLED%"=="%VERSION%" exit /b 0
+echo   %Y%La tua Silenziatori è vecchia%N% %D%(hai la %INSTALLED%, c'è la %VERSION%)%N%: per aggiornarla torna al menu e premi 1.
+echo.
+exit /b 0
+
+:remind_sil_missing
+echo   %Y%Silenziatori non è installata:%N% senza non entri sul server Moon.
+echo   Per installarla torna al menu e premi 1.
+echo.
 exit /b 0
 
 :remove_admin

@@ -34,12 +34,24 @@ Le mod per giocare a **Project Zomboid** (Build 42) sul server **Moon**, con un 
 
        [1]  Installa o aggiorna le mod per giocare      Silenziatori
        [2]  Installa o aggiorna tutto, anche da admin   Silenziatori + Admin-Scorte
-       [3]  Disinstalla
+       [3]  Scegli tu quali installare                  per esempio solo Admin-Scorte
+       [4]  Disinstalla
        [0]  Esci
    ```
 
    - Premi **`1`** se sei un giocatore: installa **Silenziatori**.
    - Premi **`2`** se sei admin del server: installa **Silenziatori** e **Admin-Scorte**.
+   - Premi **`3`** per installare solo alcune mod, per esempio **solo Admin-Scorte** se Silenziatori ce l'hai già. Si apre una lista: premi il numero di una mod per sceglierla (compare **`[√]`**), premilo di nuovo per toglierla, poi **`I`** per installare quelle scelte.
+
+     ```
+       Scegli cosa installare
+
+         [1]  [ ]  Silenziatori      installata versione 1.5.31-moon.1
+         [2]  [√]  Admin-Scorte      da aggiornare
+
+         [I]  Installa le mod scelte
+         [0]  Torna indietro
+     ```
 
    Il file mostra ogni passo mentre lo fa: controlla che il gioco sia chiuso, prepara la cartella delle mod, copia i file e dice dove. Alla fine scrive **«Tutto pronto»**. Premi un tasto per tornare al menu e **`0`** per uscire.
 6. **Avvia Project Zomboid ed entra sul server Moon** come sempre. Non devi attivare niente nel menu Mod: in multiplayer le mod le attiva il server.
@@ -48,11 +60,11 @@ Il file trova da solo il gioco nelle librerie di Steam, anche su un altro disco.
 
 ## Aggiornare
 
-Quando esce una nuova versione: scarica di nuovo lo ZIP, estrailo, lancia `mod-moon-server.bat` e premi di nuovo **`1`** o **`2`**. Il menu ti dice se hai una versione vecchia («da aggiornare»); quella vecchia viene sostituita del tutto, non serve disinstallare prima.
+Quando esce una nuova versione: scarica di nuovo lo ZIP, estrailo, lancia `mod-moon-server.bat` e premi di nuovo **`1`** o **`2`**, oppure **`3`** per aggiornare solo una mod. Il menu ti dice se hai una versione vecchia («da aggiornare»); quella vecchia viene sostituita del tutto, non serve disinstallare prima.
 
 ## Disinstallare
 
-Lancia `mod-moon-server.bat`, premi **`3`** e scegli:
+Lancia `mod-moon-server.bat`, premi **`4`** e scegli:
 
 - **`1`** toglie solo **Admin-Scorte**, per esempio se non sei più admin;
 - **`2`** toglie tutto: **Silenziatori** e **Admin-Scorte**. Senza Silenziatori non puoi entrare sul server Moon.
@@ -89,7 +101,8 @@ ZomBOT è il bot Discord del server. Conta le scorte delle basi (cibo, munizioni
 
 - **tasto destro sul pavimento, «ZomBOT: basi...»**: crea, modifica o elimina le basi, disegnandole sulla mappa;
 - **tasto destro sul pavimento dentro una base, «ZomBOT: scorte di questa base»**: le scorte tracciate, con la possibilità di smettere di tracciarne una;
-- **tasto destro su un oggetto, «Aggiungi a scorta»**: tiene d'occhio quell'oggetto nella base, con le soglie «presente», «scarseggia» e «critico»;
+- **tasto destro su un oggetto, «Aggiungi a scorta»**: tiene d'occhio quell'oggetto nella base, con le soglie «critico», «scarseggia» e «buono»;
+- **un attrezzo si tiene d'occhio per lavoro**: «Aggiungi a scorta: Seghe da legno» conta tutti gli attrezzi che il gioco accetta per quel lavoro (Sega, Sega da giardino, Sega per legno semplice), senza quelli rotti. Un attrezzo che fa più lavori offre «Scorta degli attrezzi» con ognuno;
 - **«Controlla i libri» / «Controlla le riviste»**: quali libri delle abilità e quali riviste di ricette mancano nella base.
 
 Funziona solo per gli admin: per chi non lo è i menu non compaiono, e il server rifiuta comunque ogni modifica che non arrivi da un admin.

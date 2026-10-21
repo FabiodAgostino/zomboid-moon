@@ -5,8 +5,9 @@
 --
 -- What it adds, inside a base:
 --   right click on an item: «ZomBOT: aggiungi a scorta» (three thresholds: critical, running low, good), any food
---   «aggiungi a scorta: Alimenti» (all the food together, in portions), books and magazines «controlla i libri /
---   le riviste» (copies of each), liquids «… in litri»;
+--   «aggiungi a scorta: Alimenti» (all the food together, in portions), a tool its job «aggiungi a scorta: Seghe
+--   da legno» (every tool that does it; a tool with more jobs offers each), books and magazines «controlla i
+--   libri / le riviste» (copies of each), liquids «… in litri»;
 -- «Scorte...» in the list of bases, or right click on the ground inside a base «ZomBOT: scorte di questa base»: every
 --   check of the base with its thresholds and how it stands, «Modifica le soglie» and «Smetti di tracciare»;
 -- anywhere: right click on the ground «ZomBOT: basi…» (list, new, edit, remove) and a «Basi» button on the map:
@@ -119,6 +120,61 @@ function Core.isFood(fullType)
     return ((ZomBotData or {}).food or {})[fullType] ~= nil
 end
 
+-- a tool is checked by the job, «attrezzo:<tag>» (the game's tag): every tool that does it counts, the broken ones no
+Core.TOOL = "attrezzo:"
+
+-- the jobs of a tool, the main one first ({"saw", "metalsaw"} for the Sega); empty for anything else
+function Core.toolsOf(fullType)
+    return ((ZomBotData or {}).toolOf or {})[fullType] or {}
+end
+
+function Core.toolLabel(tag)
+    local category = ((ZomBotData or {}).tools or {})[tag]
+    return category and category.label or tag
+end
+
+-- «Seghe da legno (3 tipi)»: how many kinds of tool count in it
+function Core.toolText(tag)
+    local category = ((ZomBotData or {}).tools or {})[tag]
+    local n = category and #category.items or 0
+    return Core.toolLabel(tag) .. (n > 1 and (" (" .. n .. " tipi)") or "")
+end
+
+-- which tools count: «Sega, Sega da giardino, Sega per legno semplice», cut to `limit` characters
+function Core.toolNames(tag, limit)
+    local category = ((ZomBotData or {}).tools or {})[tag]
+    local names, seen = {}, {}
+    for _, fullType in ipairs(category and category.items or {}) do
+        local name = Core.itemName(fullType)
+        if not seen[name] then
+            seen[name] = true
+            names[#names + 1] = name
+        end
+    end
+    table.sort(names)
+    local text = table.concat(names, ", ")
+    limit = limit or 80
+    if #text > limit then text = string.sub(text, 1, limit - 3):gsub("[,%s]+[^,]*$", "") .. "..." end
+    return text
+end
+
+-- the tools that work, by name, most first: «2 Sega, 1 Sega da giardino» (two items with the same name go together)
+function Core.toolParts(parts)
+    local byName, order = {}, {}
+    for _, part in ipairs(parts or {}) do
+        local name = Core.itemName(part.type)
+        if byName[name] == nil then
+            byName[name] = 0
+            order[#order + 1] = name
+        end
+        byName[name] = byName[name] + part.n
+    end
+    table.sort(order, function(a, b) return byName[a] > byName[b] or (byName[a] == byName[b] and a < b) end)
+    local out = {}
+    for _, name in ipairs(order) do out[#out + 1] = byName[name] .. " " .. name end
+    return table.concat(out, ", ")
+end
+
 -- the same checks as the server, so a wrong number is said at once (the server checks again)
 function Core.thresholdError(critical, scarce, good)
     if not (critical and scarce and good) then return "Scrivi tre numeri interi (0 o più)." end
@@ -199,6 +255,9 @@ function Core.shortages(fullType, fluid)
     local keys = { fullType }
     if Core.isFood(fullType) then
         keys = { Core.FOOD }
+    elseif #Core.toolsOf(fullType) > 0 then
+        keys = {}
+        for _, tag in ipairs(Core.toolsOf(fullType)) do keys[#keys + 1] = Core.TOOL .. tag end
     else
         for _, leaf in ipairs(Core.leaves(fullType)) do keys[#keys + 1] = leaf end
     end
@@ -215,6 +274,7 @@ function Core.shortages(fullType, fluid)
                     local what = ""
                     if litres then what = Core.fluidLabel(fluid) .. ": "
                     elseif food then what = "Alimenti: "
+                    elseif Core.ruleKind(key) == "tool" then what = Core.ruleLabel(key) .. ": "
                     elseif key ~= fullType then what = Core.itemName(key) .. ": " end
                     local have = litres and (string.format("%.1f", s.have):gsub("%.", ",") .. " L") or Core.amount(s.have)
                     local text
@@ -241,13 +301,15 @@ function Core.shortages(fullType, fluid)
 end
 
 -- -- a base's checks, as the «scorte della base» window lists them ----------------------------------------------
--- what a check is: "food", "fluid", "books", "magazines" or "item", and the rest of its key (skill, series, fluid)
+-- what a check is: "food", "fluid", "tool", "books", "magazines" or "item", and the rest of its key (skill, series,
+-- fluid, tag)
 function Core.ruleKind(key)
     if key == Core.FOOD then return "food" end
     local head, rest = string.match(key, "^(%a+):(.+)$")
     if key == "libri" or head == "libri" then return "books", rest end
     if key == "riviste" or head == "riviste" then return "magazines", rest end
     if head == "liquido" then return "fluid", rest end
+    if head == "attrezzo" then return "tool", rest end
     return "item"
 end
 
@@ -256,6 +318,7 @@ function Core.ruleLabel(key)
     local data = ZomBotData or {}
     if kind == "food" then return Core.FOOD_LABEL end
     if kind == "fluid" then return Core.fluidLabel(rest) .. " (litri)" end
+    if kind == "tool" then return Core.toolLabel(rest) end
     if kind == "books" then
         return rest and ("Libri di " .. ((data.skills or {})[rest] or rest)) or "Libri delle abilità (tutti)"
     end
@@ -267,8 +330,12 @@ end
 
 -- the item whose icon stands for the check
 function Core.ruleIcon(key)
-    local kind = Core.ruleKind(key)
+    local kind, rest = Core.ruleKind(key)
     if kind == "item" then return key end
+    if kind == "tool" then
+        local category = ((ZomBotData or {}).tools or {})[rest]
+        return category and category.icon or nil
+    end
     return ({ food = "Base.TinnedBeans", fluid = "Base.WaterBottle", books = "Base.Book", magazines = "Base.Magazine" })[kind]
 end
 
@@ -1182,6 +1249,7 @@ function ZomBotStockWindow:new(x, y, width, height, baseName, key, label, textur
     o.baseName, o.key, o.label, o.texture = baseName, key, label, texture
     o.litres = string.sub(key, 1, 8) == "liquido:"
     o.food = key == Core.FOOD
+    o.tool = Core.ruleKind(key) == "tool"
     o.rule = Core.ruleOf(Core.findBase(baseName), key)
     return o
 end
@@ -1196,7 +1264,8 @@ function ZomBotStockWindow:createChildren()
     ISCollapsableWindow.createChildren(self)
     local y = self:top() + 48 + PAD + FONT_HGT_SMALL * 2 + PAD
     self.rowsY = y
-    local defaults = self.litres and { 5, 20, 50 } or (self.food and { 20, 50, 100 } or { 0, 10, 30 })
+    local defaults = self.litres and { 5, 20, 50 } or (self.food and { 20, 50, 100 })
+        or (self.tool and { 0, 1, 2 } or { 0, 10, 30 })
     local values = self.rule and { self.rule.critical, self.rule.scarce, self.rule.good } or defaults
     self.entries = {}
     for i, row in ipairs(ZomBotStockWindow.ROWS) do
@@ -1239,6 +1308,10 @@ function ZomBotStockWindow:render()
         if (self.info.packed or 0) > 0 then table.insert(extra, Core.amount(self.info.packed) .. packed) end
         if (self.info.loadedAmmo or 0) > 0 then table.insert(extra, Core.amount(self.info.loadedAmmo) .. " nei caricatori") end
         if (self.info.spoiled or 0) > 0 then table.insert(extra, Core.amount(self.info.spoiled) .. " marci esclusi") end
+        if self.tool and #(self.info.parts or {}) > 1 then table.insert(extra, Core.toolParts(self.info.parts)) end
+        if (self.info.broken or 0) > 0 then
+            table.insert(extra, self.info.broken == 1 and "1 rotto escluso" or (self.info.broken .. " rotti esclusi"))
+        end
         if #extra > 0 then text = text .. " (" .. table.concat(extra, ", ") .. ")" end
         self:drawText(text, PAD, y, 1, 1, 1, 1, UIFont.Small)
         local critical, scarce, good = self:numbers()
@@ -1263,9 +1336,16 @@ function ZomBotStockWindow:render()
     self:drawRect(PAD, self.helpY + 3, 14, FONT_HGT_SMALL - 4, 1, fair.r, fair.g, fair.b)
     self:drawText("Fra 'scarseggia' e 'buono' è sufficiente.", PAD + 22, self.helpY, GREY.r, GREY.g, GREY.b, 1, UIFont.Small)
     local how = self.food and "Una porzione: 25 di fame, circa un pasto. Cibi marci esclusi."
-        or "Scatole, pacchi e caricatori contano per ciò che contengono."
+        or (self.tool and "Contano tutti gli attrezzi che fanno questo lavoro, i rotti no."
+        or "Scatole, pacchi e caricatori contano per ciò che contengono.")
     self:drawText(how, PAD + 22, self.helpY + FONT_HGT_SMALL, GREY.r, GREY.g, GREY.b, 1, UIFont.Small)
-    self:drawStatus(self.helpY + FONT_HGT_SMALL * 2 + PAD / 2)
+    local lines = 2
+    if self.tool then
+        self:drawText(Core.toolNames(string.sub(self.key, 10), 72), PAD + 22, self.helpY + FONT_HGT_SMALL * 2,
+            GREY.r, GREY.g, GREY.b, 1, UIFont.Small)
+        lines = 3
+    end
+    self:drawStatus(self.helpY + FONT_HGT_SMALL * lines + PAD / 2)
 end
 
 function ZomBotStockWindow:onSave()
@@ -1469,6 +1549,27 @@ function ZomBotUI.onInventoryMenu(playerNum, context, items)
         -- all the food is one check: an apple, a can, a box of cans all go to «Alimenti»
         addStockEntry(context, base, Core.FOOD, Core.FOOD_LABEL, item:getTex(), "Aggiungi a scorta: Alimenti" .. tag,
             "Alimenti" .. tag)
+    elseif #Core.toolsOf(fullType) > 0 then
+        -- a tool is tracked by the job: every tool that does it counts. With more jobs (the Sega cuts wood and metal,
+        -- the Multiutensile is seven tools) each one is offered, never «only this item»
+        local tools = Core.toolsOf(fullType)
+        local function entry(menu, toolTag, addText)
+            local key = Core.TOOL .. toolTag
+            local texture = nil
+            pcall(function() texture = getItemTex(Core.ruleIcon(key)) end)
+            addStockEntry(menu, base, key, Core.toolLabel(toolTag), texture or item:getTex(), addText,
+                Core.toolLabel(toolTag) .. (menu == context and tag or ""))
+        end
+        if #tools == 1 then
+            entry(context, tools[1], "Aggiungi a scorta: " .. Core.toolText(tools[1]) .. tag)
+        else
+            local option = context:addOption("Scorta degli attrezzi" .. tag)
+            local sub = ISContextMenu:getNew(context)
+            context:addSubMenu(option, sub)
+            for _, toolTag in ipairs(tools) do
+                entry(sub, toolTag, "Aggiungi: " .. Core.toolText(toolTag))
+            end
+        end
     else
         local name = item:getDisplayName()
         local texture = item:getTex()
