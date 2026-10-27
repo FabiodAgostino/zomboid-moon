@@ -7,7 +7,8 @@
 --   right click on an item: «ZomBOT: aggiungi a scorta» (three thresholds: critical, running low, good), any food
 --   «aggiungi a scorta: Alimenti» (all the food together, in portions), a tool its job «aggiungi a scorta: Seghe
 --   da legno» (every tool that does it; a tool with more jobs offers each), books and magazines «controlla i
---   libri / le riviste» (copies of each), liquids «… in litri»;
+--   libri / le riviste» (copies of each), a VHS that teaches «controlla le VHS» (its skills, or all the tapes that
+--   teach), liquids «… in litri»;
 -- «Scorte...» in the list of bases, or right click on the ground inside a base «ZomBOT: scorte di questa base»: every
 --   check of the base with its thresholds and how it stands, «Modifica le soglie» and «Smetti di tracciare»;
 -- anywhere: right click on the ground «ZomBOT: basi…» (list, new, edit, remove) and a «Basi» button on the map:
@@ -109,6 +110,39 @@ end
 
 function Core.fluidLabel(fluid)
     return ((ZomBotData or {}).fluids or {})[fluid] or fluid
+end
+
+-- The VHS that teach: every tape of a kind is the same item (Base.VHS_Retail), what it is is the id of the recording
+-- on it (ZomBotData.tapes). {id, name, skills} for a tape that teaches, the main skill first; nil for anything else,
+-- a blank tape, a film. Only the items that hold tapes (ZomBotData.mediaItems) are asked for their recording.
+function Core.tapeOf(item)
+    local data = ZomBotData or {}
+    if item == nil or not (data.mediaItems or {})[item:getFullType()] then return nil end
+    local ok, id = pcall(function()
+        local media = item:getMediaData()
+        if media == nil then return nil end
+        return media:getId()
+    end)
+    local tape = ok and id and (data.tapes or {})[id] or nil
+    if tape == nil then return nil end
+    return { id = id, name = tape.name, skills = tape.skills or {} }
+end
+
+function Core.tapeSkillLabel(skill)
+    return ((ZomBotData or {}).tapeSkills or {})[skill] or skill
+end
+
+-- how many tapes teach: all of them, or those of a skill
+function Core.tapeCount(skill)
+    local n = 0
+    for _, tape in pairs((ZomBotData or {}).tapes or {}) do
+        local teaches = skill == nil
+        for _, taught in ipairs(tape.skills or {}) do
+            if taught == skill then teaches = true end
+        end
+        if teaches then n = n + 1 end
+    end
+    return n
 end
 
 -- all the food is one check, «alimenti», in portions (25 hunger points, about a meal): an apple, a closed can, a box
@@ -249,8 +283,9 @@ end
 -- «Mancante a Napoli», «Manca a RiversideMoon» (a book or a magazine that base lacks). From each base's last
 -- complete count (made when someone walks out of it, when a check changes, or by ZomBOT's /scorte): out in town
 -- the bases are not in the game's memory, so this is what is known. A pack also tells about what it holds, any food
--- about all the food («Alimenti: scarseggiano a RiversideMoon (112 su 200)»).
-function Core.shortages(fullType, fluid)
+-- about all the food («Alimenti: scarseggiano a RiversideMoon (112 su 200)»). A tape that teaches (`tapeId`, the
+-- recording on it: Core.tapeOf) is missing where a VHS check lacks that recording.
+function Core.shortages(fullType, fluid, tapeId)
     local lines = {}
     local keys = { fullType }
     if Core.isFood(fullType) then
@@ -290,7 +325,9 @@ function Core.shortages(fullType, fluid)
                 end
             end
             for key, set in pairs(status.missing or {}) do
-                if set[fullType] and Core.ruleOf(base, key) then
+                -- books and magazines are missing by full type, VHS by the recording
+                local member = Core.ruleKind(key) == "vhs" and tapeId or fullType
+                if member and set[member] and Core.ruleOf(base, key) then
                     lines[#lines + 1] = { text = "Manca a " .. base.name, level = "critical" }
                     break
                 end
@@ -301,13 +338,14 @@ function Core.shortages(fullType, fluid)
 end
 
 -- -- a base's checks, as the «scorte della base» window lists them ----------------------------------------------
--- what a check is: "food", "fluid", "tool", "books", "magazines" or "item", and the rest of its key (skill, series,
--- fluid, tag)
+-- what a check is: "food", "fluid", "tool", "books", "magazines", "vhs" or "item", and the rest of its key (skill,
+-- series, fluid, tag)
 function Core.ruleKind(key)
     if key == Core.FOOD then return "food" end
     local head, rest = string.match(key, "^(%a+):(.+)$")
     if key == "libri" or head == "libri" then return "books", rest end
     if key == "riviste" or head == "riviste" then return "magazines", rest end
+    if key == "vhs" or head == "vhs" then return "vhs", rest end
     if head == "liquido" then return "fluid", rest end
     if head == "attrezzo" then return "tool", rest end
     return "item"
@@ -325,6 +363,7 @@ function Core.ruleLabel(key)
     if kind == "magazines" then
         return rest and ("Riviste di " .. ((data.series or {})[rest] or rest)) or "Riviste di ricette (tutte)"
     end
+    if kind == "vhs" then return rest and ("VHS di " .. Core.tapeSkillLabel(rest)) or "VHS delle abilità (tutte)" end
     return Core.unitLabel(key, Core.itemName(key))
 end
 
@@ -336,13 +375,19 @@ function Core.ruleIcon(key)
         local category = ((ZomBotData or {}).tools or {})[rest]
         return category and category.icon or nil
     end
-    return ({ food = "Base.TinnedBeans", fluid = "Base.WaterBottle", books = "Base.Book", magazines = "Base.Magazine" })[kind]
+    return ({ food = "Base.TinnedBeans", fluid = "Base.WaterBottle", books = "Base.Book", magazines = "Base.Magazine",
+        vhs = "Base.VHS_Retail" })[kind]
+end
+
+-- the checks of a set of copies: skill books, recipe magazines, VHS that teach
+function Core.isSet(kind)
+    return kind == "books" or kind == "magazines" or kind == "vhs"
 end
 
 -- «Critico fino a 100, scarseggia fino a 500, buono da 1.000», «1 copia di ogni volume»
 function Core.ruleText(rule)
     local kind = Core.ruleKind(rule.key)
-    if kind == "books" or kind == "magazines" then
+    if Core.isSet(kind) then
         local copies = rule.good == 1 and "1 copia" or (rule.good .. " copie")
         return copies .. (kind == "books" and " di ogni volume" or " di ognuna")
     end
@@ -356,7 +401,7 @@ end
 function Core.ruleStatus(base, rule)
     local kind = Core.ruleKind(rule.key)
     local status = base and base.status
-    if kind == "books" or kind == "magazines" then
+    if Core.isSet(kind) then
         local set = status and status.missing and status.missing[rule.key]
         if set == nil then return { text = "Non ancora contato" } end
         local n = 0
@@ -772,7 +817,7 @@ function ZomBotRulesWindow:onEdit()
     local rule = self:selectedRule()
     if rule == nil then return end
     local kind, rest = Core.ruleKind(rule.key)
-    if kind == "books" or kind == "magazines" then
+    if Core.isSet(kind) then
         ZomBotUI.openSet(nil, self.baseName, kind, rest)
         return
     end
@@ -1373,26 +1418,48 @@ function ZomBotUI.openStock(_, baseName, key, label, texture)
     return ZomBotUI.show(ZomBotStockWindow, 470, 400, baseName, key, label, texture)
 end
 
--- -- skill books and recipe magazines: which ones, and how many copies of each ------------------------------------
+-- -- skill books, recipe magazines, VHS that teach: which ones, and how many copies of each -------------------------
 ZomBotSetWindow = ZomBotWindow:derive("ZomBotSetWindow")
 
+-- the words of each kind of set; `names` is where ZomBotData keeps the names of its groups (skills, series)
+ZomBotSetWindow.WORDS = {
+    books = {
+        title = "ZomBOT  -  Libri delle abilità", heading = "Libri delle abilità", prefix = "libri", names = "skills",
+        only = "Solo i libri di ", all = "Tutti i libri delle abilità (24 x 5 volumi)", copies = "Copie di ogni volume",
+        rule = "Un volume manca se ce ne sono meno copie di quante ne vuoi.", every = "tutti",
+    },
+    magazines = {
+        title = "ZomBOT  -  Riviste di ricette", heading = "Riviste che insegnano ricette", prefix = "riviste",
+        names = "series", only = "Solo le riviste di ", all = "Tutte le riviste di ricette",
+        copies = "Copie di ogni rivista", rule = "Una rivista manca se ce ne sono meno copie di quante ne vuoi.",
+        every = "tutte",
+    },
+    vhs = {
+        title = "ZomBOT  -  VHS delle abilità", heading = "VHS che insegnano un'abilità", prefix = "vhs",
+        names = "tapeSkills", only = "Solo le VHS di ", all = "Tutte le VHS che insegnano", copies = "Copie di ogni VHS",
+        rule = "Una VHS manca se ce ne sono meno copie di quante ne vuoi.", every = "tutte",
+    },
+}
+
+-- `group`: a skill or a series, or (a tape that teaches two skills) a list of skills, each offered on its own
 function ZomBotSetWindow:new(x, y, width, height, baseName, kind, group)
-    local books = kind == "books"
-    local o = ZomBotWindow.new(self, x, y, width, height, books and "ZomBOT  -  Libri delle abilità" or "ZomBOT  -  Riviste di ricette")
-    o.baseName, o.kind, o.group = baseName, kind, group
-    o.prefix = books and "libri" or "riviste"
-    local data = ZomBotData or {}
-    o.groupLabel = group and ((books and data.skills or data.series) or {})[group] or nil
+    local words = ZomBotSetWindow.WORDS[kind] or ZomBotSetWindow.WORDS.books
+    local o = ZomBotWindow.new(self, x, y, width, height, words.title)
+    o.baseName, o.kind, o.words = baseName, kind, words
+    o.prefix = words.prefix
+    o.groups = type(group) == "table" and group or { group } -- no group: only «all of them»
     return o
 end
 
 function ZomBotSetWindow:keys()
     local keys = {}
-    if self.group then
-        local label = self.kind == "books" and ("Solo i libri di " .. self.groupLabel) or ("Solo le riviste di " .. self.groupLabel)
-        table.insert(keys, { self.prefix .. ":" .. self.group, label })
+    local names = (ZomBotData or {})[self.words.names] or {}
+    for _, group in ipairs(self.groups) do
+        table.insert(keys, { self.prefix .. ":" .. group, self.words.only .. (names[group] or group) })
     end
-    table.insert(keys, { self.prefix, self.kind == "books" and "Tutti i libri delle abilità (24 x 5 volumi)" or "Tutte le riviste di ricette" })
+    local all = self.words.all
+    if self.kind == "vhs" then all = all .. " (" .. Core.tapeCount(nil) .. ")" end
+    table.insert(keys, { self.prefix, all })
     return keys
 end
 
@@ -1436,19 +1503,19 @@ end
 function ZomBotSetWindow:render()
     ISCollapsableWindow.render(self)
     local y = self:top()
-    self:drawText(self.kind == "books" and "Libri delle abilità" or "Riviste che insegnano ricette", PAD, y, GOLD.r, GOLD.g, GOLD.b, 1, UIFont.Medium)
+    self:drawText(self.words.heading, PAD, y, GOLD.r, GOLD.g, GOLD.b, 1, UIFont.Medium)
     y = y + FONT_HGT_MEDIUM + 4
     self:drawText("Base '" .. self.baseName .. "'. ZomBOT dirà su Discord quali mancano.", PAD, y, 0.85, 0.85, 0.85, 1, UIFont.Small)
-    self:drawText(self.kind == "books" and "Un volume manca se ce ne sono meno copie di quante ne vuoi." or "Una rivista manca se ce ne sono meno copie di quante ne vuoi.",
-        PAD, y + FONT_HGT_SMALL, GREY.r, GREY.g, GREY.b, 1, UIFont.Small)
-    self:drawText(self.kind == "books" and "Copie di ogni volume" or "Copie di ogni rivista", PAD, self.copiesY + 3, 1, 1, 1, 1, UIFont.Small)
+    self:drawText(self.words.rule, PAD, y + FONT_HGT_SMALL, GREY.r, GREY.g, GREY.b, 1, UIFont.Small)
+    self:drawText(self.words.copies, PAD, self.copiesY + 3, 1, 1, 1, 1, UIFont.Small)
     if self.info == nil then
         self:drawText("Conto cosa c'è adesso nella base...", PAD, self.infoY, GREY.r, GREY.g, GREY.b, 1, UIFont.Small)
     elseif self.info.error then
         self:drawText("Non riesco a contare adesso: " .. tostring(self.info.error), PAD, self.infoY, RED.r, RED.g, RED.b, 1, UIFont.Small)
     else
         local c = (self.info.missing or 0) > 0 and Core.LEVELS.scarce or Core.LEVELS.good
-        local text = (self.info.missing or 0) == 0 and string.format("Adesso ci sono tutti e %d.", self.info.total or 0)
+        local text = (self.info.missing or 0) == 0
+            and string.format("Adesso ci sono %s e %d.", self.words.every, self.info.total or 0)
             or string.format("Adesso ne mancano %d su %d.", self.info.missing, self.info.total or 0)
         self:drawText(text, PAD, self.infoY, c.r, c.g, c.b, 1, UIFont.Small)
     end
@@ -1541,7 +1608,11 @@ function ZomBotUI.onInventoryMenu(playerNum, context, items)
     local fullType = item:getFullType()
     local what = Core.describe(fullType)
     local tag = "  [" .. base.name .. "]"
-    if what.kind == "book" or what.kind == "set" then
+    local tape = Core.tapeOf(item)
+    if tape then
+        -- a VHS that teaches: the tapes of its skill (of each, when it teaches two) or all of them, copies of each
+        context:addOption("Controlla le VHS" .. tag, nil, ZomBotUI.openSet, base.name, "vhs", tape.skills)
+    elseif what.kind == "book" or what.kind == "set" then
         context:addOption("Controlla i libri" .. tag, nil, ZomBotUI.openSet, base.name, "books", what.skill)
     elseif what.kind == "magazine" then
         context:addOption("Controlla le riviste" .. tag, nil, ZomBotUI.openSet, base.name, "magazines", what.series)
@@ -1610,11 +1681,15 @@ function ZomBotUI.onWorldMenu(playerNum, context, worldobjects, test)
     if base == nil then return end
     local tag = "  [" .. base.name .. "]"
     context:addOption("ZomBOT: scorte di questa base" .. tag, nil, ZomBotUI.openRules, base.name)
-    -- the skill books and the recipe magazines, without having one in hand
+    -- the skill books, the recipe magazines and the VHS that teach, without having one in hand
     local books = Core.ruleOf(base, "libri") and "Libri delle abilità: modifica" or "Controlla i libri delle abilità"
     context:addOption("ZomBOT: " .. books .. tag, nil, ZomBotUI.openSet, base.name, "books", nil)
     local magazines = Core.ruleOf(base, "riviste") and "Riviste di ricette: modifica" or "Controlla le riviste di ricette"
     context:addOption("ZomBOT: " .. magazines .. tag, nil, ZomBotUI.openSet, base.name, "magazines", nil)
+    if Core.tapeCount(nil) > 0 then -- an older ZomBotData.lua knows no tapes
+        local tapes = Core.ruleOf(base, "vhs") and "VHS delle abilità: modifica" or "Controlla le VHS delle abilità"
+        context:addOption("ZomBOT: " .. tapes .. tag, nil, ZomBotUI.openSet, base.name, "vhs", nil)
+    end
     -- a rain barrel or anything else holding a liquid, inside the base
     local seen = {}
     for _, object in ipairs(worldobjects or {}) do
@@ -1630,7 +1705,8 @@ end
 function ZomBotUI.drawShortages(tip)
     if tip.item == nil or (ISContextMenu.instance and ISContextMenu.instance.visibleCheck) then return end
     if not Core.isAdmin() then return end
-    local lines = Core.shortages(tip.item:getFullType(), fluidOf(tip.item))
+    local tape = Core.tapeOf(tip.item)
+    local lines = Core.shortages(tip.item:getFullType(), fluidOf(tip.item), tape and tape.id)
     if #lines == 0 then return end
     local title = "ZomBOT - scorte"
     local width = UI.textWidth(title)
