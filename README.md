@@ -104,7 +104,7 @@ ZomBOT è il bot Discord del server. Conta le scorte delle basi (cibo, munizioni
 - **tasto destro su un oggetto, «Aggiungi a scorta»**: tiene d'occhio quell'oggetto nella base, con le soglie «critico», «scarseggia» e «buono»;
 - **un attrezzo si tiene d'occhio per lavoro**: «Aggiungi a scorta: Seghe da legno» conta tutti gli attrezzi che il gioco accetta per quel lavoro (Sega, Sega da giardino, Sega per legno semplice), senza quelli rotti. Un attrezzo che fa più lavori offre «Scorta degli attrezzi» con ognuno;
 - **«Controlla i libri» / «Controlla le riviste»**: quali libri delle abilità e quali riviste di ricette mancano nella base;
-- **«Controlla le VHS»**: quali delle 62 VHS che insegnano un'abilità (guardarle dà esperienza) mancano nella base, tutte o quelle di un'abilità, come i libri.
+- **«Controlla le VHS»**: quali delle 62 VHS che insegnano un'abilità (guardarle dà esperienza) ci sono e quali mancano nella base, tutte o quelle di un'abilità, come i libri. Ogni cassetta c'è o manca: niente copie da scegliere.
 
 Funziona solo per gli admin: per chi non lo è i menu non compaiono, e il server rifiuta comunque ogni modifica che non arrivi da un admin.
 

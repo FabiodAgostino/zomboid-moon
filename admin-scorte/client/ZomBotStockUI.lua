@@ -8,7 +8,8 @@
 --   «aggiungi a scorta: Alimenti» (all the food together, in portions), a tool its job «aggiungi a scorta: Seghe
 --   da legno» (every tool that does it; a tool with more jobs offers each), books and magazines «controlla i
 --   libri / le riviste» (copies of each), a VHS that teaches «controlla le VHS» (its skills, or all the tapes that
---   teach), liquids «… in litri»;
+--   teach: each one there or missing, never how many), any other cassette «controlla le VHS delle abilità» (a
+--   cassette is never a stock by quantity), liquids «… in litri»;
 -- «Scorte...» in the list of bases, or right click on the ground inside a base «ZomBOT: scorte di questa base»: every
 --   check of the base with its thresholds and how it stands, «Modifica le soglie» and «Smetti di tracciare»;
 -- anywhere: right click on the ground «ZomBOT: basi…» (list, new, edit, remove) and a «Basi» button on the map:
@@ -384,9 +385,10 @@ function Core.isSet(kind)
     return kind == "books" or kind == "magazines" or kind == "vhs"
 end
 
--- «Critico fino a 100, scarseggia fino a 500, buono da 1.000», «1 copia di ogni volume»
+-- «Critico fino a 100, scarseggia fino a 500, buono da 1.000», «1 copia di ogni volume», «Ognuna: c'è o manca»
 function Core.ruleText(rule)
     local kind = Core.ruleKind(rule.key)
+    if kind == "vhs" then return "Ognuna: c'è o manca" end
     if Core.isSet(kind) then
         local copies = rule.good == 1 and "1 copia" or (rule.good .. " copie")
         return copies .. (kind == "books" and " di ogni volume" or " di ognuna")
@@ -1418,7 +1420,7 @@ function ZomBotUI.openStock(_, baseName, key, label, texture)
     return ZomBotUI.show(ZomBotStockWindow, 470, 400, baseName, key, label, texture)
 end
 
--- -- skill books, recipe magazines, VHS that teach: which ones, and how many copies of each -------------------------
+-- -- skill books, recipe magazines, VHS that teach: which ones, and how many copies of each (the VHS: none) ---------
 ZomBotSetWindow = ZomBotWindow:derive("ZomBotSetWindow")
 
 -- the words of each kind of set; `names` is where ZomBotData keeps the names of its groups (skills, series)
@@ -1434,10 +1436,11 @@ ZomBotSetWindow.WORDS = {
         copies = "Copie di ogni rivista", rule = "Una rivista manca se ce ne sono meno copie di quante ne vuoi.",
         every = "tutte",
     },
+    -- each tape there or missing, never how many (the user, 27/10/2026): no copies to choose
     vhs = {
         title = "ZomBOT  -  VHS delle abilità", heading = "VHS che insegnano un'abilità", prefix = "vhs",
-        names = "tapeSkills", only = "Solo le VHS di ", all = "Tutte le VHS che insegnano", copies = "Copie di ogni VHS",
-        rule = "Una VHS manca se ce ne sono meno copie di quante ne vuoi.", every = "tutte",
+        names = "tapeSkills", only = "Solo le VHS di ", all = "Tutte le VHS che insegnano",
+        rule = "Ognuna c'è o manca: manca se nella base non ce n'è nemmeno una.", every = "tutte",
     },
 }
 
@@ -1472,9 +1475,11 @@ function ZomBotSetWindow:createChildren()
     for _, k in ipairs(self:keys()) do self.combo:addOptionWithData(k[2], k[1]) end
     self.combo.selected = 1
     y = y + BUTTON_HGT + PAD
-    self.copiesY = y
-    self.copiesEntry = UI.entry(self, self.width - PAD - 80, y, 80, "1", true)
-    y = y + BUTTON_HGT + PAD
+    if self.words.copies then
+        self.copiesY = y
+        self.copiesEntry = UI.entry(self, self.width - PAD - 80, y, 80, "1", true)
+        y = y + BUTTON_HGT + PAD
+    end
     self.infoY = y
     local bw = (self.width - PAD * 4) / 3
     local by = self.height - BUTTON_HGT - PAD
@@ -1491,7 +1496,7 @@ end
 function ZomBotSetWindow:onChoice()
     local key = self:key()
     local rule = Core.ruleOf(Core.findBase(self.baseName), key)
-    self.copiesEntry:setText(tostring(rule and rule.good or 1))
+    if self.copiesEntry then self.copiesEntry:setText(tostring(rule and rule.good or 1)) end
     self.removeButton:setVisible(rule ~= nil)
     self.saveButton:setTitle(rule and "Salva" or "Controlla")
     self.info = nil
@@ -1507,7 +1512,7 @@ function ZomBotSetWindow:render()
     y = y + FONT_HGT_MEDIUM + 4
     self:drawText("Base '" .. self.baseName .. "'. ZomBOT dirà su Discord quali mancano.", PAD, y, 0.85, 0.85, 0.85, 1, UIFont.Small)
     self:drawText(self.words.rule, PAD, y + FONT_HGT_SMALL, GREY.r, GREY.g, GREY.b, 1, UIFont.Small)
-    self:drawText(self.words.copies, PAD, self.copiesY + 3, 1, 1, 1, 1, UIFont.Small)
+    if self.copiesEntry then self:drawText(self.words.copies, PAD, self.copiesY + 3, 1, 1, 1, 1, UIFont.Small) end
     if self.info == nil then
         self:drawText("Conto cosa c'è adesso nella base...", PAD, self.infoY, GREY.r, GREY.g, GREY.b, 1, UIFont.Small)
     elseif self.info.error then
@@ -1523,7 +1528,7 @@ function ZomBotSetWindow:render()
 end
 
 function ZomBotSetWindow:onSave()
-    local copies = Core.toInt(self.copiesEntry:getText())
+    local copies = self.copiesEntry and Core.toInt(self.copiesEntry:getText()) or 1
     if not copies or copies < 1 or copies > 20 then
         self:setStatus("Copie da 1 a 20.", true)
         return
@@ -1610,8 +1615,14 @@ function ZomBotUI.onInventoryMenu(playerNum, context, items)
     local tag = "  [" .. base.name .. "]"
     local tape = Core.tapeOf(item)
     if tape then
-        -- a VHS that teaches: the tapes of its skill (of each, when it teaches two) or all of them, copies of each
+        -- a VHS that teaches: the tapes of its skill (of each, when it teaches two) or all of them, each there or not
         context:addOption("Controlla le VHS" .. tag, nil, ZomBotUI.openSet, base.name, "vhs", tape.skills)
+    elseif ((ZomBotData or {}).mediaItems or {})[fullType] then
+        -- a film, a blank tape: it teaches nothing, and a cassette is never a stock by quantity (the server refuses
+        -- it too): the tapes that teach, all of them
+        if Core.tapeCount(nil) > 0 then
+            context:addOption("Controlla le VHS delle abilità" .. tag, nil, ZomBotUI.openSet, base.name, "vhs", nil)
+        end
     elseif what.kind == "book" or what.kind == "set" then
         context:addOption("Controlla i libri" .. tag, nil, ZomBotUI.openSet, base.name, "books", what.skill)
     elseif what.kind == "magazine" then
