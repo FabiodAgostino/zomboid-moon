@@ -472,6 +472,12 @@ function G.stopBlink(why)
     local object = blink.object
     if object then
         pcall(function() object:setHighlighted(blink.playerNum, false, false) end)
+        -- the game's own colour back: vanilla highlights it again without one (moving it: ISMoveablesAction), and it
+        -- would come out in the blink's yellow
+        pcall(function()
+            local c = getCore():getObjectHighlitedColor()
+            object:setHighlightColor(blink.playerNum, c:getR(), c:getG(), c:getB(), c:getA())
+        end)
         -- the loot window takes it back (and highlights it again if it is the open container)
         pcall(function() ISInventoryPage.OnObjectHighlighted(blink.playerNum, object, false) end)
         G.paint(object, G.entryAt(blink.x, blink.y, blink.z, blink.index))
@@ -649,7 +655,8 @@ function ZomBotGiocoMain:createChildren()
     self.colorsBox:addOption("Colora le casse")
     self.colorsBox:setSelected(1, G.setting().colors)
     self:addChild(self.colorsBox)
-    self.answersTop = y + BUTTON_HGT + PAD
+    -- the note under the switch, on its own line: beside it, it would leave the window with the larger fonts
+    self.answersTop = y + BUTTON_HGT + FONT_HGT_SMALL + PAD
     -- from the bottom: «Chiudi», then one button for each extra
     local bottom = self.height - PAD - BUTTON_HGT
     self.closeButton2 = button(self, self.width - PAD - 100, bottom, 100, "Chiudi", ZomBotGiocoMain.close)
@@ -683,8 +690,8 @@ function ZomBotGiocoMain:render()
         self:drawText(line, PAD, y, 1, 1, 1, 1, UIFont.Small)
         y = y + FONT_HGT_SMALL
     end
-    self:drawText("Solo per te: chi non ha la mod non vede i colori.", self.colorsBox.x + self.colorsBox.width + PAD,
-        self.colorsBox.y + 4, GREY.r, GREY.g, GREY.b, 1, UIFont.Small)
+    self:drawText("Solo per te: chi non ha la mod non vede i colori.", PAD, self.colorsBox.y + BUTTON_HGT, GREY.r,
+        GREY.g, GREY.b, 1, UIFont.Small)
     y = self.answersTop
     self:drawText("Ultime risposte", PAD, y, GOLD.r, GOLD.g, GOLD.b, 1, UIFont.Medium)
     y = y + FONT_HGT_MEDIUM + 4
@@ -738,9 +745,13 @@ function ZomBotGiocoPalette:new(x, y, width, height, target)
     return o
 end
 
+ZomBotGiocoPalette.NOTE = "Lo vedono tutti quelli che hanno la mod ZomBOT."
+ZomBotGiocoPalette.STATUS_LINES = 2
+
 function ZomBotGiocoPalette:createChildren()
     ISCollapsableWindow.createChildren(self)
-    local top = self:top() + FONT_HGT_MEDIUM + FONT_HGT_SMALL + PAD
+    self.note = G.wrap(ZomBotGiocoPalette.NOTE, self.width - PAD * 2)
+    local top = self:top() + FONT_HGT_MEDIUM + FONT_HGT_SMALL * #self.note + PAD
     local w = (self.width - PAD * 3) / 2 - SWATCH - 4
     self.colorButtons = {}
     for i, colour in ipairs(G.PALETTE) do
@@ -753,16 +764,19 @@ function ZomBotGiocoPalette:createChildren()
     local y = top + math.ceil(#G.PALETTE / 2) * (BUTTON_HGT + 6) + 4
     self.noneButton = button(self, PAD, y, self.width - PAD * 2, "Nessun colore", ZomBotGiocoPalette.onNone, "cancel")
     self.statusY = y + BUTTON_HGT + PAD
-    self.doneButton = button(self, self.width - PAD - 100, self.height - PAD - BUTTON_HGT, 100, "Chiudi",
-        ZomBotGiocoPalette.close)
+    -- the window as tall as what it holds, with the game's fonts at any size: a status of two lines, then «Chiudi»
+    local bottom = self.statusY + FONT_HGT_SMALL * ZomBotGiocoPalette.STATUS_LINES + PAD
+    self:setHeight(bottom + BUTTON_HGT + PAD)
+    self.doneButton = button(self, self.width - PAD - 100, bottom, 100, "Chiudi", ZomBotGiocoPalette.close)
 end
 
 function ZomBotGiocoPalette:render()
     ISCollapsableWindow.render(self)
     local y = self:top()
     self:drawText(self.what, PAD, y, GOLD.r, GOLD.g, GOLD.b, 1, UIFont.Medium)
-    self:drawText("Lo vedono tutti quelli che hanno la mod ZomBOT.", PAD, y + FONT_HGT_MEDIUM, GREY.r, GREY.g, GREY.b, 1,
-        UIFont.Small)
+    for i, line in ipairs(self.note or {}) do
+        self:drawText(line, PAD, y + FONT_HGT_MEDIUM + FONT_HGT_SMALL * (i - 1), GREY.r, GREY.g, GREY.b, 1, UIFont.Small)
+    end
     for _, b in ipairs(self.colorButtons or {}) do
         local c = b.colour
         self:drawRect(b.x - SWATCH - 4, b.y + (BUTTON_HGT - SWATCH) / 2, SWATCH, SWATCH, 1, c.r, c.g, c.b)
@@ -770,7 +784,10 @@ function ZomBotGiocoPalette:render()
     end
     if self.status and self.status ~= "" then
         local c = self.statusBad and RED or GREEN
-        self:drawText(self.status, PAD, self.statusY, c.r, c.g, c.b, 1, UIFont.Small)
+        for i, line in ipairs(G.wrap(self.status, self.width - PAD * 2)) do
+            if i > ZomBotGiocoPalette.STATUS_LINES then break end
+            self:drawText(line, PAD, self.statusY + FONT_HGT_SMALL * (i - 1), c.r, c.g, c.b, 1, UIFont.Small)
+        end
     end
 end
 
@@ -790,7 +807,7 @@ end
 
 function G.openPalette(target)
     if target == nil then return nil end
-    return G.show(ZomBotGiocoPalette, 340, 300, target)
+    return G.show(ZomBotGiocoPalette, 380, 300, target) -- the height follows the content (createChildren)
 end
 
 -- -- the one «ZomBOT» entry of the right click (client/ZomBotMenu.lua) ----------------------------------------------

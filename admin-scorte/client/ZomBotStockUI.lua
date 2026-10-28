@@ -560,6 +560,8 @@ end
 -- the text cut to `width` pixels, by whole words when it can («Aggiungi a scorta: Acqua...»): buttons of other mods
 -- can have any label. Only plain spaces split words: %s and %p depend on the locale outside the game, where a byte
 -- of «à» can count as a space
+UI.BYTES = #"à" > 1 -- true in a C Lua (bytes), false in the game's Kahlua (letters)
+
 function UI.fit(text, width, font)
     text = (tostring(text or ""):gsub("^ +", ""):gsub(" +$", ""))
     if UI.textWidth(text, font) <= width then return text end
@@ -569,9 +571,11 @@ function UI.fit(text, width, font)
         text = shorter
     end
     if UI.textWidth(text .. "...", font) > width then
-        -- one word too long: cut by the letter, never in the middle of a letter written in more than one byte
+        -- one word too long: cut by the letter. The game's Lua (Kahlua) counts letters, so «à» is one; a C Lua (the
+        -- tests) counts bytes, and only there a cut can leave half a letter, to be dropped. In Kahlua the same pattern
+        -- would drop a whole à, è, ì, ò, ù (U+00E0..U+00F9 fall in that range)
         while #text > 1 and UI.textWidth(text .. "...", font) > width do text = string.sub(text, 1, -2) end
-        text = text:gsub("[\192-\255][\128-\191]*$", "")
+        if UI.BYTES then text = text:gsub("[\192-\255][\128-\191]*$", "") end
     end
     return text .. "..."
 end
