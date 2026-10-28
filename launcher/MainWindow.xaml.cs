@@ -30,6 +30,7 @@ public partial class MainWindow : Window
         vm.Dialog = ShowDialogAsync;
         vm.Toast = ShowToast;
         vm.Minimize = () => WindowState = WindowState.Minimized;
+        vm.CloseLauncher = Close;
         page = PageHome;
         SourceInitialized += (_, _) => RoundCorners();
         Loaded += async (_, _) =>

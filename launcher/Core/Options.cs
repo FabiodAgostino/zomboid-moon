@@ -10,6 +10,7 @@ namespace Moon.Core;
 ///   --sorgente &lt;cartella&gt;  take the mods from a local copy of the repo instead of GitHub
 ///   --api &lt;url&gt;           GitHub's API address (a fake server, for the tests)
 ///   --prova                does everything but start the game
+///   --prova-errore         like --prova, and starting the game fails
 /// </summary>
 public sealed class Options
 {
@@ -21,6 +22,7 @@ public sealed class Options
     public string? SourceFolder { get; private set; }
     public string ApiBase { get; private set; } = "https://api.github.com";
     public bool DryRun { get; private set; }
+    public bool DryRunFails { get; private set; }
     public bool JustUpdated { get; private set; }
 
     /// <summary>The arguments as they were, to start the launcher again after an update or as administrator.</summary>
@@ -41,6 +43,7 @@ public sealed class Options
                 case "--sorgente": o.SourceFolder = Full(Next()); break;
                 case "--api": o.ApiBase = Next().TrimEnd('/'); break;
                 case "--prova": o.DryRun = true; break;
+                case "--prova-errore": o.DryRun = o.DryRunFails = true; break;
                 case "--aggiornato": o.JustUpdated = true; break;
                 default:
                     if (!a.StartsWith("--", StringComparison.Ordinal) && o.GameFolder is null) o.GameFolder = Full(a);

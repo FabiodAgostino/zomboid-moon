@@ -61,4 +61,11 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "$env:TAG" dist/MoonLauncher.exe dist/moon-mods.zip dist/mods.json --clobber --repo "${{ github.repository }}"
+        run: |
+          # publishing a draft that already has the files starts this again: --clobber would delete the exe and upload
+          # it back, and for a moment the release would have no launcher to download
+          if ('${{ github.event_name }}' -eq 'release') {
+            $have = gh release view "$env:TAG" --repo "${{ github.repository }}" --json assets --jq '.assets[].name'
+            if ($have -contains 'MoonLauncher.exe') { 'MoonLauncher.exe è già nella release: non tocco niente.'; exit 0 }
+          }
+          gh release upload "$env:TAG" dist/MoonLauncher.exe dist/moon-mods.zip dist/mods.json --clobber --repo "${{ github.repository }}"

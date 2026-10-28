@@ -57,7 +57,7 @@ public sealed class MainViewModel : Observable, IDisposable
         github = new GitHub(options.ApiBase, store.CacheFolder);
         sources = new Sources(github, store.CacheFolder, options.SourceFolder);
         PlayCommand = new Command(PlayAsync, () => PlayEnabled);
-        PlayAnywayCommand = new Command(LaunchGame, () => !IsBusy && !gameRunning);
+        PlayAnywayCommand = new Command(LaunchGameAsync, () => !IsBusy && !gameRunning);
         ChooseGameCommand = new Command(ChooseGameAsync, () => !IsBusy);
         OpenModsFolderCommand = new Command(OpenModsFolder);
         UpdateAllCommand = new Command(() => InstallAsync(Mods.Where(m => m.HasUpdate).ToList(), latest: true), () => !IsBusy);
@@ -71,6 +71,7 @@ public sealed class MainViewModel : Observable, IDisposable
     public Func<DialogRequest, Task<int>> Dialog { get; set; } = _ => Task.FromResult(-1);
     public Action<string, string, ToastKind> Toast { get; set; } = (_, _, _) => { };
     public Action Minimize { get; set; } = () => { };
+    public Action CloseLauncher { get; set; } = () => { };
 
     public ObservableCollection<ModCard> Mods { get; } = [];
     public ObservableCollection<NewsItem> News { get; } = [];
@@ -352,30 +353,31 @@ public sealed class MainViewModel : Observable, IDisposable
         UpdatePlayState();
     }
 
+    /// <summary>
+    /// GIOCA: first the mods that need it (INSTALLA, AGGIORNA), then the game. When the game starts the launcher closes;
+    /// when something goes wrong it stays open and says why.
+    /// </summary>
     async Task PlayAsync()
     {
         if (PlayLabel is "INSTALLA" or "AGGIORNA")
         {
-            await InstallAsync(Mods.Where(m => (m.Required && m.State == ModState.NotInstalled && !m.Disabled) || m.HasUpdate).ToList(),
-                latest: true);
-            return;
+            var todo = Mods.Where(m => (m.Required && m.State == ModState.NotInstalled && !m.Disabled) || m.HasUpdate).ToList();
+            if (!await InstallAsync(todo, latest: true) || PlayLabel != "GIOCA") return;
         }
-        LaunchGame();
+        await LaunchGameAsync();
     }
 
-    void LaunchGame()
+    async Task LaunchGameAsync()
     {
         try
         {
-            var how = Game.Launch(gameFolder, options.DryRun);
+            var how = Game.Launch(gameFolder, options.DryRun, options.DryRunFails);
             launching = true;
             UpdatePlayState();
             Toast("Buona fortuna là fuori", how == "steam" ? "Steam sta aprendo Project Zomboid." : how, ToastKind.Info);
-            _ = Task.Delay(TimeSpan.FromSeconds(8)).ContinueWith(_ =>
-            {
-                launching = false;
-                UpdatePlayState();
-            }, TaskScheduler.FromCurrentSynchronizationContext());
+            // the game is starting: the launcher is not needed any more
+            await Task.Delay(TimeSpan.FromSeconds(1.5));
+            CloseLauncher();
         }
         catch (Exception e) when (e is Win32Exception or InvalidOperationException)
         {
@@ -543,19 +545,21 @@ public sealed class MainViewModel : Observable, IDisposable
     }
 
     /// <summary>Installs the cards: their latest version, or the one chosen in their menu.</summary>
-    async Task InstallAsync(IReadOnlyList<ModCard> cards, bool latest)
+    /// <returns>true when every card was installed.</returns>
+    async Task<bool> InstallAsync(IReadOnlyList<ModCard> cards, bool latest)
     {
         if (IsBusy || installer is null || cards.Count == 0)
         {
             foreach (var c in cards) c.Sync();
-            return;
+            return false;
         }
         IsBusy = true;
         UpdatePlayState();
         var hints = new List<string>();
+        var done = false;
         try
         {
-            if (!await WaitForGameClosedAsync()) return;
+            if (!await WaitForGameClosedAsync()) return false;
             for (var i = 0; i < cards.Count; i++)
             {
                 var card = cards[i];
@@ -580,6 +584,7 @@ public sealed class MainViewModel : Observable, IDisposable
             Toast(cards.Count == 1 ? $"{cards[0].Name} {cards[0].SelectedVersion} installata" : "Tutto pronto",
                 hints.Count > 0 ? string.Join(" ", hints) : "Avvia Project Zomboid ed entra sul server Moon come sempre.",
                 ToastKind.Ok);
+            done = true;
         }
         catch (Exception e)
         {
@@ -593,6 +598,7 @@ public sealed class MainViewModel : Observable, IDisposable
             foreach (var c in cards) c.Sync();
             UpdatePlayState();
         }
+        return done;
     }
 
     async Task UninstallAsync(ModCard card)
