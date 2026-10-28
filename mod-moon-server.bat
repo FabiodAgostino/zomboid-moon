@@ -263,7 +263,7 @@ echo   non devi attivare niente nel menu Mod.
 if defined WITH_ZOMBOT echo.
 if defined WITH_ZOMBOT echo   Per chiedere a ZomBOT scrivi in chat una riga che comincia con «zombot»,
 if defined WITH_ZOMBOT echo   per esempio %C%zombot dove trovo le asce?%N%  La risposta la vedi solo tu.
-if defined WITH_ZOMBOT echo   Per colorare una cassa: tasto destro sulla cassa, %C%«ZomBOT»%N%, %C%«Colore di questa cassa»%N%.
+if defined WITH_ZOMBOT echo   Per colorare una cassa: tasto destro sulla cassa, %C%«ZomBOT: colora il contenitore»%N%.
 if defined WITH_ADMIN echo.
 if defined WITH_ADMIN echo   Da admin: tasto destro, %C%«ZomBOT»%N%: si apre la finestra delle basi e delle scorte.
 echo.

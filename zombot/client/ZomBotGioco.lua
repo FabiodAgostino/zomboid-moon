@@ -828,6 +828,15 @@ table.insert(ZomBotMenu.defs, {
     onClick = function(ctx) G.openPalette(ctx and ctx.container) end,
 })
 
+-- the same palette straight from the right click on a crate, without the window (28/10/2026, the user: «tasto destro
+-- sulla cassa -> Zombot: colora il contenitore»)
+table.insert(ZomBotMenu.defs, {
+    kind = "shortcut", id = "zombot-color-now", order = 20,
+    available = function(_, ctx) return ctx ~= nil and ctx.container ~= nil end,
+    label = function() return "ZomBOT: colora il contenitore" end,
+    onClick = function(ctx) G.openPalette(ctx and ctx.container) end,
+})
+
 -- the switch and this window, from another mod's main window (Admin-Scorte's bases, for an admin)
 local function elsewhere(player, ctx)
     return ZomBotMenu.mainFor ~= nil and ZomBotMenu.mainFor(player, ctx or {}) ~= G.mainDef

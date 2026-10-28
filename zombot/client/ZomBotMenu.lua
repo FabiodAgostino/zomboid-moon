@@ -17,6 +17,9 @@
 --          of the crate right-clicked. available(player, ctx) -> boolean, label(ctx) -> text, onClick(ctx).
 --   item   the right click on an item: fill(player, ctx, submenu) adds options to the one «ZomBOT» submenu and
 --          returns true when it added any. With nothing added there is no «ZomBOT» entry at all.
+--   shortcut  an entry of its own in the world right click, right after «ZomBOT», for something done often
+--          (28/10/2026, the user: «ZomBOT: colora il contenitore» on a crate). available(player, ctx) -> boolean,
+--          label(ctx) -> text, onClick(ctx).
 -- ctx, made once for each right click: { playerNum, player, square, x, y, z, worldobjects (world menu),
 --   container = { object, index, x, y, z } for the first object with a container among the ones clicked,
 --   items and item (inventory menu: the entries and the first item) }.
@@ -109,11 +112,21 @@ function M.open(ctx)
     if def then ask(def.open, ctx or {}) end
 end
 
+-- a shortcut chosen: its own onClick, with the right click it came from
+function M.shortcut(ctx, def)
+    ask(def.onClick, ctx)
+end
+
 function M.onWorldMenu(playerNum, context, worldobjects, test)
     if test and ISWorldObjectContextMenu.Test then return true end
     local ctx = M.context(playerNum, worldobjects, nil)
-    if ctx.player == nil or M.mainFor(ctx.player, ctx) == nil then return end
-    context:addOption(M.TITLE, ctx, M.open)
+    if ctx.player == nil then return end
+    if M.mainFor(ctx.player, ctx) ~= nil then context:addOption(M.TITLE, ctx, M.open) end
+    for _, def in ipairs(M.list("shortcut")) do
+        if ask(def.available, ctx.player, ctx) then
+            context:addOption(ask(def.label, ctx) or M.TITLE, ctx, M.shortcut, def)
+        end
+    end
 end
 
 function M.onInventoryMenu(playerNum, context, items)

@@ -6,8 +6,8 @@ Le mod per giocare a **Project Zomboid** (Build 42) sul server **Moon**, con un 
 
 | Mod | Versione | Stato | A chi serve | Cos'è |
 | --- | --- | --- | --- | --- |
-| **ZomBOT** | 1.0.0 | Installabile | **a tutti** | Le domande a ZomBOT dalla chat del gioco, il contenitore che lampeggia dove c'è ciò che cerchi, le casse colorate. Vedi [ZomBOT: cosa fa](#zombot-cosa-fa). |
-| **Admin-Scorte** | 1.1.0 | Installabile | **agli admin** del server | Le finestre di ZomBOT per gestire le basi e le loro scorte; a chi non è admin mostra solo dove un oggetto manca nelle basi. Vedi [Admin-Scorte: cosa fa](#admin-scorte-cosa-fa). |
+| **ZomBOT** | 1.0.1 | Installabile | **a tutti** | Le domande a ZomBOT dalla chat del gioco, il contenitore che lampeggia dove c'è ciò che cerchi, le casse colorate. Vedi [ZomBOT: cosa fa](#zombot-cosa-fa). |
+| **Admin-Scorte** | 1.1.1 | Installabile | **agli admin** del server | Le finestre di ZomBOT per gestire le basi e le loro scorte; a chi non è admin mostra solo dove un oggetto manca nelle basi. Vedi [Admin-Scorte: cosa fa](#admin-scorte-cosa-fa). |
 | **Silenziatori** | 1.5.31-moon.1 | **Disattivata** | per ora a nessuno | I silenziatori per le armi: la mod Simple Suppressors di Kiidxatlas, tradotta in italiano e corretta. Per ora il pacchetto non la installa: vedi [Silenziatori (disattivata)](#silenziatori-disattivata). |
 
 ---
@@ -117,7 +117,7 @@ ZomBOT è il bot Discord del server. Con questa mod lo si usa anche **dentro il 
 
 - **le domande dalla chat**: scrivi in chat una riga che comincia con **«zombot»** (anche «@ZomBOT», «zombot,» o «zombot:»), per esempio **«zombot dove trovo le asce?»**. La riga va in chat come sempre, compare «ZomBOT ci pensa...» e la risposta arriva nella tua chat: **la vedi solo tu**. Una domanda ogni 10 secondi, al massimo 30 all'ora;
 - **dove sono le cose**: se sei dentro una base e chiedi dove trovare qualcosa, **il contenitore più vicino che lo contiene lampeggia** per te (anche se è dentro una borsa o una scatola). Smette quando ci clicchi sopra, quando lo apri, dopo un minuto o quando ne lampeggia un altro;
-- **le casse colorate**: **tasto destro su una cassa → «ZomBOT» → «Colore di questa cassa»** e scegli uno degli 8 colori, o «Nessun colore». Il colore è lo stesso per tutto il server e lo vede chiunque abbia la mod; chi non ce l'ha vede le casse come sempre. Se non vuoi vederli, nella finestra di ZomBOT togli «Colora le casse»: vale solo per te;
+- **le casse colorate**: **tasto destro su una cassa → «ZomBOT: colora il contenitore»** e scegli uno degli 8 colori, o «Nessun colore». Il colore è lo stesso per tutto il server e lo vede chiunque abbia la mod; chi non ce l'ha vede le casse come sempre. Se non vuoi vederli, nella finestra di ZomBOT togli «Colora le casse»: vale solo per te;
 - **la finestra di ZomBOT**: un clic su «ZomBOT» nel tasto destro. Spiega come chiedere, mostra le ultime risposte e l'interruttore dei colori.
 
 Chi non ha la mod gioca come sempre e non vede niente di diverso. Il server ricontrolla ogni richiesta: la mod non dà poteri a nessuno.
