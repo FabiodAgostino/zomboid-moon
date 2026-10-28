@@ -1,20 +1,23 @@
--- ZomBotStockUI: the admins' windows for ZomBOT's bases and stocks. Client only, and ONLY the admins copy it into
--- their own game (media/lua/client), with shared/ZomBotData.lua: the server runs with DoLuaChecksum=false, so
--- nobody else needs anything. Every change goes to the server (server/ZomBotStock.lua), which refuses it unless
--- the player is an admin there: this file cannot give powers to anyone.
+-- ZomBotStockUI: ZomBOT's bases and stocks in game. Client only, copied into a player's own game (media/lua/client)
+-- with shared/ZomBotData.lua and client/ZomBotMenu.lua by installa-admin.bat: the server runs with
+-- DoLuaChecksum=false. Every change goes to the server (server/ZomBotStock.lua), which refuses it unless the player is
+-- an admin there: this file cannot give powers to anyone.
 --
--- What it adds, inside a base:
---   right click on an item: «ZomBOT: aggiungi a scorta» (three thresholds: critical, running low, good), any food
---   «aggiungi a scorta: Alimenti» (all the food together, in portions), a tool its job «aggiungi a scorta: Seghe
---   da legno» (every tool that does it; a tool with more jobs offers each), books and magazines «controlla i
---   libri / le riviste» (copies of each), a VHS that teaches «controlla le VHS» (its skills, or all the tapes that
---   teach: each one there or missing, never how many), any other cassette «controlla le VHS delle abilità» (a
---   cassette is never a stock by quantity), liquids «… in litri»;
--- «Scorte...» in the list of bases, or right click on the ground inside a base «ZomBOT: scorte di questa base»: every
---   check of the base with its thresholds and how it stands, «Modifica le soglie» and «Smetti di tracciare»;
--- anywhere: right click on the ground «ZomBOT: basi…» (list, new, edit, remove) and a «Basi» button on the map:
---   a base is drawn on the ground (click and drag), on the world map (click and drag), from the building you
---   stand in, or from two corners where you stand.
+-- For anyone who installed it (28/10/2026): under the tooltip of an item, anywhere, «ZomBOT - scorte» with the bases
+-- where it is missing or short. The server answers `state` to anyone and keeps sending it to who asked.
+-- For an admin only, through the one «ZomBOT» entry of the right click (client/ZomBotMenu.lua, shared with the other
+-- Moon mods: this file only adds definitions to it, never its own entries):
+--   «ZomBOT» opens the list of bases (new, edit, remove, on the map), with the buttons other mods add there
+--   (ZomBotMenu.extras) and, on a rain barrel or anything holding a liquid inside a base, «Aggiungi a scorta: Acqua
+--   (litri)». «Scorte...» there: the categories of the base, skill books and recipe magazines (copies of each), VHS
+--   that teach (each there or missing), provisions (all the food in portions, numbers picked by the server), each
+--   «Traccia» / «Non tracciare»; «Tutte le scorte...» every check with its thresholds and how it stands, «Modifica le
+--   soglie» and «Smetti di tracciare». A base is drawn on the ground (click and drag), on the world map (click and
+--   drag), from the building you stand in, or from two corners where you stand;
+--   «ZomBOT» on an item inside a base: «Aggiungi a scorta» (three thresholds: critical, running low, good), a tool its
+--   job «Aggiungi a scorta: Seghe da legno» (every tool that does it; a tool with more jobs offers each), any food
+--   «Traccia le provviste», liquids «… in litri». Books, magazines, newspapers, comics and any recorded media (VHS,
+--   CD) get nothing: they are tracked by category only, from «Scorte...» (the user, 28/10/2026; Core.byCategory).
 if isServer() and not isClient() then return end
 
 ZomBotUI = ZomBotUI or {}
@@ -88,6 +91,33 @@ function Core.describe(fullType)
     return { kind = "item" }
 end
 
+-- Books, magazines and recorded media are tracked by category only (the user, 28/10/2026): no entry on them, the
+-- server refuses them too (Stock.byCategory, same rule). A read is what the game shows as Literature (novels, comics,
+-- newspapers, every other magazine, paper), SkillBook (skill books, their sets) or RecipeResource (recipe magazines),
+-- the DisplayCategory of its script in 42.21; seed packets, notes, photos and documents are ItemType literature too,
+-- but shown as Giardinaggio, Robaccia, Ricordo: those stay items. Recorded media: a MediaCategory (VHS, CD, also blank).
+-- Paper, notebooks and diaries (Literature, but written on) stay items too: the same list as Stock.WRITING.
+Core.READS = { Literature = true, SkillBook = true, RecipeResource = true }
+Core.WRITING = {
+    ["Base.SheetPaper2"] = true, ["Base.Notebook"] = true, ["Base.Notepad"] = true, ["Base.Journal"] = true,
+    ["Base.GraphPaper"] = true, ["Base.Diary1"] = true, ["Base.Diary2"] = true,
+}
+
+function Core.byCategory(fullType)
+    local data = ZomBotData or {}
+    if Core.WRITING[fullType] then return false end
+    if (data.books or {})[fullType] or (data.magazines or {})[fullType] or (data.mediaItems or {})[fullType] then
+        return true
+    end
+    if Core.describe(fullType).kind == "set" then return true end
+    local ok, read = pcall(function()
+        local script = getScriptManager():FindItem(fullType)
+        if script == nil then return false end
+        return Core.READS[script:getDisplayCategory() or ""] == true or script:getRecordedMediaCat() ~= nil
+    end)
+    return ok and read == true
+end
+
 -- what a pack is made of, down to the single pieces (ZomBotData.unpack, the game's opening recipes): a carton or
 -- a pack of cigarettes -> the cigarettes, a box of screws -> the screws, a box of jars -> the jars and the lids.
 -- Empty for an item that is not a pack (and for book sets, which are books).
@@ -147,9 +177,9 @@ function Core.tapeCount(skill)
 end
 
 -- all the food is one check, «alimenti», in portions (25 hunger points, about a meal): an apple, a closed can, a box
--- of cans, an egg carton
+-- of cans, an egg carton. The game calls it «Provviste» (28/10/2026); Discord keeps «Alimenti»
 Core.FOOD = "alimenti"
-Core.FOOD_LABEL = "Alimenti (porzioni)"
+Core.FOOD_LABEL = "Provviste (porzioni)"
 
 function Core.isFood(fullType)
     return ((ZomBotData or {}).food or {})[fullType] ~= nil
@@ -284,8 +314,9 @@ end
 -- «Mancante a Napoli», «Manca a RiversideMoon» (a book or a magazine that base lacks). From each base's last
 -- complete count (made when someone walks out of it, when a check changes, or by ZomBOT's /scorte): out in town
 -- the bases are not in the game's memory, so this is what is known. A pack also tells about what it holds, any food
--- about all the food («Alimenti: scarseggiano a RiversideMoon (112 su 200)»). A tape that teaches (`tapeId`, the
--- recording on it: Core.tapeOf) is missing where a VHS check lacks that recording.
+-- about all the food («Provviste: Scarseggiano a RiversideMoon (112 su 200 porzioni)»). A tape that teaches
+-- (`tapeId`, the recording on it: Core.tapeOf) is missing where a VHS check lacks that recording. Shown to anyone with
+-- the file, admin or not (28/10/2026).
 function Core.shortages(fullType, fluid, tapeId)
     local lines = {}
     local keys = { fullType }
@@ -309,7 +340,7 @@ function Core.shortages(fullType, fluid, tapeId)
                     local food = key == Core.FOOD
                     local what = ""
                     if litres then what = Core.fluidLabel(fluid) .. ": "
-                    elseif food then what = "Alimenti: "
+                    elseif food then what = "Provviste: "
                     elseif Core.ruleKind(key) == "tool" then what = Core.ruleLabel(key) .. ": "
                     elseif key ~= fullType then what = Core.itemName(key) .. ": " end
                     local have = litres and (string.format("%.1f", s.have):gsub("%.", ",") .. " L") or Core.amount(s.have)
@@ -317,7 +348,7 @@ function Core.shortages(fullType, fluid, tapeId)
                     if s.level == "critical" and s.have <= 0 then
                         text = (food and "Mancano a " or "Mancante a ") .. base.name
                     else
-                        local word = s.level == "critical" and (food and "Critici a " or "Critico a ")
+                        local word = s.level == "critical" and (food and "Critiche a " or "Critico a ")
                             or (food and "Scarseggiano a " or "Scarseggia a ")
                         text = word .. base.name .. " (" .. have .. " su " .. Core.amount(rule.good)
                             .. (food and " porzioni)" or ")")
@@ -427,6 +458,49 @@ function Core.sortedRules(base)
     return rows
 end
 
+-- -- the categories of the «Scorte» window ------------------------------------------------------------------------
+-- the four checks of whole categories (28/10/2026): what to call them, their icon, whether copies are asked
+function Core.categories()
+    local data = ZomBotData or {}
+    local function count(t)
+        local n = 0
+        for _ in pairs(t or {}) do n = n + 1 end
+        return n
+    end
+    local volumes, skills, magazines = count(data.books), count(data.skills), count(data.magazines)
+    local out = {
+        { key = "libri", label = "Libri delle abilità", icon = "Base.Book", copies = true, none = "Non tracciati",
+          what = volumes .. " volumi di " .. skills .. " abilità" },
+        { key = "riviste", label = "Riviste di ricette", icon = "Base.Magazine", copies = true, none = "Non tracciate",
+          what = magazines .. " riviste che insegnano ricette" },
+    }
+    if Core.tapeCount(nil) > 0 then -- an older ZomBotData.lua knows no tapes
+        out[#out + 1] = { key = "vhs", label = "VHS delle abilità", icon = "Base.VHS_Retail", none = "Non tracciate",
+            what = Core.tapeCount(nil) .. " cassette che insegnano: ognuna c'è o manca" }
+    end
+    out[#out + 1] = { key = Core.FOOD, label = "Provviste", icon = "Base.TinnedBeans", none = "Non tracciate",
+        what = "Tutto il cibo, in porzioni da 25 di fame (circa un pasto)" }
+    return out
+end
+
+-- a check of a whole category (the «Scorte» window handles it) and a check of one skill or series saved before
+-- 28/10/2026 (listed, only to be removed: no window adds them any more)
+function Core.isCategory(key)
+    return key == "libri" or key == "riviste" or key == "vhs" or key == Core.FOOD
+end
+
+function Core.isLegacy(key)
+    return Core.isSet(Core.ruleKind(key)) and not Core.isCategory(key)
+end
+
+-- what a tracked category checks: «1 copia di ogni volume», «Buone da 100 porzioni, scarse fino a 50, critiche fino
+-- a 20» (the words of the server's answer)
+function Core.categoryText(rule)
+    if rule.key ~= Core.FOOD then return Core.ruleText(rule) end
+    return "Buone da " .. Core.amount(rule.good) .. " porzioni, scarse fino a " .. Core.amount(rule.scarce)
+        .. ", critiche fino a " .. Core.amount(rule.critical)
+end
+
 -- -- who may use it -------------------------------------------------------------------------------------------
 -- B42 roles (as the game's own admin tools check them); the server checks the same on every command
 function Core.isAdmin(player)
@@ -481,6 +555,29 @@ local RED = { r = 0.95, g = 0.35, b = 0.32 }
 
 function UI.textWidth(text, font)
     return getTextManager():MeasureStringX(font or UIFont.Small, text)
+end
+
+-- the text cut to `width` pixels, by whole words when it can («Aggiungi a scorta: Acqua...»): buttons of other mods
+-- can have any label. Only plain spaces split words: %s and %p depend on the locale outside the game, where a byte
+-- of «à» can count as a space
+UI.BYTES = #"à" > 1 -- true in a C Lua (bytes), false in the game's Kahlua (letters)
+
+function UI.fit(text, width, font)
+    text = (tostring(text or ""):gsub("^ +", ""):gsub(" +$", ""))
+    if UI.textWidth(text, font) <= width then return text end
+    while string.find(text, " ", 1, true) and UI.textWidth(text .. "...", font) > width do
+        local shorter = text:gsub("[ ,;:%.%-]*[^ ]+$", "")
+        if shorter == text then break end
+        text = shorter
+    end
+    if UI.textWidth(text .. "...", font) > width then
+        -- one word too long: cut by the letter. The game's Lua (Kahlua) counts letters, so «à» is one; a C Lua (the
+        -- tests) counts bytes, and only there a cut can leave half a letter, to be dropped. In Kahlua the same pattern
+        -- would drop a whole à, è, ì, ò, ù (U+00E0..U+00F9 fall in that range)
+        while #text > 1 and UI.textWidth(text .. "...", font) > width do text = string.sub(text, 1, -2) end
+        if UI.BYTES then text = text:gsub("[\192-\255][\128-\191]*$", "") end
+    end
+    return text .. "..."
 end
 
 function UI.button(parent, x, y, w, title, onClick, kind)
@@ -560,9 +657,11 @@ function ZomBotUI.show(class, width, height, ...)
     return window
 end
 
--- the server answered a change: the window that sent it shows the outcome, the player sees it over the head
+-- the server answered a change: the window that sent it shows the outcome, the admin sees it over the head. Never
+-- over the head of anyone else: a server still running the ZomBotStock.lua of before 28/10/2026 refuses the `state`
+-- of a player who is not admin, every two minutes
 function ZomBotUI.onResult(ok, args)
-    UI.notify(args.text, not ok)
+    if Core.isAdmin() then UI.notify(args.text, not ok) end
     local window = ZomBotUI.awaiting
     if window and window.onResult then
         ZomBotUI.awaiting = nil
@@ -576,18 +675,36 @@ function ZomBotUI.onState()
     end
 end
 
--- -- the list of bases --------------------------------------------------------------------------------------
+-- -- the list of bases: for an admin, ZomBOT's main window -------------------------------------------------------
+-- The buttons other mods add to ZomBOT's main window for this right click (ZomBotMenu.extras: the colour of the crate
+-- right-clicked...), and this file's own (a liquid inside the base): {{def, label}, ...}, none without the menu file
+function ZomBotUI.extras(ctx)
+    if ctx == nil or type(ZomBotMenu) ~= "table" or type(ZomBotMenu.extras) ~= "function" then return {} end
+    local ok, list = pcall(ZomBotMenu.extras, ctx.player or getPlayer(), ctx)
+    return ok and list or {}
+end
+
+-- two to a row (one alone takes the whole row), as many rows as they need
+ZomBotUI.EXTRA_COLUMNS = 2
+
+function ZomBotUI.extraRows(count)
+    return math.ceil(count / ZomBotUI.EXTRA_COLUMNS)
+end
+
 ZomBotBasesWindow = ZomBotWindow:derive("ZomBotBasesWindow")
 
-function ZomBotBasesWindow:new(x, y, width, height)
+-- `ctx`: the right click that opened it (client/ZomBotMenu.lua), for the extra buttons; `extras`: those buttons
+function ZomBotBasesWindow:new(x, y, width, height, ctx, extras)
     local o = ZomBotWindow.new(self, x, y, width, height, "ZomBOT  -  Basi")
+    o.ctx, o.extras = ctx, extras or {}
     return o
 end
 
 function ZomBotBasesWindow:createChildren()
     ISCollapsableWindow.createChildren(self)
     local top = self:top() + FONT_HGT_MEDIUM + PAD
-    local listHeight = self.height - top - BUTTON_HGT * 2 - PAD * 4
+    local extraRows = ZomBotUI.extraRows(#self.extras)
+    local listHeight = self.height - top - BUTTON_HGT * 2 - PAD * 4 - extraRows * (BUTTON_HGT + PAD / 2)
     self.list = ISScrollingListBox:new(PAD, top, self.width - PAD * 2, listHeight)
     self.list:initialise()
     self.list:instantiate()
@@ -603,22 +720,58 @@ function ZomBotBasesWindow:createChildren()
     self.editButton = UI.button(self, PAD * 2 + w, y, w, "Modifica", ZomBotBasesWindow.onEdit)
     self.mapButton = UI.button(self, PAD * 3 + w * 2, y, w, "Sulla mappa", ZomBotBasesWindow.onMap)
     self.removeButton = UI.button(self, PAD * 4 + w * 3, y, w, "Togli", ZomBotBasesWindow.onRemove, "cancel")
-    self.rulesButton = UI.button(self, PAD, y + BUTTON_HGT + PAD, w, "Scorte...", ZomBotBasesWindow.onRules)
+    -- the extra buttons, under those of the bases
+    self.extraButtons = {}
+    local columns = #self.extras > 1 and ZomBotUI.EXTRA_COLUMNS or 1
+    local ew = (self.width - PAD * (columns + 1)) / columns
+    for i, extra in ipairs(self.extras) do
+        local column, row = (i - 1) % columns, math.floor((i - 1) / columns)
+        local button = UI.button(self, PAD + column * (ew + PAD), y + BUTTON_HGT + PAD / 2 + row * (BUTTON_HGT + PAD / 2),
+            ew, UI.fit(extra.label, ew - PAD), ZomBotBasesWindow.onExtra)
+        button.extra = extra
+        self.extraButtons[#self.extraButtons + 1] = button
+    end
+    y = self.height - BUTTON_HGT - PAD
+    self.rulesButton = UI.button(self, PAD, y, w, "Scorte...", ZomBotBasesWindow.onRules)
     -- not closeButton: that is the X of the title bar in ISCollapsableWindow
-    self.doneButton = UI.button(self, self.width - PAD - w, y + BUTTON_HGT + PAD, w, "Chiudi", ZomBotBasesWindow.close)
+    self.doneButton = UI.button(self, self.width - PAD - w, y, w, "Chiudi", ZomBotBasesWindow.close)
+    self.extrasAt = getTimestampMs()
     self:refresh()
     Core.send("state")
 end
 
 function ZomBotBasesWindow:refresh()
     if not self.list then return end
-    local selected = self:selectedBase()
+    -- the first time the base you stand in, then the one chosen
+    local selected = self.filled and self:selectedBase() or ZomBotUI.baseOfPlayer(self.player)
     self.list:clear()
     for _, base in ipairs(Core.state.bases or {}) do
         local row = self.list:addItem(base.name, base)
         if selected and selected.id == base.id then self.list.selected = row.itemindex end
     end
     if self.list.selected == 0 and #self.list.items > 0 then self.list.selected = 1 end
+    self.filled = self.filled or #self.list.items > 0
+    self:refreshExtras()
+end
+
+-- another mod's button may change its words once pressed («Casse colorate: sì» -> «no»), or go away
+function ZomBotBasesWindow:refreshExtras()
+    if #(self.extraButtons or {}) == 0 then return end
+    local now = {}
+    for _, extra in ipairs(ZomBotUI.extras(self.ctx)) do now[extra.def.id] = extra end
+    for _, button in ipairs(self.extraButtons) do
+        local extra = now[button.extra.def.id]
+        if extra then
+            button.extra = extra
+            button:setTitle(UI.fit(extra.label, button.width - PAD))
+        end
+        button:setEnable(extra ~= nil)
+    end
+end
+
+function ZomBotBasesWindow:onExtra(button)
+    if ZomBotMenu and ZomBotMenu.press then ZomBotMenu.press(button.extra, self.ctx) end
+    self:refreshExtras()
 end
 
 function ZomBotBasesWindow:selectedBase()
@@ -643,7 +796,7 @@ function ZomBotBasesWindow.drawRow(list, y, item, alt)
         Core.floorsText(base.z1, base.z2), base.x1, base.y1, base.x2, base.y2)
     list:drawText(line, PAD, y + 6 + FONT_HGT_MEDIUM, 0.85, 0.85, 0.85, 1, UIFont.Small)
     local count = #(base.rules or {})
-    local checks = count == 0 and "Niente da controllare: tasto destro su un oggetto dentro la base"
+    local checks = count == 0 and "Niente da controllare: Scorte..., o tasto destro su un oggetto nella base"
         or (count == 1 and "1 cosa da controllare (Scorte...)" or (count .. " cose da controllare (Scorte...)"))
     list:drawText(checks, PAD, y + 6 + FONT_HGT_MEDIUM + FONT_HGT_SMALL, GREY.r, GREY.g, GREY.b, 1, UIFont.Small)
     return y + item.height
@@ -664,11 +817,18 @@ function ZomBotBasesWindow:render()
     self.rulesButton:setEnable(hasBase)
     -- between «Scorte...» and «Chiudi»
     self:drawStatus(self.height - BUTTON_HGT - PAD + 4, PAD * 2 + self.rulesButton.width)
+    -- what another mod's buttons say may change on its own (an answer from the server): looked at once a second
+    local now = getTimestampMs()
+    if now - (self.extrasAt or 0) >= 1000 then
+        self.extrasAt = now
+        self:refreshExtras()
+    end
 end
 
+-- the categories of the base chosen (28/10/2026; every check of it is one more click away, «Tutte le scorte...»)
 function ZomBotBasesWindow:onRules()
     local base = self:selectedBase()
-    if base then ZomBotUI.openRules(nil, base.name) end
+    if base then ZomBotUI.openCategories(nil, base.name) end
 end
 
 function ZomBotBasesWindow:onNew()
@@ -709,16 +869,24 @@ function ZomBotBasesWindow:onResult(ok, text)
     self:setStatus(text, not ok)
 end
 
-function ZomBotUI.openBases()
-    return ZomBotUI.show(ZomBotBasesWindow, 560, 470)
+-- `ctx`: the right click (client/ZomBotMenu.lua); none when the base editor opens the list again after a save: the
+-- right click that opened the list before, so its buttons stay
+function ZomBotUI.openBases(ctx)
+    ctx = ctx or ZomBotUI.basesCtx
+    ZomBotUI.basesCtx = ctx
+    local extras = ZomBotUI.extras(ctx)
+    local height = 470 + ZomBotUI.extraRows(#extras) * (BUTTON_HGT + PAD / 2)
+    return ZomBotUI.show(ZomBotBasesWindow, 560, height, ctx, extras)
 end
 
 -- -- what a base checks: each check with its thresholds and how it stands; change it or stop tracking it ----------
+-- («Tutte le scorte...» in the «Scorte» window). The categories change in the «Scorte» window, the checks of one skill
+-- or series saved before 28/10/2026 can only be removed.
 ZomBotRulesWindow = ZomBotWindow:derive("ZomBotRulesWindow")
 local ICON = 32
 
 function ZomBotRulesWindow:new(x, y, width, height, baseName)
-    local o = ZomBotWindow.new(self, x, y, width, height, "ZomBOT  -  Scorte della base")
+    local o = ZomBotWindow.new(self, x, y, width, height, "ZomBOT  -  Tutte le scorte della base")
     o.baseName = baseName
     return o
 end
@@ -780,7 +948,8 @@ function ZomBotRulesWindow.drawRow(list, y, item, alt)
     end
     local top = y + (item.height - FONT_HGT_SMALL * 2) / 2
     list:drawText(row.label, x, top, 1, 1, 1, 1, UIFont.Small)
-    list:drawText(Core.ruleText(row.rule), x, top + FONT_HGT_SMALL, GREY.r, GREY.g, GREY.b, 1, UIFont.Small)
+    local text = Core.ruleText(row.rule) .. (Core.isLegacy(row.rule.key) and " - si può solo togliere" or "")
+    list:drawText(text, x, top + FONT_HGT_SMALL, GREY.r, GREY.g, GREY.b, 1, UIFont.Small)
     -- how it stands, on the right: a coloured square and the number
     local s = Core.ruleStatus(list.owner:base(), row.rule)
     local c = s.level and Core.LEVELS[s.level] or GREY
@@ -803,24 +972,25 @@ function ZomBotRulesWindow:render()
     end
     self:drawText(base.name, PAD, y, GOLD.r, GOLD.g, GOLD.b, 1, UIFont.Medium)
     local count = #(base.rules or {})
-    local text = "Niente da controllare: tasto destro su un oggetto dentro la base per aggiungerlo."
+    local text = "Niente da controllare: le categorie da «Scorte», il resto con il tasto destro su un oggetto."
     if count > 0 then
         text = (count == 1 and "1 cosa da controllare" or (count .. " cose da controllare"))
             .. ", con i numeri dell'ultimo conteggio completo."
     end
     self:drawText(text, PAD, y + FONT_HGT_MEDIUM + 2, GREY.r, GREY.g, GREY.b, 1, UIFont.Small)
-    local has = self:selectedRule() ~= nil
-    self.editButton:setEnable(has)
-    self.removeButton:setEnable(has)
+    local rule = self:selectedRule()
+    self.editButton:setEnable(rule ~= nil and not Core.isLegacy(rule.key))
+    self.editButton:setTitle(rule and Core.isCategory(rule.key) and "Apri in Scorte..." or "Modifica le soglie...")
+    self.removeButton:setEnable(rule ~= nil)
     self:drawStatus(self.height - BUTTON_HGT - PAD * 2 - FONT_HGT_SMALL)
 end
 
 function ZomBotRulesWindow:onEdit()
     local rule = self:selectedRule()
-    if rule == nil then return end
-    local kind, rest = Core.ruleKind(rule.key)
-    if Core.isSet(kind) then
-        ZomBotUI.openSet(nil, self.baseName, kind, rest)
+    if rule == nil or Core.isLegacy(rule.key) then return end
+    if Core.isCategory(rule.key) then
+        -- books, magazines, VHS, provisions: their own window, «Traccia» / «Non tracciare» and the copies
+        ZomBotUI.openCategories(nil, self.baseName)
         return
     end
     local texture = nil
@@ -1288,14 +1458,13 @@ function ZomBotUI.drawBasesOnMap(map)
 end
 ZomBotUI.showOnMap = true
 
--- -- the three thresholds of an item or a liquid -----------------------------------------------------------------
+-- -- the three thresholds of an item, a tool's job or a liquid (the provisions have none to type, 28/10/2026) ----
 ZomBotStockWindow = ZomBotWindow:derive("ZomBotStockWindow")
 
 function ZomBotStockWindow:new(x, y, width, height, baseName, key, label, texture)
     local o = ZomBotWindow.new(self, x, y, width, height, "ZomBOT  -  Scorta")
     o.baseName, o.key, o.label, o.texture = baseName, key, label, texture
     o.litres = string.sub(key, 1, 8) == "liquido:"
-    o.food = key == Core.FOOD
     o.tool = Core.ruleKind(key) == "tool"
     o.rule = Core.ruleOf(Core.findBase(baseName), key)
     return o
@@ -1311,8 +1480,7 @@ function ZomBotStockWindow:createChildren()
     ISCollapsableWindow.createChildren(self)
     local y = self:top() + 48 + PAD + FONT_HGT_SMALL * 2 + PAD
     self.rowsY = y
-    local defaults = self.litres and { 5, 20, 50 } or (self.food and { 20, 50, 100 })
-        or (self.tool and { 0, 1, 2 } or { 0, 10, 30 })
+    local defaults = self.litres and { 5, 20, 50 } or (self.tool and { 0, 1, 2 } or { 0, 10, 30 })
     local values = self.rule and { self.rule.critical, self.rule.scarce, self.rule.good } or defaults
     self.entries = {}
     for i, row in ipairs(ZomBotStockWindow.ROWS) do
@@ -1342,7 +1510,7 @@ function ZomBotStockWindow:render()
     self:drawText("Base '" .. self.baseName .. "'", x, y + 4 + FONT_HGT_MEDIUM, 0.85, 0.85, 0.85, 1, UIFont.Small)
     y = y + 48 + PAD
     -- how much there is now, and in which band the typed thresholds put it
-    local unit = self.litres and " L" or (self.food and " porzioni" or "")
+    local unit = self.litres and " L" or ""
     if self.info == nil then
         self:drawText("Conto quanto ce n'è adesso nella base...", PAD, y, GREY.r, GREY.g, GREY.b, 1, UIFont.Small)
     elseif self.info.error then
@@ -1351,10 +1519,8 @@ function ZomBotStockWindow:render()
         local have = self.info.have or 0
         local text = "Adesso nella base: " .. (self.litres and string.format("%.1f", have) or Core.amount(have)) .. unit
         local extra = {}
-        local packed = self.food and " in scatolette e barattoli chiusi" or " ancora in scatole o pacchi"
-        if (self.info.packed or 0) > 0 then table.insert(extra, Core.amount(self.info.packed) .. packed) end
+        if (self.info.packed or 0) > 0 then table.insert(extra, Core.amount(self.info.packed) .. " ancora in scatole o pacchi") end
         if (self.info.loadedAmmo or 0) > 0 then table.insert(extra, Core.amount(self.info.loadedAmmo) .. " nei caricatori") end
-        if (self.info.spoiled or 0) > 0 then table.insert(extra, Core.amount(self.info.spoiled) .. " marci esclusi") end
         if self.tool and #(self.info.parts or {}) > 1 then table.insert(extra, Core.toolParts(self.info.parts)) end
         if (self.info.broken or 0) > 0 then
             table.insert(extra, self.info.broken == 1 and "1 rotto escluso" or (self.info.broken .. " rotti esclusi"))
@@ -1382,9 +1548,8 @@ function ZomBotStockWindow:render()
     local fair = Core.LEVELS.fair
     self:drawRect(PAD, self.helpY + 3, 14, FONT_HGT_SMALL - 4, 1, fair.r, fair.g, fair.b)
     self:drawText("Fra 'scarseggia' e 'buono' è sufficiente.", PAD + 22, self.helpY, GREY.r, GREY.g, GREY.b, 1, UIFont.Small)
-    local how = self.food and "Una porzione: 25 di fame, circa un pasto. Cibi marci esclusi."
-        or (self.tool and "Contano tutti gli attrezzi che fanno questo lavoro, i rotti no."
-        or "Scatole, pacchi e caricatori contano per ciò che contengono.")
+    local how = self.tool and "Contano tutti gli attrezzi che fanno questo lavoro, i rotti no."
+        or "Scatole, pacchi e caricatori contano per ciò che contengono."
     self:drawText(how, PAD + 22, self.helpY + FONT_HGT_SMALL, GREY.r, GREY.g, GREY.b, 1, UIFont.Small)
     local lines = 2
     if self.tool then
@@ -1420,145 +1585,169 @@ function ZomBotUI.openStock(_, baseName, key, label, texture)
     return ZomBotUI.show(ZomBotStockWindow, 470, 400, baseName, key, label, texture)
 end
 
--- -- skill books, recipe magazines, VHS that teach: which ones, and how many copies of each (the VHS: none) ---------
-ZomBotSetWindow = ZomBotWindow:derive("ZomBotSetWindow")
+-- -- the categories of a base: skill books, recipe magazines, VHS that teach, provisions ---------------------------
+-- («Scorte...» in the list of bases; 28/10/2026, the user: «from a thousand entries down to one») Each is one check,
+-- «Traccia» or «Non tracciare»: books and magazines with the copies of each (1-20; another number typed on a tracked
+-- one turns the button into «Salva le copie»), the VHS each there or missing, the provisions with the numbers the
+-- server picks (Stock.FOOD_DEFAULTS). How each stands comes from the last complete count of the base: the window
+-- counts nothing itself (a count reads the whole base in one tick of the server).
+ZomBotCategoriesWindow = ZomBotWindow:derive("ZomBotCategoriesWindow")
+ZomBotCategoriesWindow.ROW = math.max(ICON, FONT_HGT_SMALL * 2) + PAD * 2
+ZomBotCategoriesWindow.BUTTON_W = 130
+ZomBotCategoriesWindow.COPIES_W = 44
+ZomBotCategoriesWindow.TITLES = { track = "Traccia", save = "Salva le copie", untrack = "Non tracciare" }
 
--- the words of each kind of set; `names` is where ZomBotData keeps the names of its groups (skills, series)
-ZomBotSetWindow.WORDS = {
-    books = {
-        title = "ZomBOT  -  Libri delle abilità", heading = "Libri delle abilità", prefix = "libri", names = "skills",
-        only = "Solo i libri di ", all = "Tutti i libri delle abilità (24 x 5 volumi)", copies = "Copie di ogni volume",
-        rule = "Un volume manca se ce ne sono meno copie di quante ne vuoi.", every = "tutti",
-    },
-    magazines = {
-        title = "ZomBOT  -  Riviste di ricette", heading = "Riviste che insegnano ricette", prefix = "riviste",
-        names = "series", only = "Solo le riviste di ", all = "Tutte le riviste di ricette",
-        copies = "Copie di ogni rivista", rule = "Una rivista manca se ce ne sono meno copie di quante ne vuoi.",
-        every = "tutte",
-    },
-    -- each tape there or missing, never how many (the user, 27/10/2026): no copies to choose
-    vhs = {
-        title = "ZomBOT  -  VHS delle abilità", heading = "VHS che insegnano un'abilità", prefix = "vhs",
-        names = "tapeSkills", only = "Solo le VHS di ", all = "Tutte le VHS che insegnano",
-        rule = "Ognuna c'è o manca: manca se nella base non ce n'è nemmeno una.", every = "tutte",
-    },
-}
-
--- `group`: a skill or a series, or (a tape that teaches two skills) a list of skills, each offered on its own
-function ZomBotSetWindow:new(x, y, width, height, baseName, kind, group)
-    local words = ZomBotSetWindow.WORDS[kind] or ZomBotSetWindow.WORDS.books
-    local o = ZomBotWindow.new(self, x, y, width, height, words.title)
-    o.baseName, o.kind, o.words = baseName, kind, words
-    o.prefix = words.prefix
-    o.groups = type(group) == "table" and group or { group } -- no group: only «all of them»
+function ZomBotCategoriesWindow:new(x, y, width, height, baseName)
+    local o = ZomBotWindow.new(self, x, y, width, height, "ZomBOT  -  Scorte")
+    o.baseName = baseName
+    o.categories = Core.categories()
     return o
 end
 
-function ZomBotSetWindow:keys()
-    local keys = {}
-    local names = (ZomBotData or {})[self.words.names] or {}
-    for _, group in ipairs(self.groups) do
-        table.insert(keys, { self.prefix .. ":" .. group, self.words.only .. (names[group] or group) })
-    end
-    local all = self.words.all
-    if self.kind == "vhs" then all = all .. " (" .. Core.tapeCount(nil) .. ")" end
-    table.insert(keys, { self.prefix, all })
-    return keys
+function ZomBotCategoriesWindow:base()
+    return Core.findBase(self.baseName)
 end
 
-function ZomBotSetWindow:createChildren()
+function ZomBotCategoriesWindow:rowsTop()
+    return self:top() + FONT_HGT_MEDIUM + FONT_HGT_SMALL + PAD
+end
+
+function ZomBotCategoriesWindow:createChildren()
     ISCollapsableWindow.createChildren(self)
-    local y = self:top() + FONT_HGT_MEDIUM + PAD + FONT_HGT_SMALL * 2 + PAD
-    self.combo = ISComboBox:new(PAD, y, self.width - PAD * 2, BUTTON_HGT, self, ZomBotSetWindow.onChoice)
-    self.combo:initialise()
-    self:addChild(self.combo)
-    for _, k in ipairs(self:keys()) do self.combo:addOptionWithData(k[2], k[1]) end
-    self.combo.selected = 1
-    y = y + BUTTON_HGT + PAD
-    if self.words.copies then
-        self.copiesY = y
-        self.copiesEntry = UI.entry(self, self.width - PAD - 80, y, 80, "1", true)
-        y = y + BUTTON_HGT + PAD
+    local W = ZomBotCategoriesWindow
+    self.toggles, self.copies, self.textures, self.shown = {}, {}, {}, {}
+    local y = self:rowsTop()
+    for _, category in ipairs(self.categories) do
+        local by = y + (W.ROW - BUTTON_HGT) / 2
+        local bx = self.width - PAD * 2 - W.BUTTON_W
+        local button = UI.button(self, bx, by, W.BUTTON_W, W.TITLES.track, ZomBotCategoriesWindow.onToggle)
+        button.category = category
+        self.toggles[category.key] = button
+        if category.copies then
+            self.copies[category.key] = UI.entry(self, bx - PAD - W.COPIES_W, by, W.COPIES_W, "1", true)
+        end
+        pcall(function() self.textures[category.key] = getItemTex(category.icon) end)
+        y = y + W.ROW + PAD / 2
     end
-    self.infoY = y
-    local bw = (self.width - PAD * 4) / 3
-    local by = self.height - BUTTON_HGT - PAD
-    self.saveButton = UI.button(self, PAD, by, bw, "Controlla", ZomBotSetWindow.onSave, "accept")
-    self.removeButton = UI.button(self, PAD * 2 + bw, by, bw, "Smetti di tracciare", ZomBotSetWindow.onRemove, "cancel")
-    self.cancelButton = UI.button(self, PAD * 3 + bw * 2, by, bw, "Annulla", ZomBotSetWindow.close)
-    self:onChoice()
+    local bw = (self.width - PAD * 3) / 2
+    local bottom = self.height - BUTTON_HGT - PAD
+    self.allButton = UI.button(self, PAD, bottom, bw, "Tutte le scorte...", ZomBotCategoriesWindow.onAll)
+    self.doneButton = UI.button(self, PAD * 2 + bw, bottom, bw, "Chiudi", ZomBotCategoriesWindow.close)
+    self:refresh()
 end
 
-function ZomBotSetWindow:key()
-    return self.combo:getOptionData(self.combo.selected)
+-- a new state from the server: the copies of a tracked category, when they changed (not while the admin types)
+function ZomBotCategoriesWindow:refresh()
+    if not self.copies then return end
+    local base = self:base()
+    for key, entry in pairs(self.copies) do
+        local rule = Core.ruleOf(base, key)
+        local good = rule and rule.good or nil
+        if good and good ~= self.shown[key] then entry:setText(tostring(good)) end
+        self.shown[key] = good
+    end
 end
 
-function ZomBotSetWindow:onChoice()
-    local key = self:key()
-    local rule = Core.ruleOf(Core.findBase(self.baseName), key)
-    if self.copiesEntry then self.copiesEntry:setText(tostring(rule and rule.good or 1)) end
-    self.removeButton:setVisible(rule ~= nil)
-    self.saveButton:setTitle(rule and "Salva" or "Controlla")
-    self.info = nil
-    Core.send("info", { base = self.baseName, key = key }, function(info)
-        if info.key == self:key() then self.info = info end
-    end)
+-- what the button of a category does now: "track", "save" (a tracked one, other copies typed) or "untrack"
+function ZomBotCategoriesWindow:modeOf(category)
+    local rule = Core.ruleOf(self:base(), category.key)
+    if rule == nil then return "track" end
+    local entry = self.copies and self.copies[category.key]
+    if entry and Core.toInt(entry:getText()) ~= rule.good then return "save" end
+    return "untrack"
 end
 
-function ZomBotSetWindow:render()
+-- where the controls of a row begin (the copies and their word, or the button)
+function ZomBotCategoriesWindow:controlsLeft(category)
+    local entry = self.copies[category.key]
+    if entry then return entry.x - UI.textWidth("Copie") - PAD end
+    return self.toggles[category.key].x - PAD
+end
+
+function ZomBotCategoriesWindow:render()
     ISCollapsableWindow.render(self)
+    local W = ZomBotCategoriesWindow
+    local base = self:base()
     local y = self:top()
-    self:drawText(self.words.heading, PAD, y, GOLD.r, GOLD.g, GOLD.b, 1, UIFont.Medium)
-    y = y + FONT_HGT_MEDIUM + 4
-    self:drawText("Base '" .. self.baseName .. "'. ZomBOT dirà su Discord quali mancano.", PAD, y, 0.85, 0.85, 0.85, 1, UIFont.Small)
-    self:drawText(self.words.rule, PAD, y + FONT_HGT_SMALL, GREY.r, GREY.g, GREY.b, 1, UIFont.Small)
-    if self.copiesEntry then self:drawText(self.words.copies, PAD, self.copiesY + 3, 1, 1, 1, 1, UIFont.Small) end
-    if self.info == nil then
-        self:drawText("Conto cosa c'è adesso nella base...", PAD, self.infoY, GREY.r, GREY.g, GREY.b, 1, UIFont.Small)
-    elseif self.info.error then
-        self:drawText("Non riesco a contare adesso: " .. tostring(self.info.error), PAD, self.infoY, RED.r, RED.g, RED.b, 1, UIFont.Small)
-    else
-        local c = (self.info.missing or 0) > 0 and Core.LEVELS.scarce or Core.LEVELS.good
-        local text = (self.info.missing or 0) == 0
-            and string.format("Adesso ci sono %s e %d.", self.words.every, self.info.total or 0)
-            or string.format("Adesso ne mancano %d su %d.", self.info.missing, self.info.total or 0)
-        self:drawText(text, PAD, self.infoY, c.r, c.g, c.b, 1, UIFont.Small)
-    end
-    self:drawStatus(self.infoY + FONT_HGT_SMALL + PAD / 2)
-end
-
-function ZomBotSetWindow:onSave()
-    local copies = self.copiesEntry and Core.toInt(self.copiesEntry:getText()) or 1
-    if not copies or copies < 1 or copies > 20 then
-        self:setStatus("Copie da 1 a 20.", true)
+    if base == nil then
+        self:drawText("La base '" .. self.baseName .. "' non c'è più.", PAD, y, RED.r, RED.g, RED.b, 1, UIFont.Medium)
+        for _, button in pairs(self.toggles) do button:setEnable(false) end
+        self.allButton:setEnable(false)
         return
     end
-    ZomBotUI.awaiting = self
-    Core.send("setRule", { base = self.baseName, key = self:key(), good = copies })
-end
-
-function ZomBotSetWindow:onRemove()
-    ZomBotUI.awaiting = self
-    Core.send("removeRule", { base = self.baseName, key = self:key() })
-end
-
-function ZomBotSetWindow:onResult(ok, text)
-    if ok then self:close() else self:setStatus(text, true) end
-end
-
-function ZomBotUI.openSet(_, baseName, kind, group)
-    return ZomBotUI.show(ZomBotSetWindow, 480, 280, baseName, kind, group)
-end
-
--- -- right click ------------------------------------------------------------------------------------------------
-local function firstItem(items)
-    for _, entry in ipairs(items or {}) do
-        if instanceof(entry, "InventoryItem") then return entry end
-        if type(entry) == "table" and entry.items and entry.items[1] then return entry.items[1] end
+    self:drawText(base.name, PAD, y, GOLD.r, GOLD.g, GOLD.b, 1, UIFont.Medium)
+    self:drawText("Ogni categoria è un solo controllo, con i numeri dell'ultimo conteggio completo.", PAD,
+        y + FONT_HGT_MEDIUM + 2, GREY.r, GREY.g, GREY.b, 1, UIFont.Small)
+    y = self:rowsTop()
+    for _, category in ipairs(self.categories) do
+        local rule = Core.ruleOf(base, category.key)
+        self:drawRectBorder(PAD, y, self.width - PAD * 2, W.ROW, 0.5, 1, 1, 1)
+        local x = PAD * 2
+        if self.textures[category.key] then
+            self:drawTextureScaledAspect(self.textures[category.key], x, y + (W.ROW - ICON) / 2, ICON, ICON, 1, 1, 1, 1)
+        end
+        x = x + ICON + PAD
+        local right = self:controlsLeft(category)
+        local top = y + (W.ROW - FONT_HGT_SMALL * 2) / 2
+        -- how it stands, on the right of the name
+        local s = rule and Core.ruleStatus(base, rule) or { text = category.none }
+        local c = s.level and Core.LEVELS[s.level] or GREY
+        local sx = right - UI.textWidth(s.text)
+        self:drawText(s.text, sx, top, c.r, c.g, c.b, 1, UIFont.Small)
+        self:drawText(UI.fit(category.label, sx - x - PAD), x, top, 1, 1, 1, 1, UIFont.Small)
+        local text = rule and Core.categoryText(rule) or category.what
+        self:drawText(UI.fit(text, right - x), x, top + FONT_HGT_SMALL, GREY.r, GREY.g, GREY.b, 1, UIFont.Small)
+        local entry = self.copies[category.key]
+        if entry then
+            self:drawText("Copie", entry.x - UI.textWidth("Copie") - 4, entry.y + 3, 1, 1, 1, 1, UIFont.Small)
+        end
+        local button = self.toggles[category.key]
+        button:setTitle(W.TITLES[self:modeOf(category)])
+        button:setEnable(true)
+        y = y + W.ROW + PAD / 2
     end
-    return nil
+    self.allButton:setEnable(true)
+    self:drawStatus(self.height - BUTTON_HGT - PAD * 2 - FONT_HGT_SMALL)
 end
 
+function ZomBotCategoriesWindow:onToggle(button)
+    local category = button.category
+    local mode = self:modeOf(category)
+    local copies = nil
+    if category.copies and mode ~= "untrack" then
+        copies = Core.toInt(self.copies[category.key]:getText())
+        if not copies or copies < 1 or copies > 20 then
+            self:setStatus("Copie da 1 a 20.", true)
+            return
+        end
+    end
+    ZomBotUI.awaiting = self
+    if mode == "untrack" then
+        self:setStatus("Tolgo...", false)
+        Core.send("removeRule", { base = self.baseName, key = category.key })
+    else
+        -- no numbers for the provisions (the server picks them) nor for the VHS (each there or missing)
+        self:setStatus("Salvo...", false)
+        Core.send("setRule", { base = self.baseName, key = category.key, good = copies })
+    end
+end
+
+function ZomBotCategoriesWindow:onAll()
+    ZomBotUI.openRules(nil, self.baseName)
+end
+
+function ZomBotCategoriesWindow:onResult(ok, text)
+    self:setStatus(text, not ok)
+end
+
+function ZomBotUI.openCategories(_, baseName)
+    local rows = #Core.categories()
+    local height = 24 + PAD * 6 + FONT_HGT_MEDIUM + FONT_HGT_SMALL * 2 + BUTTON_HGT
+        + rows * (ZomBotCategoriesWindow.ROW + PAD / 2)
+    return ZomBotUI.show(ZomBotCategoriesWindow, 700, height, baseName)
+end
+
+-- -- right click: what this file puts in the one «ZomBOT» entry (client/ZomBotMenu.lua) ----------------------------
 local function fluidOf(thing)
     local ok, fluid = pcall(function()
         local container = thing:getFluidContainer()
@@ -1573,12 +1762,14 @@ function ZomBotUI.baseOfPlayer(player)
     return Core.baseAt(math.floor(player:getX()), math.floor(player:getY()), math.floor(player:getZ()))
 end
 
-local function addFluidOption(context, base, fluid)
-    local key = "liquido:" .. fluid
+local function liquidText(base, fluid)
     local label = Core.fluidLabel(fluid) .. " (litri)"
-    local rule = Core.ruleOf(base, key)
-    context:addOption((rule and "Scorta: " or "Aggiungi a scorta: ") .. label .. "  [" .. base.name .. "]", nil,
-        ZomBotUI.openStock, base.name, key, label, nil)
+    return (Core.ruleOf(base, "liquido:" .. fluid) and "Scorta: " or "Aggiungi a scorta: ") .. label, label
+end
+
+local function addFluidOption(menu, base, fluid)
+    local text, label = liquidText(base, fluid)
+    menu:addOption(text .. "  [" .. base.name .. "]", nil, ZomBotUI.openStock, base.name, "liquido:" .. fluid, label, nil)
 end
 
 -- the name and icon of an item nobody is holding (the single cigarette of a pack)
@@ -1604,50 +1795,43 @@ local function addStockEntry(menu, base, key, name, texture, addText, watchedTex
     return option
 end
 
-function ZomBotUI.onInventoryMenu(playerNum, context, items)
-    local player = getSpecificPlayer(playerNum)
-    if not Core.isAdmin(player) then return end
+-- The «ZomBOT» submenu of an item, for an admin inside a base: its stock. Nothing for books, magazines, newspapers,
+-- comics and recorded media (by category only, from «Scorte...»), so with no other mod there is no «ZomBOT» entry on
+-- them at all. true when it added something.
+function ZomBotUI.fillItemMenu(player, ctx, menu)
+    if not Core.isAdmin(player) then return false end
     local base = ZomBotUI.baseOfPlayer(player)
-    local item = firstItem(items)
-    if base == nil or item == nil then return end
+    local item = ctx and ctx.item
+    if base == nil or item == nil then return false end
     local fullType = item:getFullType()
-    local what = Core.describe(fullType)
     local tag = "  [" .. base.name .. "]"
-    local tape = Core.tapeOf(item)
-    if tape then
-        -- a VHS that teaches: the tapes of its skill (of each, when it teaches two) or all of them, each there or not
-        context:addOption("Controlla le VHS" .. tag, nil, ZomBotUI.openSet, base.name, "vhs", tape.skills)
-    elseif ((ZomBotData or {}).mediaItems or {})[fullType] then
-        -- a film, a blank tape: it teaches nothing, and a cassette is never a stock by quantity (the server refuses
-        -- it too): the tapes that teach, all of them
-        if Core.tapeCount(nil) > 0 then
-            context:addOption("Controlla le VHS delle abilità" .. tag, nil, ZomBotUI.openSet, base.name, "vhs", nil)
-        end
-    elseif what.kind == "book" or what.kind == "set" then
-        context:addOption("Controlla i libri" .. tag, nil, ZomBotUI.openSet, base.name, "books", what.skill)
-    elseif what.kind == "magazine" then
-        context:addOption("Controlla le riviste" .. tag, nil, ZomBotUI.openSet, base.name, "magazines", what.series)
+    local added = true
+    if Core.byCategory(fullType) then
+        added = false
     elseif Core.isFood(fullType) then
-        -- all the food is one check: an apple, a can, a box of cans all go to «Alimenti»
-        addStockEntry(context, base, Core.FOOD, Core.FOOD_LABEL, item:getTex(), "Aggiungi a scorta: Alimenti" .. tag,
-            "Alimenti" .. tag)
+        -- all the food is one check, the provisions: tracked or not, the numbers are the server's
+        if Core.ruleOf(base, Core.FOOD) then
+            menu:addOption("Smetti di tracciare le provviste" .. tag, nil, ZomBotUI.removeRule, base.name, Core.FOOD)
+        else
+            menu:addOption("Traccia le provviste" .. tag, nil, ZomBotUI.trackCategory, base.name, Core.FOOD)
+        end
     elseif #Core.toolsOf(fullType) > 0 then
         -- a tool is tracked by the job: every tool that does it counts. With more jobs (the Sega cuts wood and metal,
         -- the Multiutensile is seven tools) each one is offered, never «only this item»
         local tools = Core.toolsOf(fullType)
-        local function entry(menu, toolTag, addText)
+        local function entry(target, toolTag, addText)
             local key = Core.TOOL .. toolTag
             local texture = nil
             pcall(function() texture = getItemTex(Core.ruleIcon(key)) end)
-            addStockEntry(menu, base, key, Core.toolLabel(toolTag), texture or item:getTex(), addText,
-                Core.toolLabel(toolTag) .. (menu == context and tag or ""))
+            addStockEntry(target, base, key, Core.toolLabel(toolTag), texture or item:getTex(), addText,
+                Core.toolLabel(toolTag) .. (target == menu and tag or ""))
         end
         if #tools == 1 then
-            entry(context, tools[1], "Aggiungi a scorta: " .. Core.toolText(tools[1]) .. tag)
+            entry(menu, tools[1], "Aggiungi a scorta: " .. Core.toolText(tools[1]) .. tag)
         else
-            local option = context:addOption("Scorta degli attrezzi" .. tag)
-            local sub = ISContextMenu:getNew(context)
-            context:addSubMenu(option, sub)
+            local option = menu:addOption("Scorta degli attrezzi" .. tag)
+            local sub = ISContextMenu:getNew(menu)
+            menu:addSubMenu(option, sub)
             for _, toolTag in ipairs(tools) do
                 entry(sub, toolTag, "Aggiungi: " .. Core.toolText(toolTag))
             end
@@ -1659,16 +1843,16 @@ function ZomBotUI.onInventoryMenu(playerNum, context, items)
         -- holds, and the packs count for what is inside them
         local leaves = Core.leaves(fullType)
         if #leaves == 0 then
-            addStockEntry(context, base, fullType, Core.unitLabel(fullType, name), texture, "Aggiungi a scorta" .. tag, name .. tag)
+            addStockEntry(menu, base, fullType, Core.unitLabel(fullType, name), texture, "Aggiungi a scorta" .. tag, name .. tag)
         elseif #leaves == 1 then
             local unitName, unitTexture = itemInfo(leaves[1])
-            addStockEntry(context, base, leaves[1], Core.unitLabel(leaves[1], unitName), unitTexture,
+            addStockEntry(menu, base, leaves[1], Core.unitLabel(leaves[1], unitName), unitTexture,
                 "Aggiungi a scorta" .. tag, unitName .. tag)
         else
             -- a box of several things (jars and lids): each is tracked on its own
-            local option = context:addOption("Aggiungi a scorta" .. tag)
-            local sub = ISContextMenu:getNew(context)
-            context:addSubMenu(option, sub)
+            local option = menu:addOption("Aggiungi a scorta" .. tag)
+            local sub = ISContextMenu:getNew(menu)
+            menu:addSubMenu(option, sub)
             for _, leaf in ipairs(leaves) do
                 local unitName, unitTexture = itemInfo(leaf)
                 addStockEntry(sub, base, leaf, Core.unitLabel(leaf, unitName), unitTexture, unitName, unitName)
@@ -1676,46 +1860,39 @@ function ZomBotUI.onInventoryMenu(playerNum, context, items)
         end
     end
     local fluid = fluidOf(item)
-    if fluid then addFluidOption(context, base, fluid) end
+    if fluid then
+        addFluidOption(menu, base, fluid)
+        added = true
+    end
+    return added
 end
 
 function ZomBotUI.removeRule(_, baseName, key)
     Core.send("removeRule", { base = baseName, key = key })
 end
 
-function ZomBotUI.onWorldMenu(playerNum, context, worldobjects, test)
-    if test and ISWorldObjectContextMenu.Test then return true end
-    local player = getSpecificPlayer(playerNum)
-    if not Core.isAdmin(player) then return end
-    context:addOption("ZomBOT: basi...", nil, ZomBotUI.openBases)
-    local base = ZomBotUI.baseOfPlayer(player)
-    if base == nil then return end
-    local tag = "  [" .. base.name .. "]"
-    context:addOption("ZomBOT: scorte di questa base" .. tag, nil, ZomBotUI.openRules, base.name)
-    -- the skill books, the recipe magazines and the VHS that teach, without having one in hand
-    local books = Core.ruleOf(base, "libri") and "Libri delle abilità: modifica" or "Controlla i libri delle abilità"
-    context:addOption("ZomBOT: " .. books .. tag, nil, ZomBotUI.openSet, base.name, "books", nil)
-    local magazines = Core.ruleOf(base, "riviste") and "Riviste di ricette: modifica" or "Controlla le riviste di ricette"
-    context:addOption("ZomBOT: " .. magazines .. tag, nil, ZomBotUI.openSet, base.name, "magazines", nil)
-    if Core.tapeCount(nil) > 0 then -- an older ZomBotData.lua knows no tapes
-        local tapes = Core.ruleOf(base, "vhs") and "VHS delle abilità: modifica" or "Controlla le VHS delle abilità"
-        context:addOption("ZomBOT: " .. tapes .. tag, nil, ZomBotUI.openSet, base.name, "vhs", nil)
-    end
-    -- a rain barrel or anything else holding a liquid, inside the base
-    local seen = {}
-    for _, object in ipairs(worldobjects or {}) do
-        local fluid = fluidOf(object)
-        if fluid and not seen[fluid] then
-            seen[fluid] = true
-            addFluidOption(context, base, fluid)
-        end
-    end
+-- a whole category, without numbers: the server picks those of the provisions, the VHS need none
+function ZomBotUI.trackCategory(_, baseName, key)
+    Core.send("setRule", { base = baseName, key = key })
 end
 
--- -- under the item's tooltip: where it is short --------------------------------------------------------------------
+-- A rain barrel, or anything else holding a liquid, right-clicked inside a base: the base and its liquid, for a
+-- button of the bases window (before 28/10/2026 an entry of its own in the right click). nil for anyone else.
+function ZomBotUI.liquidAt(ctx)
+    local player = ctx and ctx.player
+    if not Core.isAdmin(player) then return nil end
+    local base = ZomBotUI.baseOfPlayer(player)
+    if base == nil then return nil end
+    for _, object in ipairs(ctx.worldobjects or {}) do
+        local fluid = fluidOf(object)
+        if fluid then return base, fluid end
+    end
+    return nil
+end
+
+-- -- under the item's tooltip: where it is short, for anyone with the file (28/10/2026) -------------------------------
 function ZomBotUI.drawShortages(tip)
     if tip.item == nil or (ISContextMenu.instance and ISContextMenu.instance.visibleCheck) then return end
-    if not Core.isAdmin() then return end
     local tape = Core.tapeOf(tip.item)
     local lines = Core.shortages(tip.item:getFullType(), fluidOf(tip.item), tape and tape.id)
     if #lines == 0 then return end
@@ -1740,11 +1917,12 @@ end
 local lastState = 0
 
 local function keepState()
-    -- the bases change from other admins too: ask again every two minutes (and at once, the first time)
+    -- the bases change from the admins: ask again every two minutes (and at once, the first time), admin or not. The
+    -- server answers anyone and then sends every change to who asked; this is in case one got lost
     local now = getTimestampMs()
-    if now - lastState < 120000 then return end
+    if now - lastState < 120000 or getPlayer() == nil then return end
     lastState = now
-    if Core.isAdmin() then Core.send("state") end
+    Core.send("state")
 end
 
 local function onGameStart()
@@ -1766,8 +1944,37 @@ local function onGameStart()
     end
 end
 
+-- What this file offers in the one «ZomBOT» entry of the right click (client/ZomBotMenu.lua reads it at each right
+-- click, whichever of the two files the game loads first): for an admin, the list of bases (order 10: before
+-- ZomBOT's own window, which is for anyone), the stock of an item, the liquid of a barrel as a button of the list.
+-- Nothing for anyone else.
+ZomBotMenu = ZomBotMenu or {}
+ZomBotMenu.defs = ZomBotMenu.defs or {}
+table.insert(ZomBotMenu.defs, {
+    kind = "main", id = "bases", order = 10,
+    available = function(player) return Core.isAdmin(player) end,
+    open = function(ctx) ZomBotUI.openBases(ctx) end,
+})
+table.insert(ZomBotMenu.defs, {
+    kind = "item", id = "stock", order = 10,
+    fill = function(player, ctx, menu) return ZomBotUI.fillItemMenu(player, ctx, menu) end,
+})
+table.insert(ZomBotMenu.defs, {
+    kind = "extra", id = "stock-liquid", order = 10,
+    available = function(_, ctx) return ZomBotUI.liquidAt(ctx) ~= nil end,
+    label = function(ctx)
+        local base, fluid = ZomBotUI.liquidAt(ctx)
+        return base and (liquidText(base, fluid)) or ""
+    end,
+    onClick = function(ctx)
+        local base, fluid = ZomBotUI.liquidAt(ctx)
+        if base then
+            local _, label = liquidText(base, fluid)
+            ZomBotUI.openStock(nil, base.name, "liquido:" .. fluid, label, nil)
+        end
+    end,
+})
+
 Events.OnServerCommand.Add(Core.onServerCommand)
-Events.OnFillInventoryObjectContextMenu.Add(ZomBotUI.onInventoryMenu)
-Events.OnFillWorldObjectContextMenu.Add(ZomBotUI.onWorldMenu)
 Events.OnGameStart.Add(onGameStart)
 Events.OnTick.Add(keepState)

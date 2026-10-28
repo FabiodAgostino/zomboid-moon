@@ -2,10 +2,13 @@
 
 Le mod per giocare a **Project Zomboid** (Build 42) sul server **Moon**, con un solo file da lanciare: **`mod-moon-server.bat`**.
 
-| Mod | A chi serve | Cos'è |
-| --- | --- | --- |
-| **Silenziatori** | **a tutti**: il server la usa, senza non si entra | I silenziatori per le armi: la mod Simple Suppressors di Kiidxatlas, tradotta in italiano e corretta (vedi [Cosa cambia rispetto all'originale](#cosa-cambia-rispetto-alloriginale)). |
-| **Admin-Scorte** | **solo agli admin** del server | Le finestre di ZomBOT per gestire le basi e le loro scorte. Funzionano solo se sei admin sul server: per chiunque altro non mostrano niente e non danno nessun potere. |
+**Per entrare sul server Moon non serve nessuna mod**: il server non ne chiede. Queste sono tutte facoltative, ognuna con la sua versione.
+
+| Mod | Versione | Stato | A chi serve | Cos'è |
+| --- | --- | --- | --- | --- |
+| **ZomBOT** | 1.0.0 | Installabile | **a tutti** | Le domande a ZomBOT dalla chat del gioco, il contenitore che lampeggia dove c'è ciò che cerchi, le casse colorate. Vedi [ZomBOT: cosa fa](#zombot-cosa-fa). |
+| **Admin-Scorte** | 1.1.0 | Installabile | **agli admin** del server | Le finestre di ZomBOT per gestire le basi e le loro scorte; a chi non è admin mostra solo dove un oggetto manca nelle basi. Vedi [Admin-Scorte: cosa fa](#admin-scorte-cosa-fa). |
+| **Silenziatori** | 1.5.31-moon.1 | **Disattivata** | per ora a nessuno | I silenziatori per le armi: la mod Simple Suppressors di Kiidxatlas, tradotta in italiano e corretta. Per ora il pacchetto non la installa: vedi [Silenziatori (disattivata)](#silenziatori-disattivata). |
 
 ---
 
@@ -16,97 +19,131 @@ Le mod per giocare a **Project Zomboid** (Build 42) sul server **Moon**, con un 
 3. **Chiudi Project Zomboid**, se è aperto.
 4. **Doppio clic su `mod-moon-server.bat`** nella cartella estratta.
    - Se compare la finestra blu **«Windows ha protetto il PC»**, premi **«Ulteriori informazioni»** e poi **«Esegui comunque»**; se invece compare **«Avviso di sicurezza»**, premi **«Esegui»**. Windows avvisa così per i file scaricati da internet che non hanno una firma: `mod-moon-server.bat` è testo semplice e chiunque può leggerlo prima (tasto destro, «Modifica»).
-5. Si apre questo menu. Ti dice cosa hai già e dove ha trovato il gioco:
+5. Si apre questo menu. Ti dice quali mod ci sono, con la loro versione, cosa hai già e dove ha trovato il gioco:
 
    ```
      ╔════════════════════════════════════════════════════════╗
      ║  MOON  ·  le mod per giocare sul server Moon           ║
      ╚════════════════════════════════════════════════════════╝
-     Silenziatori 1.5.31-moon.1  ·  Admin-Scorte
+     Admin-Scorte 1.1.0  ·  ZomBOT 1.0.0  ·  Silenziatori disattivata
 
-     Sul tuo computer
+     Le mod di Moon
 
-       Silenziatori      non installata
-       Admin-Scorte      non installata, serve solo agli admin
+                         stato          versione        sul tuo computer
+       Silenziatori      Disattivata    1.5.31-moon.1   non installata
+       Admin-Scorte      Installabile   1.1.0           non installata · per gli admin
+       ZomBOT            Installabile   1.0.0           non installata · per tutti
+
        Project Zomboid   C:\Program Files (x86)\Steam\steamapps\common\ProjectZomboid
 
      Cosa vuoi fare?
 
-       [1]  Installa o aggiorna le mod per giocare      Silenziatori
-       [2]  Installa o aggiorna tutto, anche da admin   Silenziatori + Admin-Scorte
-       [3]  Scegli tu quali installare                  per esempio solo Admin-Scorte
+       [1]  Installa o aggiorna le mod per giocare      ZomBOT
+       [2]  Installa o aggiorna tutto, anche da admin   ZomBOT + Admin-Scorte
+       [3]  Scegli tu quali installare                  per esempio solo ZomBOT
        [4]  Disinstalla
        [0]  Esci
+
+     Per entrare sul server Moon non serve nessuna mod: sono tutte facoltative.
    ```
 
-   - Premi **`1`** se sei un giocatore: installa **Silenziatori**.
-   - Premi **`2`** se sei admin del server: installa **Silenziatori** e **Admin-Scorte**.
-   - Premi **`3`** per installare solo alcune mod, per esempio **solo Admin-Scorte** se Silenziatori ce l'hai già. Si apre una lista: premi il numero di una mod per sceglierla (compare **`[√]`**), premilo di nuovo per toglierla, poi **`I`** per installare quelle scelte.
+   - Premi **`1`** se sei un giocatore: installa **ZomBOT**.
+   - Premi **`2`** se sei admin del server: installa **ZomBOT** e **Admin-Scorte**.
+   - Premi **`3`** per installare solo alcune mod, per esempio **solo Admin-Scorte**. Si apre una lista: premi il numero di una mod per sceglierla (compare **`[√]`**), premilo di nuovo per toglierla, poi **`I`** per installare quelle scelte. Silenziatori compare con **`[-]`**: è disattivata e non si può scegliere.
 
      ```
        Scegli cosa installare
 
-         [1]  [ ]  Silenziatori      installata versione 1.5.31-moon.1
-         [2]  [√]  Admin-Scorte      da aggiornare
+         [1]  [-]  Silenziatori      1.5.31-moon.1   disattivata: per ora non si installa
+         [2]  [√]  Admin-Scorte      1.1.0           vecchia
+         [3]  [ ]  ZomBOT            1.0.0           aggiornata
 
          [I]  Installa le mod scelte
          [0]  Torna indietro
      ```
 
-   Il file mostra ogni passo mentre lo fa: controlla che il gioco sia chiuso, prepara la cartella delle mod, copia i file e dice dove. Alla fine scrive **«Tutto pronto»**. Premi un tasto per tornare al menu e **`0`** per uscire.
-6. **Avvia Project Zomboid ed entra sul server Moon** come sempre. Non devi attivare niente nel menu Mod: in multiplayer le mod le attiva il server.
+   Il file mostra ogni passo mentre lo fa: controlla che il gioco sia chiuso, copia i file e dice dove. Alla fine scrive **«Tutto pronto»** e ti ricorda come si usa ciò che hai installato. Premi un tasto per tornare al menu e **`0`** per uscire.
+6. **Avvia Project Zomboid ed entra sul server Moon** come sempre. Non devi attivare niente nel menu Mod.
 
 Il file trova da solo il gioco nelle librerie di Steam, anche su un altro disco. Se non ci riesce te lo dice: in quel caso **trascina la cartella `ProjectZomboid` sopra `mod-moon-server.bat`** (di solito è in `...\Steam\steamapps\common\ProjectZomboid`; da Steam: tasto destro sul gioco, «Gestisci», «Sfoglia i file locali»).
 
 ## Aggiornare
 
-Quando esce una nuova versione: scarica di nuovo lo ZIP, estrailo, lancia `mod-moon-server.bat` e premi di nuovo **`1`** o **`2`**, oppure **`3`** per aggiornare solo una mod. Il menu ti dice se hai una versione vecchia («da aggiornare»); quella vecchia viene sostituita del tutto, non serve disinstallare prima.
+Ogni mod ha la sua versione (per ZomBOT e Admin-Scorte è scritta nel file `VERSION` della sua cartella) e il menu te la mostra. Nella colonna «sul tuo computer» dice **«aggiornata»** se hai proprio quella del pacchetto, **«vecchia»** se la tua è diversa, e quando la sa anche quale hai («vecchia · hai la 1.0.0»).
+
+Quando esce una nuova versione: scarica di nuovo lo ZIP, estrailo, lancia `mod-moon-server.bat` e premi di nuovo **`1`** o **`2`**, oppure **`3`** per aggiornare solo una mod. Quella vecchia viene sostituita del tutto, non serve disinstallare prima.
 
 ## Disinstallare
 
 Lancia `mod-moon-server.bat`, premi **`4`** e scegli:
 
-- **`1`** toglie solo **Admin-Scorte**, per esempio se non sei più admin;
-- **`2`** toglie tutto: **Silenziatori** e **Admin-Scorte**. Senza Silenziatori non puoi entrare sul server Moon.
+- **`1`** toglie **Silenziatori**, se l'avevi installata prima che fosse disattivata;
+- **`2`** toglie **Admin-Scorte**, per esempio se non sei più admin;
+- **`3`** toglie **ZomBOT**;
+- **`4`** toglie tutto.
+
+Il file `ZomBotMenu.lua` lo usano sia Admin-Scorte sia ZomBOT (vedi sotto): se togli una delle due e l'altra c'è ancora, resta al suo posto; se le togli tutte e due, va via con l'ultima.
 
 ## Cosa installa, esattamente
 
 | Mod | File | Dove |
 | --- | --- | --- |
-| Silenziatori | la cartella `Silenziatori` | `C:\Users\<il tuo nome>\Zomboid\mods\` |
-| Admin-Scorte | `ZomBotData.lua` | `<cartella del gioco>\media\lua\shared\` |
+| ZomBOT | `ZomBotGioco.lua` | `<cartella del gioco>\media\lua\client\` |
+| ZomBOT e Admin-Scorte | `ZomBotMenu.lua` (lo stesso file per tutte e due) | `<cartella del gioco>\media\lua\client\` |
 | Admin-Scorte | `ZomBotStockUI.lua` | `<cartella del gioco>\media\lua\client\` |
+| Admin-Scorte | `ZomBotData.lua` | `<cartella del gioco>\media\lua\shared\` |
+| ZomBOT, Admin-Scorte | `Moon-ZomBOT.version`, `Moon-Admin-Scorte.version`: la versione installata, una riga | `<cartella del gioco>\media\lua\` |
+| Silenziatori (disattivata) | la cartella `Silenziatori` | `C:\Users\<il tuo nome>\Zomboid\mods\` |
 
 Non tocca nient'altro: i salvataggi, le impostazioni e le altre mod restano come sono.
 
-Perché Admin-Scorte va nella cartella del gioco e non tra le mod? In multiplayer il gioco carica solo le mod che il server elenca, e se il server elencasse Admin-Scorte tutti dovrebbero installarla per entrare. Così invece la installa solo chi la vuole, e il server (che accetta file in più dai giocatori) la lascia funzionare solo per gli admin.
+**Il file in comune, `ZomBotMenu.lua`.** È l'unica voce **«ZomBOT»** del tasto destro: Admin-Scorte e ZomBOT ci aggiungono ciò che offrono, invece di avere ognuna le sue voci. Per questo è lo stesso file, identico, nelle cartelle `admin-scorte/client` e `zombot/client` del pacchetto, e si installa nello stesso posto: il gioco lo carica una volta sola, qualunque delle due mod tu abbia. Installare l'una o l'altra lo copia; toglierne una lo lascia finché c'è l'altra.
+
+Perché Admin-Scorte e ZomBOT vanno nella cartella del gioco e non tra le mod? In multiplayer il gioco carica solo le mod che il server elenca, e se il server le elencasse tutti dovrebbero installarle per entrare. Così invece le installa solo chi le vuole, e il server (che accetta file in più dai giocatori) ricontrolla tutto ciò che chiedono: i file sul tuo computer non danno poteri a nessuno.
 
 ## Problemi frequenti
 
 **«Non riesco a scrivere nella cartella del gioco».** Chiudi il gioco e riprova. Se non basta: tasto destro su `mod-moon-server.bat`, **«Esegui come amministratore»**.
 
-**Entrando nel server il gioco dice che manca una mod, o che le mod non corrispondono.** Rilancia `mod-moon-server.bat` e premi `1`: probabilmente sul server c'è una versione più nuova. Se il problema resta, scrivi nel canale del server su Discord.
+**ZomBOT non risponde.** Controlla nel menu che ZomBOT sia **«aggiornata»** e che la riga in chat cominci proprio con «zombot». Si può chiedere una cosa ogni 10 secondi, e non più di 30 all'ora. Se il problema resta, scrivi nel canale del server su Discord.
 
 **I colori del menu non si vedono e compaiono simboli strani.** Succede con le versioni di Windows più vecchie di Windows 10: il file funziona lo stesso.
 
-**Ero iscritto alla mod originale Simple Suppressors sul Workshop.** Puoi lasciarla: sul server si usa Silenziatori. In una partita in single player però non attivarle tutte e due insieme.
+**Ho un Mac o Linux.** `mod-moon-server.bat` funziona solo su Windows. A mano, dentro la cartella del gioco: per ZomBOT copia `zombot/client/ZomBotGioco.lua` e `zombot/client/ZomBotMenu.lua` in `media/lua/client/`; per Admin-Scorte copia `admin-scorte/client/ZomBotStockUI.lua` e `admin-scorte/client/ZomBotMenu.lua` in `media/lua/client/` e `admin-scorte/shared/ZomBotData.lua` in `media/lua/shared/`.
 
-**Voglio usare i silenziatori anche in single player.** Dal menu principale: **Mod**, attiva **«Silenziatori»**, poi crea una nuova partita.
+## ZomBOT: cosa fa
 
-**Ho un Mac o Linux.** `mod-moon-server.bat` funziona solo su Windows. A mano: copia la cartella `mods/Silenziatori` in `~/Zomboid/mods/`. Admin-Scorte serve solo agli admin: copia `admin-scorte/shared/ZomBotData.lua` e `admin-scorte/client/ZomBotStockUI.lua` in `media/lua/shared/` e `media/lua/client/` dentro la cartella del gioco.
+ZomBOT è il bot Discord del server. Con questa mod lo si usa anche **dentro il gioco**, e funziona per **tutti**, non solo per gli admin:
+
+- **le domande dalla chat**: scrivi in chat una riga che comincia con **«zombot»** (anche «@ZomBOT», «zombot,» o «zombot:»), per esempio **«zombot dove trovo le asce?»**. La riga va in chat come sempre, compare «ZomBOT ci pensa...» e la risposta arriva nella tua chat: **la vedi solo tu**. Una domanda ogni 10 secondi, al massimo 30 all'ora;
+- **dove sono le cose**: se sei dentro una base e chiedi dove trovare qualcosa, **il contenitore più vicino che lo contiene lampeggia** per te (anche se è dentro una borsa o una scatola). Smette quando ci clicchi sopra, quando lo apri, dopo un minuto o quando ne lampeggia un altro;
+- **le casse colorate**: **tasto destro su una cassa → «ZomBOT» → «Colore di questa cassa»** e scegli uno degli 8 colori, o «Nessun colore». Il colore è lo stesso per tutto il server e lo vede chiunque abbia la mod; chi non ce l'ha vede le casse come sempre. Se non vuoi vederli, nella finestra di ZomBOT togli «Colora le casse»: vale solo per te;
+- **la finestra di ZomBOT**: un clic su «ZomBOT» nel tasto destro. Spiega come chiedere, mostra le ultime risposte e l'interruttore dei colori.
+
+Chi non ha la mod gioca come sempre e non vede niente di diverso. Il server ricontrolla ogni richiesta: la mod non dà poteri a nessuno.
 
 ## Admin-Scorte: cosa fa
 
-ZomBOT è il bot Discord del server. Conta le scorte delle basi (cibo, munizioni, medicine, libri...) e le mostra su Discord, per esempio con `/scorte` e `/basi`. Con Admin-Scorte gli admin decidono, dentro il gioco, quali basi ci sono e cosa tenere d'occhio:
+ZomBOT conta le scorte delle basi (cibo, munizioni, medicine, libri...) e le mostra su Discord, per esempio con `/scorte` e `/basi`. Con Admin-Scorte gli admin decidono, dentro il gioco, quali basi ci sono e cosa tenere d'occhio. Nel tasto destro c'è **una sola voce, «ZomBOT»**:
 
-- **tasto destro sul pavimento, «ZomBOT: basi...»**: crea, modifica o elimina le basi, disegnandole sulla mappa;
-- **tasto destro sul pavimento dentro una base, «ZomBOT: scorte di questa base»**: le scorte tracciate, con la possibilità di smettere di tracciarne una;
-- **tasto destro su un oggetto, «Aggiungi a scorta»**: tiene d'occhio quell'oggetto nella base, con le soglie «critico», «scarseggia» e «buono»;
-- **un attrezzo si tiene d'occhio per lavoro**: «Aggiungi a scorta: Seghe da legno» conta tutti gli attrezzi che il gioco accetta per quel lavoro (Sega, Sega da giardino, Sega per legno semplice), senza quelli rotti. Un attrezzo che fa più lavori offre «Scorta degli attrezzi» con ognuno;
-- **«Controlla i libri» / «Controlla le riviste»**: quali libri delle abilità e quali riviste di ricette mancano nella base;
-- **«Controlla le VHS»**: quali delle 62 VHS che insegnano un'abilità (guardarle dà esperienza) ci sono e quali mancano nella base, tutte o quelle di un'abilità, come i libri. Ogni cassetta c'è o manca: niente copie da scegliere.
+- **tasto destro, ovunque, «ZomBOT»**: la finestra delle basi, con l'elenco e i pulsanti per crearle, modificarle (disegnandole sul terreno o sulla mappa, o prendendo la casa in cui sei), vederle sulla mappa e toglierle;
+- **«Scorte...»**, nella finestra delle basi: le scorte di una base **per categoria**, ognuna da tracciare o no con un clic:
+  - **Libri delle abilità**, con quante copie di ogni volume tenere;
+  - **Riviste di ricette**, con quante copie di ognuna;
+  - **VHS delle abilità**: ogni cassetta che insegna un'abilità c'è o manca;
+  - **Provviste**: tutto il cibo insieme, contato in porzioni (circa un pasto l'una), senza numeri da scrivere.
 
-Funziona solo per gli admin: per chi non lo è i menu non compaiono, e il server rifiuta comunque ogni modifica che non arrivi da un admin.
+  «Tutte le scorte...» elenca tutto ciò che la base tiene d'occhio, con le soglie e com'era all'ultimo conteggio;
+- **tasto destro su un oggetto dentro una base → «ZomBOT» → «Aggiungi a scorta»**: tiene d'occhio quell'oggetto nella base, con le soglie «critico», «scarseggia» e «buono». Una confezione conta per ciò che contiene; un attrezzo si tiene d'occhio per lavoro («Seghe da legno» conta tutte le seghe che il gioco accetta per quel lavoro, senza quelle rotte); libri, riviste e VHS si tracciano solo per categoria, da «Scorte...»;
+- **con anche ZomBOT installata**, nella finestra delle basi ci sono «Casse colorate» e le domande e risposte di ZomBOT.
+
+**Chi non è admin e installa Admin-Scorte** non vede le finestre, ma ha **il riquadro delle scorte sotto gli oggetti**: passando il mouse su un oggetto, sotto il riquadro del gioco compare «ZomBOT - scorte» con le basi in cui quell'oggetto manca o scarseggia («Scarseggia a ... (300 su 1.000)», «Manca a ...» per un libro o una VHS). Il server rifiuta comunque ogni modifica che non arrivi da un admin.
+
+## Silenziatori (disattivata)
+
+**Per ora Silenziatori è disattivata**: il server non la usa, per entrare non serve e `mod-moon-server.bat` non la installa (nel menu compare «Disattivata»). Se l'avevi installata prima, il menu te lo dice e puoi toglierla con **`4`** e poi **`1`**.
+
+Il codice resta nel pacchetto, nella cartella `mods/Silenziatori`, con le correzioni descritte sotto. Chi la vuole in una partita in single player può copiare a mano quella cartella in `C:\Users\<il tuo nome>\Zomboid\mods\`, poi dal menu principale: **Mod**, attiva **«Silenziatori»**, e crea una nuova partita (non insieme alla mod originale Simple Suppressors).
 
 ## Cosa cambia rispetto all'originale
 
