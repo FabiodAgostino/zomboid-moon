@@ -13,6 +13,8 @@ public sealed class InstalledMod
     public string Version { get; set; } = "";
     public List<string> Files { get; set; } = [];
     public List<string> Mirrors { get; set; } = [];
+    /// <summary>The user chose this version, older than the latest: the launcher leaves it as it is.</summary>
+    public bool Pinned { get; set; }
     public DateTimeOffset At { get; set; }
 }
 

@@ -8,6 +8,10 @@
 
 - **Mod come schede con un interruttore.** Accendi e la mod si installa; spegni e si toglie, dopo una domanda. Tutte sono facoltative. Una mod con `"required": true` è una che serve per entrare sul server (oggi nessuna): finché manca, GIOCA diventa **INSTALLA**.
 - **Aggiornamenti.** All'avvio legge l'ultima release del repo e scarica il suo `moon-mods.zip` (una sola volta per release). Confronta ogni file installato con quello della release, byte per byte, come faceva il bat con `fc /b`. Se qualcosa è diverso la mod diventa **Da aggiornare**, e GIOCA diventa **AGGIORNA**.
+- **Versione a scelta.** Accanto al nome di ogni mod c'è la sua versione: con più versioni pubblicate si apre un menu con tutte, la più nuova in cima. Una versione precedente si installa dalla release che l'aveva pubblicata; la scheda dice «versione scelta da te», e il launcher non la aggiorna da solo finché non si sceglie di nuovo l'ultima.
+- **Stato: «Installabile» o «Disattivata».** Lo decide il repo (vedi [Disattivare una mod](#disattivare-o-riattivare-una-mod)). Una mod disattivata non si installa né si aggiorna. Se qualcuno ce l'ha già, il launcher lo avvisa e nella scheda offre **TOGLI**, ma non la toglie da solo: tenerla installata non fa niente di male, il gioco carica solo quello che il server chiede.
+- **Le installazioni del bat.** Riconosce le mod installate con `mod-moon-server.bat` (dai file, e dalla versione scritta in `media\lua\Moon-<mod>.version`), e scrive quei file come il bat: si può passare dall'uno all'altro.
+- **In home**, come il bat, una tabella con ogni mod, la sua versione e com'è sul computer: aggiornata, da aggiornare, non installata, disattivata.
 - **File condivisi.** Un file che due mod mettono nello stesso posto (`ZomBotMenu.lua`, in Admin-Scorte e in ZomBOT) resta finché è installata almeno una delle due.
 - **GIOCA** avvia il gioco con `steam://rungameid/108600`; senza Steam, con `ProjectZomboid64.exe`. Quando il gioco è aperto il launcher si riduce a icona e le mod non si toccano: se serve, aspetta che il gioco si chiuda.
 - **Il gioco** lo trova come il bat: nella cartella data al launcher (trascinata sulla finestra o sull'exe, oppure scelta con «Cambia cartella»), poi nella cartella di Steam e in tutte le librerie di `libraryfolders.vdf`.
@@ -25,15 +29,15 @@ Le mod non sono scritte nel launcher: sono in [`mods.json`](../mods.json), in ci
 {
   "id": "zombot",
   "name": "ZomBOT",
-  "version": "1.0",
+  "versionFile": "zombot/VERSION",
+  "state": "installabile",
   "audience": "Per tutti",
   "summary": "Una riga che dice cos'è.",
   "note": "Una riga in più, per esempio a chi serve.",
   "afterInstall": "Cosa dire dopo l'installazione.",
-  "image": "zombot/poster.png",
+  "installedVersion": { "file": "{game}/media/lua/Moon-ZomBOT.version" },
   "install": [
-    { "from": "zombot/client", "to": "{game}/media/lua/client" },
-    { "from": "zombot/shared", "to": "{game}/media/lua/shared" }
+    { "from": "zombot/client", "to": "{game}/media/lua/client" }
   ]
 }
 ```
@@ -41,17 +45,35 @@ Le mod non sono scritte nel launcher: sono in [`mods.json`](../mods.json), in ci
 | Campo | Cosa fa |
 | --- | --- |
 | `id` | Unico, non cambiarlo più: il launcher ricorda così cosa ha installato. |
-| `name`, `version` | Come compare nella scheda. Quando cambi i file di una mod, alza la sua `version`. |
+| `name` | Come compare nella scheda. |
+| `versionFile`, `versionKey` | Il file della mod con la sua versione: la prima riga (`VERSION`), o il valore di `versionKey` (per Silenziatori `modversion` in `mod.info`). In alternativa si scrive la versione direttamente, `"version": "1.0.0"`. Quando cambi i file di una mod, alza la sua versione. |
+| `state`, `stateNote` | `"installabile"` (se manca è così) o `"disattivata"`, con il motivo facoltativo che compare nella scheda. |
 | `required` | `true` se senza questa mod non si entra sul server. |
 | `audience`, `summary`, `note`, `afterInstall` | I testi della scheda e dell'avviso dopo l'installazione. Facoltativi. |
 | `image` | Un'immagine del repo per la scheda. Facoltativa: senza, c'è l'iniziale del nome. |
-| `installedVersion` | `{ "file": "...", "key": "modversion" }`: dove leggere la versione installata quando la mod non l'ha messa il launcher (come faceva il bat con `mod.info`). Facoltativo. |
+| `installedVersion` | Dove sta la versione installata. Con `"key"` è una riga di un file della mod (`modversion` di `mod.info`); senza, è un file di una riga che il launcher scrive accanto alla mod e toglie con lei, come il bat (`Moon-ZomBOT.version`). Facoltativo. |
 | `install` | Cosa copiare. `from` è un file o una cartella del repo (una cartella porta tutti i suoi file, anche nelle sottocartelle). `to` comincia con `{zomboid}` (`%UserProfile%\Zomboid`) o `{game}` (la cartella del gioco). |
 | `mirror` | `true` rende la cartella di destinazione identica alla mod, come `robocopy /MIR`: i file in più vengono cancellati. Si può solo per una cartella propria dentro `{zomboid}`, per esempio `{zomboid}/mods/Silenziatori`. |
 
 Due mod possono mettere lo stesso file nello stesso posto solo se i due file sono identici: il pacchetto della release lo controlla e si ferma se non è così.
 
 Il campo `launcher` in cima a `mods.json` è la versione del launcher (diventa anche la versione dell'exe). Alzalo quando cambi il codice del launcher: chi ha una versione più vecchia riceve l'aggiornamento.
+
+## Versioni
+
+Ogni release pubblica una versione di ogni mod: il suo `mods.json` (allegato alla release, con le versioni già scritte) dice quali. Il launcher legge i `mods.json` di tutte le release e mette nel menu di ogni mod le sue versioni, la più nuova in cima; una versione si installa dal `moon-mods.zip` della release più recente che la contiene.
+
+Non servono tag in più né un elenco da tenere a mano: basta alzare il file `VERSION` della mod quando la si cambia, e pubblicare la release. Una release che non cambia una mod non aggiunge niente al suo menu.
+
+## Disattivare o riattivare una mod
+
+In `mods.json` sul ramo `main`:
+
+```json
+"state": "disattivata", "stateNote": "Per ora sul server è disattivata.",
+```
+
+Si fa il commit, e al prossimo avvio ogni launcher la mostra come «Disattivata»: non serve una release né un launcher nuovo. GitHub tiene il file in cache fino a 5 minuti. Per riattivarla, `"state": "installabile"`. Senza connessione il launcher usa l'ultimo stato che ha letto.
 
 ## Pubblicare una release
 

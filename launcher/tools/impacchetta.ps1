@@ -2,8 +2,12 @@
 <#
   Builds the mods' package of a release: moon-mods.zip, with mods.json and every file it names, in the same folders as
   in the repo. The launcher downloads it from the latest release. It also checks what the launcher cannot fix later:
-  every "from" must exist, and two mods that put a file in the same place (ZomBotMenu.lua in Admin-Scorte and ZomBOT)
-  must bring the very same file, or installing one would make the other look out of date.
+  every "from" must exist, every mod has a version and a known state, and two mods that put a file in the same place
+  (ZomBotMenu.lua in Admin-Scorte and ZomBOT) must bring the very same file, or installing one would make the other
+  look out of date.
+
+  The mods.json of the package, and the one attached to the release, have every version written out (read from the
+  VERSION files and from mod.info): the launcher reads the mods.json of the older releases to offer their versions.
 
     pwsh launcher/tools/impacchetta.ps1 [-Out dist]
 
@@ -13,8 +17,7 @@ param([string]$Out = 'dist')
 $ErrorActionPreference = 'Stop'
 
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
-$manifestPath = Join-Path $repo 'mods.json'
-$manifest = Get-Content $manifestPath -Raw | ConvertFrom-Json
+$manifest = Get-Content (Join-Path $repo 'mods.json') -Raw | ConvertFrom-Json
 if ($manifest.launcher -notmatch '^\d+\.\d+\.\d+$') { throw "mods.json: «launcher» deve essere una versione come 1.2.3, non «$($manifest.launcher)»." }
 
 $files = [ordered]@{}      # path in the repo -> full path
@@ -33,7 +36,29 @@ function Add-File([string]$full, [string]$target, [string]$mod) {
     $targets[$key] = @{ Hash = $hash; Mod = $mod }
 }
 
+function Read-Version([string]$path, [string]$key) {
+    if (-not (Test-Path $path -PathType Leaf)) { return $null }
+    foreach ($line in Get-Content $path) {
+        $line = $line.Trim()
+        if (-not $key) { if ($line) { return $line } else { continue } }
+        $i = $line.IndexOf('=')
+        if ($i -gt 0 -and $line.Substring(0, $i).Trim() -eq $key) { return $line.Substring($i + 1).Trim() }
+    }
+    return $null
+}
+
 foreach ($mod in $manifest.mods) {
+    if ($mod.versionFile) {
+        $version = Read-Version (Join-Path $repo $mod.versionFile) $mod.versionKey
+        if (-not $version) { throw "mods.json: la versione di $($mod.name) dovrebbe essere in $($mod.versionFile), che non la contiene." }
+        $mod | Add-Member -NotePropertyName version -NotePropertyValue $version -Force
+        $mod.PSObject.Properties.Remove('versionFile')
+        $mod.PSObject.Properties.Remove('versionKey')
+    }
+    if (-not $mod.version) { throw "mods.json: $($mod.name) non ha una versione." }
+    if ($mod.state -and $mod.state -notin 'installabile', 'disattivata') {
+        throw "mods.json: lo stato di $($mod.name) è «$($mod.state)»: può essere «installabile» o «disattivata»."
+    }
     foreach ($e in $mod.install) {
         $from = Join-Path $repo $e.from
         $to = $e.to.Replace('\', '/').TrimEnd('/')
@@ -55,19 +80,23 @@ foreach ($mod in $manifest.mods) {
 }
 
 New-Item -ItemType Directory -Force $Out | Out-Null
-$zip = Join-Path (Resolve-Path $Out).Path 'moon-mods.zip'
+$out = (Resolve-Path $Out).Path
+$resolved = Join-Path $out 'mods.json'
+[IO.File]::WriteAllText($resolved, ($manifest | ConvertTo-Json -Depth 10), [Text.UTF8Encoding]::new($false))
+
+$zip = Join-Path $out 'moon-mods.zip'
 if (Test-Path $zip) { Remove-Item $zip }
 $archive = [IO.Compression.ZipFile]::Open($zip, 'Create')
 try {
-    [void][IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive, $manifestPath, 'mods.json', 'Optimal')
+    [void][IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive, $resolved, 'mods.json', 'Optimal')
     foreach ($f in $files.GetEnumerator()) {
         [void][IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive, $f.Value, $f.Key, 'Optimal')
     }
 } finally {
     $archive.Dispose()
 }
-Copy-Item $manifestPath (Join-Path $Out 'mods.json') -Force
 
 if ($env:GITHUB_OUTPUT) { "launcher=$($manifest.launcher)" | Out-File $env:GITHUB_OUTPUT -Append -Encoding utf8 }
 $size = [Math]::Round((Get-Item $zip).Length / 1KB)
-Write-Host "moon-mods.zip: $($manifest.mods.Count) mod, $($files.Count) file, $size KB; launcher $($manifest.launcher)"
+$list = ($manifest.mods | ForEach-Object { "$($_.name) $($_.version)" + $(if ($_.state -eq 'disattivata') { ' (disattivata)' } else { '' }) }) -join ', '
+Write-Host "moon-mods.zip: $list; $($files.Count) file, $size KB; launcher $($manifest.launcher)"

@@ -54,7 +54,7 @@ public sealed class GitHub : IDisposable
         {
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
             timeout.CancelAfter(TimeSpan.FromSeconds(15));
-            using var req = new HttpRequestMessage(HttpMethod.Get, $"{api}/repos/{Repo}/releases?per_page=20");
+            using var req = new HttpRequestMessage(HttpMethod.Get, $"{api}/repos/{Repo}/releases?per_page=50");
             req.Headers.Accept.ParseAdd("application/vnd.github+json");
             req.Headers.Add("X-GitHub-Api-Version", "2022-11-28");
             if (File.Exists(body) && File.Exists(etag) && EntityTagHeaderValue.TryParse(File.ReadAllText(etag), out var tag))
@@ -90,6 +90,20 @@ public sealed class GitHub : IDisposable
     }
 
     public string BranchZipUrl(string branch) => $"{api}/repos/{Repo}/zipball/{branch}";
+
+    /// <summary>
+    /// A file of a branch as it is now, from raw.githubusercontent.com: no account, and no limit of questions an hour.
+    /// GitHub keeps it in its cache for up to 5 minutes.
+    /// </summary>
+    public async Task<string> RawAsync(string branch, string path, CancellationToken ct)
+    {
+        var url = api == "https://api.github.com"
+            ? $"https://raw.githubusercontent.com/{Repo}/{branch}/{path}"
+            : $"{api}/raw/{Repo}/{branch}/{path}";
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeout.CancelAfter(TimeSpan.FromSeconds(10));
+        return await http.GetStringAsync(url, timeout.Token);
+    }
 
     /// <summary>Downloads into a .part file and renames it at the end; checks size and SHA-256 when GitHub gives them.</summary>
     public async Task DownloadAsync(string url, string dest, IProgress<double>? progress, CancellationToken ct,

@@ -47,6 +47,7 @@ public sealed class MainViewModel : Observable, IDisposable
     string? gameFolder;
     bool gameRunning;
     bool launching;
+    bool confirming;
     ReleaseAsset? launcherAsset;
 
     public MainViewModel(Options options)
@@ -59,7 +60,7 @@ public sealed class MainViewModel : Observable, IDisposable
         PlayAnywayCommand = new Command(LaunchGame, () => !IsBusy && !gameRunning);
         ChooseGameCommand = new Command(ChooseGameAsync, () => !IsBusy);
         OpenModsFolderCommand = new Command(OpenModsFolder);
-        UpdateAllCommand = new Command(() => InstallAsync(Mods.Where(m => m.HasUpdate).ToList()), () => !IsBusy);
+        UpdateAllCommand = new Command(() => InstallAsync(Mods.Where(m => m.HasUpdate).ToList(), latest: true), () => !IsBusy);
         UpdateLauncherCommand = new Command(UpdateLauncherAsync, () => !IsBusy);
         RetryCommand = new Command(InitializeAsync, () => !IsBusy);
         OpenUrlCommand = new Command(p => { OpenUrl(p as string); return Task.CompletedTask; });
@@ -204,9 +205,24 @@ public sealed class MainViewModel : Observable, IDisposable
             plans = await Task.Run(() => ModPlan.Build(root.Manifest, root.Root));
             Mods.Clear();
             for (var i = 0; i < plans.Count; i++)
-                Mods.Add(new ModCard(plans[i], i, ToggleAsync, c => InstallAsync([c]), ChooseGameAsync));
+                Mods.Add(new ModCard(plans[i], i, ToggleAsync, c => InstallAsync([c], latest: true), UninstallAsync,
+                    ChooseVersionAsync, ChooseGameAsync));
+
+            // which mods are disabled: the main branch says it now, the release said it when it came out
+            var live = await sources.LiveAsync(isOffline, CancellationToken.None);
+            foreach (var card in Mods)
+            {
+                var def = live?.GetValueOrDefault(card.Def.Id) ?? card.Def;
+                card.Disabled = def.Disabled;
+                card.DisabledNote = def.StateNote;
+            }
             await RefreshAsync();
             CheckLauncherUpdate();
+            foreach (var card in Mods.Where(m => m.Disabled && m.IsOn))
+                Toast($"{card.Name} è disattivata",
+                    (card.DisabledNote is { Length: > 0 } note ? note + " " : "")
+                    + "Ce l'hai ancora installata: se vuoi, toglila dalla sua scheda.", ToastKind.Warning);
+            _ = LoadVersionsAsync(isOffline);
             if (options.JustUpdated) Toast("Launcher aggiornato", $"Ora hai Moon {VersionText}.", ToastKind.Ok);
         }
         catch (Exception e)
@@ -220,6 +236,24 @@ public sealed class MainViewModel : Observable, IDisposable
             EndProgress();
             UpdatePlayState();
             watch.Start();
+        }
+    }
+
+    /// <summary>The older versions of every mod, from the older releases: the menus fill in while the launcher is ready.</summary>
+    async Task LoadVersionsAsync(bool isOffline)
+    {
+        if (source is null) return;
+        try
+        {
+            var history = await sources.HistoryAsync(source, releases, isOffline, CancellationToken.None);
+            foreach (var card in Mods)
+                if (history.TryGetValue(card.Def.Id, out var versions))
+                    card.SetVersions(versions);
+            foreach (var card in Mods.Where(m => m.IsOn)) card.Status = card.Status;
+        }
+        catch (Exception e) when (e is HttpRequestException or IOException or TaskCanceledException or InvalidDataException)
+        {
+            // only the latest version, then
         }
     }
 
@@ -322,7 +356,8 @@ public sealed class MainViewModel : Observable, IDisposable
     {
         if (PlayLabel is "INSTALLA" or "AGGIORNA")
         {
-            await InstallAsync(Mods.Where(m => (m.Required && m.State == ModState.NotInstalled) || m.HasUpdate).ToList());
+            await InstallAsync(Mods.Where(m => (m.Required && m.State == ModState.NotInstalled && !m.Disabled) || m.HasUpdate).ToList(),
+                latest: true);
             return;
         }
         LaunchGame();
@@ -356,7 +391,7 @@ public sealed class MainViewModel : Observable, IDisposable
 
     void UpdatePlayState()
     {
-        var missing = Mods.Where(m => m.Required && m.State == ModState.NotInstalled).ToList();
+        var missing = Mods.Where(m => m.Required && m.State == ModState.NotInstalled && !m.Disabled).ToList();
         var outdated = Mods.Where(m => m.HasUpdate).ToList();
         ShowPlayAnyway = false;
         if (IsBusy)
@@ -427,10 +462,13 @@ public sealed class MainViewModel : Observable, IDisposable
                 ? "nella cartella del gioco, che non ho trovato"
                 : $"{Mods[i].Plan.Files.Count} file in {where}";
         }
-        var installed = Mods.Count(m => m.IsOn);
+        var installable = Mods.Count(m => !m.Disabled);
+        var installed = Mods.Count(m => m.IsOn && !m.Disabled);
         var updates = Mods.Count(m => m.HasUpdate);
+        var off = Mods.Count - installable;
         AnyUpdates = updates > 0;
-        ModsSummary = $"{installed} mod su {Mods.Count} installate" + (updates > 0 ? $" · {updates} da aggiornare" : "");
+        ModsSummary = $"{installed} mod su {installable} installate" + (updates > 0 ? $" · {updates} da aggiornare" : "")
+                      + (off == 1 ? " · 1 disattivata" : off > 1 ? $" · {off} disattivate" : "");
         UpdatePlayState();
     }
 
@@ -448,10 +486,64 @@ public sealed class MainViewModel : Observable, IDisposable
             return;
         }
         if (card.IsOn) await UninstallAsync(card);
-        else await InstallAsync([card]);
+        else await InstallAsync([card], latest: false);
     }
 
-    async Task InstallAsync(IReadOnlyList<ModCard> cards)
+    /// <summary>A version chosen in a card's menu: for a mod not installed it is the one the switch will install.</summary>
+    async Task ChooseVersionAsync(ModCard card, string version)
+    {
+        card.IsVersionMenuOpen = false;
+        if (IsBusy || confirming || card.Disabled) return;
+        if (!card.IsOn)
+        {
+            card.SelectedVersion = version;
+            return;
+        }
+        var installed = card.Status.InstalledVersion ?? card.Def.Version;
+        if (version == installed && card.State == ModState.Installed) return;
+        var latest = version == card.Def.Version;
+        confirming = true;
+        int choice;
+        try
+        {
+            choice = await Dialog(new DialogRequest
+            {
+                Title = $"{card.Name} {version}",
+                Message = latest
+                    ? $"Passo {card.Name} alla versione {version}, l'ultima. Da qui in avanti il launcher la tiene aggiornata."
+                    : $"Passo {card.Name} alla versione {version}. È una versione precedente: finché non scegli di nuovo l'ultima, il launcher non te la aggiorna.",
+                Buttons = [$"Installa la {version}", "Annulla"],
+                Icon = "\uE81C",
+            });
+        }
+        finally
+        {
+            confirming = false;
+        }
+        if (choice != 0) return;
+        card.SelectedVersion = version;
+        await InstallAsync([card], latest: latest);
+    }
+
+    /// <summary>The plan of an older version of a mod, from the release that published it (downloaded if needed).</summary>
+    async Task<ModPlan> PlanForAsync(ModCard card, string version, Reporter reporter)
+    {
+        if (version == card.Def.Version) return card.Plan;
+        var release = card.FindVersion(version)?.Release
+                      ?? throw new InvalidOperationException($"Non so da quale release prendere {card.Name} {version}.");
+        var root = await sources.RootAsync(release, Offline, reporter, CancellationToken.None)
+                   ?? throw new InvalidOperationException($"Non riesco a scaricare {card.Name} {version}: GitHub non risponde.");
+        return await Task.Run(() =>
+        {
+            var def = Manifest.Load(Path.Combine(root, "mods.json")).Mods
+                          .FirstOrDefault(m => m.Id.Equals(card.Def.Id, StringComparison.OrdinalIgnoreCase))
+                      ?? throw new InvalidDataException($"Nella release {release.Tag} non c'è {card.Name}.");
+            return ModPlan.Build(def, root);
+        });
+    }
+
+    /// <summary>Installs the cards: their latest version, or the one chosen in their menu.</summary>
+    async Task InstallAsync(IReadOnlyList<ModCard> cards, bool latest)
     {
         if (IsBusy || installer is null || cards.Count == 0)
         {
@@ -470,8 +562,11 @@ public sealed class MainViewModel : Observable, IDisposable
                 card.IsWorking = true;
                 try
                 {
-                    await installer.InstallAsync(card.Plan, Reporter(card, i / (double)cards.Count, 1.0 / cards.Count),
-                        CancellationToken.None);
+                    var reporter = Reporter(card, i / (double)cards.Count, 1.0 / cards.Count);
+                    var version = latest ? card.Def.Version : card.SelectedVersion;
+                    var plan = await PlanForAsync(card, version, reporter);
+                    await installer.InstallAsync(plan, pinned: version != card.Def.Version, reporter, CancellationToken.None);
+                    card.SelectedVersion = version;
                 }
                 finally
                 {
@@ -482,7 +577,7 @@ public sealed class MainViewModel : Observable, IDisposable
             await RefreshAsync();
             ProgressTitle = "Tutto pronto";
             await Task.Delay(700);
-            Toast(cards.Count == 1 ? $"{cards[0].Name} installata" : "Tutto pronto",
+            Toast(cards.Count == 1 ? $"{cards[0].Name} {cards[0].SelectedVersion} installata" : "Tutto pronto",
                 hints.Count > 0 ? string.Join(" ", hints) : "Avvia Project Zomboid ed entra sul server Moon come sempre.",
                 ToastKind.Ok);
         }
@@ -502,15 +597,30 @@ public sealed class MainViewModel : Observable, IDisposable
 
     async Task UninstallAsync(ModCard card)
     {
-        var choice = await Dialog(new DialogRequest
+        // one question at a time: a second click while the first one waits does nothing
+        if (IsBusy || confirming || !card.IsOn)
         {
-            Title = $"Togliere {card.Name}?",
-            Message = (card.Required ? $"Senza {card.Name} non puoi entrare sul server Moon.\n\n" : "")
-                      + $"Tolgo i suoi file ({card.Where}). I salvataggi, le impostazioni e le altre mod restano come sono.",
-            Buttons = ["Togli", "Annulla"],
-            Danger = true,
-            Icon = "",
-        });
+            card.Sync();
+            return;
+        }
+        confirming = true;
+        int choice;
+        try
+        {
+            choice = await Dialog(new DialogRequest
+            {
+                Title = $"Togliere {card.Name}?",
+                Message = (card.Required ? $"Senza {card.Name} non puoi entrare sul server Moon.\n\n" : "")
+                          + $"Tolgo i suoi file ({card.Where}). I salvataggi, le impostazioni e le altre mod restano come sono.",
+                Buttons = ["Togli", "Annulla"],
+                Danger = true,
+                Icon = "",
+            });
+        }
+        finally
+        {
+            confirming = false;
+        }
         if (choice != 0 || IsBusy || installer is null)
         {
             card.Sync();
@@ -534,7 +644,9 @@ public sealed class MainViewModel : Observable, IDisposable
             await RefreshAsync();
             await Task.Delay(500);
             var last = reporter.Last.Detail;
-            Toast($"{card.Name} tolta", last is { Length: > 0 } and not "fatto" ? last : "Per rimetterla, accendi di nuovo il suo interruttore.",
+            Toast($"{card.Name} tolta", last is { Length: > 0 } and not "fatto" ? last
+                : card.Disabled ? "Si potrà installare di nuovo quando il server la riattiva."
+                : "Per rimetterla, accendi di nuovo il suo interruttore.",
                 ToastKind.Info);
         }
         catch (Exception e)

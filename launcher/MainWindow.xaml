@@ -114,11 +114,18 @@
                             </LinearGradientBrush>
                         </Border.Background>
                     </Border>
-                    <Border Style="{StaticResource Badge}" Background="#99000000" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="14">
-                        <TextBlock x:Name="audience" Style="{StaticResource BadgeText}" Text="{Binding Audience}" />
-                    </Border>
+                    <Border CornerRadius="13,13,0,0" Background="#B305070C" Visibility="{Binding Disabled, Converter={StaticResource Vis}}" />
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="14">
+                        <Border Style="{StaticResource Badge}" Background="#99000000">
+                            <TextBlock x:Name="audience" Style="{StaticResource BadgeText}" Text="{Binding Audience}" />
+                        </Border>
+                        <Border Style="{StaticResource Badge}" Background="#CC3A1418" BorderBrush="#99FF5A5F" Margin="6,0,0,0"
+                                Visibility="{Binding Disabled, Converter={StaticResource Vis}}">
+                            <TextBlock Style="{StaticResource BadgeText}" Text="DISATTIVATA" Foreground="#FFB3B6" />
+                        </Border>
+                    </StackPanel>
                     <ToggleButton x:Name="toggle" Style="{StaticResource Switch}" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="14"
-                                  IsChecked="{Binding Switch, Mode=TwoWay}" IsEnabled="{Binding CanToggle}"
+                                  IsChecked="{Binding Switch, Mode=TwoWay}" IsEnabled="{Binding CanToggle}" AutomationProperties.Name="{Binding Name}"
                                   ToolTip="Accendi per installare, spegni per togliere" />
 
                     <Grid Grid.Row="1" Margin="18,6,18,14">
@@ -129,7 +136,19 @@
                             <RowDefinition Height="*" />
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
-                        <TextBlock Text="{Binding Name}" FontFamily="{StaticResource Display}" FontWeight="Bold" FontSize="22" />
+                        <DockPanel>
+                            <Button DockPanel.Dock="Right" Style="{StaticResource VersionChip}" Command="{Binding ToggleVersionsCommand}"
+                                    AutomationProperties.Name="{Binding Name, StringFormat=Versioni di {0}}"
+                                    VerticalAlignment="Center" ToolTip="Scegli la versione">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{Binding SelectedVersion, StringFormat=v{0}}" />
+                                    <TextBlock Style="{StaticResource Icon}" Text="&#xE70D;" FontSize="9" Margin="7,1,0,0"
+                                               Visibility="{Binding HasVersions, Converter={StaticResource Vis}}" />
+                                </StackPanel>
+                            </Button>
+                            <TextBlock Text="{Binding Name}" FontFamily="{StaticResource Display}" FontWeight="Bold" FontSize="22"
+                                       TextTrimming="CharacterEllipsis" />
+                        </DockPanel>
                         <TextBlock Grid.Row="1" Text="{Binding Summary}" FontSize="13" TextWrapping="Wrap" Margin="0,3,0,0" MaxHeight="36"
                                    TextTrimming="WordEllipsis" />
                         <TextBlock Grid.Row="2" Text="{Binding Note}" Foreground="{StaticResource TextFaint}" FontSize="12" TextWrapping="Wrap"
@@ -139,6 +158,8 @@
                                     Command="{Binding UpdateCommand}" Visibility="{Binding HasUpdate, Converter={StaticResource Vis}}" />
                             <Button DockPanel.Dock="Right" Style="{StaticResource GhostButton}" Content="SCEGLI CARTELLA" Padding="12,6"
                                     Command="{Binding ChooseGameCommand}" Visibility="{Binding NeedsGame, Converter={StaticResource Vis}}" />
+                            <Button DockPanel.Dock="Right" Style="{StaticResource GhostButton}" Content="TOGLI" Padding="12,6"
+                                    Command="{Binding RemoveCommand}" Visibility="{Binding CanRemove, Converter={StaticResource Vis}}" />
                             <Grid Width="10" Height="10" Margin="0,0,10,0" VerticalAlignment="Center">
                                 <Ellipse x:Name="halo" Fill="{StaticResource TextFaint}" Opacity="0">
                                     <Ellipse.Effect>
@@ -156,6 +177,43 @@
                     </Grid>
                     <ProgressBar Grid.Row="1" VerticalAlignment="Bottom" Margin="18,0,18,6" Height="3" Style="{StaticResource MoonProgress}"
                                  c:Smooth.Value="{Binding Progress}" Visibility="{Binding IsWorking, Converter={StaticResource Vis}}" />
+
+                    <Border Grid.Row="1" CornerRadius="0,0,13,13" Background="#FF0C111D" Padding="14,10,10,10"
+                            Visibility="{Binding IsVersionMenuOpen, Converter={StaticResource Vis}}">
+                        <DockPanel>
+                            <DockPanel DockPanel.Dock="Top" Margin="4,0,0,6">
+                                <Button DockPanel.Dock="Right" Style="{StaticResource WindowButton}" Width="30" Height="26" Content="&#xE8BB;"
+                                        Command="{Binding ToggleVersionsCommand}" ToolTip="Chiudi" />
+                                <c:SpacedText Text="VERSIONI" FontFamily="{StaticResource Display}" FontWeight="SemiBold" FontSize="11" Spacing="2.2"
+                                              Foreground="{StaticResource Accent}" VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding VersionsCountText}" Foreground="{StaticResource TextFaint}" FontSize="11.5" Margin="10,0,0,0"
+                                           VerticalAlignment="Center" />
+                            </DockPanel>
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" Focusable="False">
+                                <ItemsControl ItemsSource="{Binding Versions}" Focusable="False">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate DataType="{x:Type vm:VersionOption}">
+                                            <Button Style="{StaticResource VersionItem}" Command="{Binding Choose}" AutomationProperties.Name="{Binding Version}">
+                                                <DockPanel>
+                                                    <TextBlock DockPanel.Dock="Right" Text="{Binding Hint}" Foreground="{StaticResource TextFaint}" FontSize="11.5"
+                                                               VerticalAlignment="Center" />
+                                                    <TextBlock x:Name="check" Style="{StaticResource Icon}" Text="&#xE73E;" FontSize="12" Width="20"
+                                                               Foreground="{StaticResource Accent}" Opacity="0" />
+                                                    <TextBlock x:Name="ver" Text="{Binding Version}" FontWeight="SemiBold" FontSize="13" />
+                                                </DockPanel>
+                                            </Button>
+                                            <DataTemplate.Triggers>
+                                                <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                    <Setter TargetName="check" Property="Opacity" Value="1" />
+                                                    <Setter TargetName="ver" Property="Foreground" Value="{StaticResource Accent}" />
+                                                </DataTrigger>
+                                            </DataTemplate.Triggers>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </DockPanel>
+                    </Border>
                 </Grid>
             </Border>
             <DataTemplate.Triggers>
@@ -171,6 +229,10 @@
                     <Setter TargetName="halo" Property="Opacity" Value="0.9" />
                     <Setter TargetName="state" Property="Foreground" Value="{StaticResource Warn}" />
                     <Setter TargetName="card" Property="BorderBrush" Value="#66FFB547" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding StatusKind}" Value="disabled">
+                    <Setter TargetName="dot" Property="Fill" Value="#5A2A30" />
+                    <Setter TargetName="state" Property="Foreground" Value="#FF8A8E" />
                 </DataTrigger>
                 <DataTrigger Binding="{Binding StatusKind}" Value="game">
                     <Setter TargetName="dot" Property="Fill" Value="{StaticResource Danger}" />
@@ -205,6 +267,40 @@
                         </BeginStoryboard>
                     </Trigger.ExitActions>
                 </Trigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+
+        <!-- a mod in the home's table: like the bat's, state, version and what is on the computer -->
+        <DataTemplate x:Key="ModRow" DataType="{x:Type vm:ModCard}">
+            <Grid Margin="0,4">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="18" />
+                    <ColumnDefinition Width="122" />
+                    <ColumnDefinition Width="104" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Ellipse x:Name="dot" Width="7" Height="7" Fill="{StaticResource TextFaint}" HorizontalAlignment="Left" VerticalAlignment="Center" />
+                <TextBlock Grid.Column="1" Text="{Binding Name}" FontWeight="SemiBold" FontSize="13" TextTrimming="CharacterEllipsis" />
+                <TextBlock Grid.Column="2" Text="{Binding SelectedVersion, StringFormat=v{0}}" Foreground="{StaticResource TextDim}" FontSize="12.5"
+                           TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                <TextBlock x:Name="state" Grid.Column="3" Text="{Binding StatusText}" Foreground="{StaticResource TextDim}" FontSize="12.5"
+                           TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+            </Grid>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding StatusKind}" Value="ok">
+                    <Setter TargetName="dot" Property="Fill" Value="{StaticResource Ok}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding StatusKind}" Value="update">
+                    <Setter TargetName="dot" Property="Fill" Value="{StaticResource Warn}" />
+                    <Setter TargetName="state" Property="Foreground" Value="{StaticResource Warn}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding StatusKind}" Value="disabled">
+                    <Setter TargetName="dot" Property="Fill" Value="#5A2A30" />
+                    <Setter TargetName="state" Property="Foreground" Value="#FF8A8E" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding StatusKind}" Value="game">
+                    <Setter TargetName="dot" Property="Fill" Value="{StaticResource Danger}" />
+                </DataTrigger>
             </DataTemplate.Triggers>
         </DataTemplate>
 
@@ -479,21 +575,19 @@
                         <TextBlock Text="Di notte resta solo la luna. Le mod le prepara il launcher: la strada è affar tuo."
                                    Foreground="{StaticResource TextDim}" FontSize="15" Margin="2,8,0,0" TextWrapping="Wrap" MaxWidth="470"
                                    HorizontalAlignment="Left" />
-                        <WrapPanel Margin="2,26,0,0">
-                            <Border Style="{StaticResource Badge}" Padding="10,5" Margin="0,0,8,8" Background="#1FFFFFFF" CornerRadius="14">
-                                <StackPanel Orientation="Horizontal">
-                                    <Ellipse Width="7" Height="7" Fill="{StaticResource Ok}" Margin="0,0,8,0" VerticalAlignment="Center" />
-                                    <TextBlock Text="Server Moon" FontSize="12.5" />
-                                </StackPanel>
-                            </Border>
-                            <Border Style="{StaticResource Badge}" Padding="10,5" Margin="0,0,8,8" Background="#1FFFFFFF" CornerRadius="14"
-                                    Cursor="Hand" MouseLeftButtonUp="GoMods">
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Style="{StaticResource Icon}" Text="&#xE74C;" FontSize="12" Margin="0,0,8,0" Foreground="{StaticResource Accent}" />
-                                    <TextBlock Text="{Binding ModsSummary}" FontSize="12.5" />
-                                </StackPanel>
-                            </Border>
-                        </WrapPanel>
+                        <Border Margin="2,24,0,10" Background="{StaticResource GlassLight}" CornerRadius="12" BorderBrush="{StaticResource Hairline}"
+                                BorderThickness="1" Padding="16,10,16,8" HorizontalAlignment="Left" Width="470" Cursor="Hand"
+                                MouseLeftButtonUp="GoMods" ToolTip="Apri la pagina delle mod">
+                            <StackPanel>
+                                <DockPanel Margin="0,0,0,4">
+                                    <TextBlock DockPanel.Dock="Right" Text="{Binding ModsSummary}" Foreground="{StaticResource TextFaint}" FontSize="11.5"
+                                               VerticalAlignment="Center" />
+                                    <c:SpacedText Text="LE MOD DI MOON" FontFamily="{StaticResource Display}" FontWeight="SemiBold" FontSize="11"
+                                                  Spacing="2.2" Foreground="{StaticResource Accent}" VerticalAlignment="Center" />
+                                </DockPanel>
+                                <ItemsControl ItemsSource="{Binding Mods}" ItemTemplate="{StaticResource ModRow}" Focusable="False" />
+                            </StackPanel>
+                        </Border>
                         <TextBlock Text="{Binding SourceText}" Foreground="{StaticResource TextFaint}" FontSize="11.5" Margin="4,2,0,0" />
                     </StackPanel>
 

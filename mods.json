@@ -2,29 +2,48 @@
   "launcher": "1.0.0",
   "mods": [
     {
-      "id": "silenziatori",
-      "name": "Silenziatori",
-      "version": "1.5.31-moon.1",
+      "id": "zombot",
+      "name": "ZomBOT",
+      "versionFile": "zombot/VERSION",
+      "state": "installabile",
       "audience": "Per tutti",
-      "summary": "I silenziatori per le armi, in italiano e senza i bug dell'originale.",
-      "note": "Per ora sul server è disattivata: installarla è facoltativa.",
-      "image": "mods/Silenziatori/42/poster.png",
-      "installedVersion": { "file": "{zomboid}/mods/Silenziatori/42/mod.info", "key": "modversion" },
+      "summary": "Le domande a ZomBOT dalla chat del gioco, il contenitore che lampeggia dove c'è ciò che cerchi, le casse colorate.",
+      "note": "Facoltativa: chi non ce l'ha entra lo stesso.",
+      "afterInstall": "Nel gioco scrivi in chat «zombot» e la domanda, per esempio «zombot dove trovo le asce?».",
+      "installedVersion": { "file": "{game}/media/lua/Moon-ZomBOT.version" },
       "install": [
-        { "from": "mods/Silenziatori", "to": "{zomboid}/mods/Silenziatori", "mirror": true }
+        { "from": "zombot/client", "to": "{game}/media/lua/client" }
       ]
     },
     {
       "id": "admin-scorte",
       "name": "Admin-Scorte",
-      "version": "1.0",
+      "versionFile": "admin-scorte/VERSION",
+      "state": "installabile",
       "audience": "Solo admin",
       "summary": "Le finestre di ZomBOT per gestire le basi e le loro scorte.",
-      "note": "Funzionano solo se sei admin sul server: per gli altri non fanno niente.",
-      "afterInstall": "Da admin: tasto destro sul pavimento, «ZomBOT: basi...».",
+      "note": "A chi non è admin mostra solo dove un oggetto manca nelle basi.",
+      "afterInstall": "Da admin: tasto destro, ovunque, «ZomBOT»: la finestra delle basi.",
+      "installedVersion": { "file": "{game}/media/lua/Moon-Admin-Scorte.version" },
       "install": [
         { "from": "admin-scorte/shared", "to": "{game}/media/lua/shared" },
         { "from": "admin-scorte/client", "to": "{game}/media/lua/client" }
+      ]
+    },
+    {
+      "id": "silenziatori",
+      "name": "Silenziatori",
+      "versionFile": "mods/Silenziatori/42/mod.info",
+      "versionKey": "modversion",
+      "state": "disattivata",
+      "stateNote": "Per ora sul server è disattivata: non si installa.",
+      "audience": "Per tutti",
+      "summary": "I silenziatori per le armi, in italiano e senza i bug dell'originale.",
+      "note": "La mod Simple Suppressors di Kiidxatlas, tradotta e corretta.",
+      "image": "mods/Silenziatori/42/poster.png",
+      "installedVersion": { "file": "{zomboid}/mods/Silenziatori/42/mod.info", "key": "modversion" },
+      "install": [
+        { "from": "mods/Silenziatori", "to": "{zomboid}/mods/Silenziatori", "mirror": true }
       ]
     }
   ]

@@ -2,7 +2,8 @@ namespace Moon.Core;
 
 public enum ModState { NotInstalled, Installed, Outdated, NeedsGame }
 
-public sealed record ModStatus(ModState State, string? InstalledVersion, string? Why);
+/// <summary>Pinned: an older version that the user chose, which the launcher does not update by itself.</summary>
+public sealed record ModStatus(ModState State, string? InstalledVersion, string? Why, bool Pinned = false);
 
 /// <summary>How far an operation is (0..1), what it is doing and on which file.</summary>
 public readonly record struct Step(double Fraction, string Title, string Detail);
@@ -17,7 +18,8 @@ public sealed class InstallerException(string message, string advice, bool needs
 /// <summary>
 /// Installs, checks and removes the mods of mods.json, like mod-moon-server.bat did: a mod is installed when every
 /// file is in place and identical, byte by byte; a mirrored folder must also have nothing more. A file that two mods
-/// share (ZomBotMenu.lua, in Admin-Scorte and in ZomBOT) stays until the last of them is removed.
+/// share (ZomBotMenu.lua, in Admin-Scorte and in ZomBOT) stays until the last of them is removed. The plans are the
+/// latest versions; installing an older one passes its own plan, and mods are told apart by their id.
 /// </summary>
 public sealed class Installer(IReadOnlyList<ModPlan> plans, Roots roots, Store store)
 {
@@ -28,6 +30,8 @@ public sealed class Installer(IReadOnlyList<ModPlan> plans, Roots roots, Store s
     {
         if (plan.NeedsGame && Roots.Game is null) return new(ModState.NeedsGame, null, null);
         if (!IsPresent(plan)) return new(ModState.NotInstalled, null, null);
+        if (store.State.Mods.TryGetValue(plan.Def.Id, out var mine) && mine.Pinned && mine.Version != plan.Def.Version)
+            return new(ModState.Installed, mine.Version, null, Pinned: true);
         var why = Difference(plan);
         return why is null
             ? new(ModState.Installed, plan.Def.Version, null)
@@ -48,23 +52,13 @@ public sealed class Installer(IReadOnlyList<ModPlan> plans, Roots roots, Store s
 
     public string? InstalledVersion(ModPlan plan)
     {
-        var probe = plan.Def.InstalledVersion;
-        if (probe is not null)
+        if (Marker(plan) is { } path)
         {
             try
             {
-                var path = Roots.Resolve(Target.Normalize(probe.File, plan.Def.Name));
-                if (path is not null && File.Exists(path))
-                {
-                    foreach (var line in File.ReadLines(path))
-                    {
-                        var i = line.IndexOf('=');
-                        if (i > 0 && line[..i].Trim().Equals(probe.Key, StringComparison.OrdinalIgnoreCase))
-                            return line[(i + 1)..].Trim();
-                    }
-                }
+                if (VersionFile.Read(path, Probe(plan)!.Key) is { } v) return v;
             }
-            catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidDataException)
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
             {
             }
         }
@@ -87,13 +81,31 @@ public sealed class Installer(IReadOnlyList<ModPlan> plans, Roots roots, Store s
 
     // -----------------------------------------------------------------------------------------------------------------
 
-    public Task InstallAsync(ModPlan plan, IProgress<Step> progress, CancellationToken ct) =>
-        Task.Run(() => Install(plan, progress, ct), ct);
+    /// <summary>Where the version is read and written: as the latest mods.json says, an older release may not know it.</summary>
+    VersionProbe? Probe(ModPlan plan) => Plans.FirstOrDefault(p => Same(p, plan))?.Def.InstalledVersion ?? plan.Def.InstalledVersion;
+
+    /// <summary>Where the installed version is written, when mods.json says so; null for the game folder not found.</summary>
+    string? Marker(ModPlan plan)
+    {
+        var probe = Probe(plan);
+        if (probe is null || string.IsNullOrWhiteSpace(probe.File)) return null;
+        try
+        {
+            return Roots.Resolve(Target.Normalize(probe.File, plan.Def.Name));
+        }
+        catch (InvalidDataException)
+        {
+            return null;
+        }
+    }
+
+    public Task InstallAsync(ModPlan plan, bool pinned, IProgress<Step> progress, CancellationToken ct) =>
+        Task.Run(() => Install(plan, pinned, progress, ct), ct);
 
     public Task UninstallAsync(ModPlan plan, IProgress<Step> progress, CancellationToken ct) =>
         Task.Run(() => Uninstall(plan, progress, ct), ct);
 
-    void Install(ModPlan plan, IProgress<Step> progress, CancellationToken ct)
+    void Install(ModPlan plan, bool pinned, IProgress<Step> progress, CancellationToken ct)
     {
         var name = plan.Def.Name;
         if (plan.NeedsGame && Roots.Game is null)
@@ -134,18 +146,25 @@ public sealed class Installer(IReadOnlyList<ModPlan> plans, Roots roots, Store s
                 Guard(mirror, () => DeleteFile(extra));
             Guard(mirror, () => RemoveEmptyFolders(Roots.Resolve(mirror)!));
         }
-        if (store.State.Mods.TryGetValue(plan.Def.Id, out var old))
-        {
-            foreach (var t in old.Files.Where(t => !targets.Contains(t) && !UnderMirror(t, plan.Mirrors)))
-                if (ClaimedByOthers(t, plan) is null && Roots.Resolve(t) is { } path && File.Exists(path))
-                    Guard(t, () => DeleteFile(path));
-        }
+        // the files of the version installed before, and of the latest one when going back to an older version: also
+        // when it was the bat that installed them and the launcher has no list of its own
+        store.State.Mods.TryGetValue(plan.Def.Id, out var old);
+        var before = (old?.Files ?? []).Concat(Plans.Where(p => Same(p, plan)).SelectMany(p => p.Targets))
+            .Distinct(Target.Comparer);
+        foreach (var t in before.Where(t => !targets.Contains(t) && !UnderMirror(t, plan.Mirrors)))
+            if (ClaimedByOthers(t, plan) is null && Roots.Resolve(t) is { } path && File.Exists(path))
+                Guard(t, () => DeleteFile(path));
+
+        // the version next to the mod, one line, like mod-moon-server.bat writes it
+        if (Probe(plan) is { IsMarker: true } probe && Marker(plan) is { } marker)
+            Guard(probe.File, () => File.WriteAllText(marker, plan.Def.Version + Environment.NewLine));
 
         store.State.Mods[plan.Def.Id] = new InstalledMod
         {
             Version = plan.Def.Version,
             Files = plan.Files.Select(f => f.Target).ToList(),
             Mirrors = plan.Mirrors.ToList(),
+            Pinned = pinned,
             At = DateTimeOffset.Now,
         };
         store.SaveState();
@@ -189,6 +208,9 @@ public sealed class Installer(IReadOnlyList<ModPlan> plans, Roots roots, Store s
             if (File.Exists(path)) Guard(t, () => DeleteFile(path));
         }
 
+        if (Probe(plan) is { IsMarker: true } probe && Marker(plan) is { } marker && File.Exists(marker))
+            Guard(probe.File, () => DeleteFile(marker));
+
         store.State.Mods.Remove(plan.Def.Id);
         store.SaveState();
         progress.Report(new(1, $"{name} tolta", kept.Count > 0 ? string.Join(" · ", kept) : "fatto"));
@@ -227,14 +249,16 @@ public sealed class Installer(IReadOnlyList<ModPlan> plans, Roots roots, Store s
                 yield return f;
     }
 
-    bool InOtherPlans(string target, ModPlan plan) => Plans.Any(o => o != plan && o.Targets.Contains(target));
+    static bool Same(ModPlan a, ModPlan b) => a.Def.Id.Equals(b.Def.Id, StringComparison.OrdinalIgnoreCase);
+
+    bool InOtherPlans(string target, ModPlan plan) => Plans.Any(o => !Same(o, plan) && o.Targets.Contains(target));
 
     /// <summary>The name of another installed mod that needs this file too, if any.</summary>
     string? ClaimedByOthers(string target, ModPlan plan)
     {
         foreach (var o in Plans)
         {
-            if (o == plan) continue;
+            if (Same(o, plan)) continue;
             var listed = o.Targets.Contains(target)
                          || (store.State.Mods.TryGetValue(o.Def.Id, out var s) && s.Files.Contains(target, Target.Comparer));
             if (listed && IsPresent(o)) return o.Def.Name;

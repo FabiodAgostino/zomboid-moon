@@ -8,6 +8,8 @@ namespace Moon.Core;
 /// entry there, the launcher does not change. Destinations start with {zomboid} (the user's Zomboid folder) or {game}
 /// (the game's folder); "from" is a file or a folder of the repo, and a folder brings all its files.
 /// "mirror" makes the destination folder an exact copy (like robocopy /MIR): what is not in the mod is deleted.
+/// A mod's version can be written there or read from a file of the mod (its VERSION file, the modversion of mod.info);
+/// its "state" says whether it can be installed ("installabile", the default) or not ("disattivata").
 /// </summary>
 public sealed class Manifest
 {
@@ -23,8 +25,23 @@ public sealed class Manifest
 
     public static Manifest Load(string path)
     {
-        var m = JsonSerializer.Deserialize<Manifest>(File.ReadAllText(path), Json)
-                ?? throw new InvalidDataException("mods.json è vuoto.");
+        var m = Parse(File.ReadAllText(path));
+        var root = Path.GetDirectoryName(Path.GetFullPath(path))!;
+        foreach (var mod in m.Mods)
+        {
+            if (!string.IsNullOrWhiteSpace(mod.VersionFile))
+                mod.Version = VersionFile.Read(Path.Combine(root, mod.VersionFile), mod.VersionKey)
+                              ?? throw new InvalidDataException($"mods.json: la versione di «{mod.Name}» dovrebbe essere in {mod.VersionFile}, che non la contiene.");
+            if (string.IsNullOrWhiteSpace(mod.Version))
+                throw new InvalidDataException($"mods.json: «{mod.Name}» non ha una versione.");
+        }
+        return m;
+    }
+
+    /// <summary>mods.json without its files: a release's, to know which versions it had, or the main branch's state.</summary>
+    public static Manifest Parse(string json)
+    {
+        var m = JsonSerializer.Deserialize<Manifest>(json, Json) ?? throw new InvalidDataException("mods.json è vuoto.");
         var ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var mod in m.Mods)
         {
@@ -33,6 +50,8 @@ public sealed class Manifest
             if (string.IsNullOrWhiteSpace(mod.Name)) mod.Name = mod.Id;
             if (mod.Install.Count == 0)
                 throw new InvalidDataException($"mods.json: la mod «{mod.Name}» non dice cosa installare.");
+            if (mod.State is not null && !ModDef.States.Contains(mod.State, StringComparer.OrdinalIgnoreCase))
+                throw new InvalidDataException($"mods.json: lo stato di «{mod.Name}» è «{mod.State}»: può essere «installabile» o «disattivata».");
             foreach (var e in mod.Install)
             {
                 e.To = Target.Normalize(e.To, mod.Name);
@@ -47,9 +66,19 @@ public sealed class Manifest
 
 public sealed class ModDef
 {
+    public static readonly string[] States = ["installabile", "disattivata"];
+
     public string Id { get; set; } = "";
     public string Name { get; set; } = "";
     public string Version { get; set; } = "";
+    /// <summary>A file of the mod with its version: the whole first line, or the value of VersionKey.</summary>
+    public string? VersionFile { get; set; }
+    public string? VersionKey { get; set; }
+    /// <summary>"installabile" or "disattivata": a disabled mod is not installed nor updated.</summary>
+    public string? State { get; set; }
+    public string? StateNote { get; set; }
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool Disabled => string.Equals(State, "disattivata", StringComparison.OrdinalIgnoreCase);
     /// <summary>Needed to join the server: GIOCA offers to install it first.</summary>
     public bool Required { get; set; }
     public string? Audience { get; set; }
@@ -58,7 +87,10 @@ public sealed class ModDef
     public string? AfterInstall { get; set; }
     /// <summary>A picture in the repo for the mod's card.</summary>
     public string? Image { get; set; }
-    /// <summary>Where to read the installed version, when it was not the launcher that installed it.</summary>
+    /// <summary>
+    /// Where to read the installed version. With a key it is a line of a file of the mod (modversion= of mod.info);
+    /// without, it is a marker of one line that the launcher writes next to the mod and deletes with it, like the bat.
+    /// </summary>
     public VersionProbe? InstalledVersion { get; set; }
     public List<InstallEntry> Install { get; set; } = [];
 }
@@ -66,7 +98,30 @@ public sealed class ModDef
 public sealed class VersionProbe
 {
     public string File { get; set; } = "";
-    public string Key { get; set; } = "";
+    public string? Key { get; set; }
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool IsMarker => string.IsNullOrWhiteSpace(Key);
+}
+
+public static class VersionFile
+{
+    /// <summary>The first line of the file, or the value of key=value; null when the file or the key is not there.</summary>
+    public static string? Read(string path, string? key)
+    {
+        if (!File.Exists(path)) return null;
+        foreach (var raw in File.ReadLines(path))
+        {
+            var line = raw.Trim();
+            if (string.IsNullOrWhiteSpace(key))
+            {
+                if (line.Length > 0) return line;
+                continue;
+            }
+            var i = line.IndexOf('=');
+            if (i > 0 && line[..i].Trim().Equals(key, StringComparison.OrdinalIgnoreCase)) return line[(i + 1)..].Trim();
+        }
+        return null;
+    }
 }
 
 public sealed class InstallEntry
@@ -132,43 +187,40 @@ public sealed class ModPlan
     public bool NeedsGame => Files.Any(f => Target.IsGame(f.Target)) || Mirrors.Any(Target.IsGame);
     public long TotalBytes => Files.Sum(f => f.Size);
 
-    public static List<ModPlan> Build(Manifest manifest, string root)
+    public static List<ModPlan> Build(Manifest manifest, string root) => manifest.Mods.Select(d => Build(d, root)).ToList();
+
+    public static ModPlan Build(ModDef def, string root)
     {
-        var plans = new List<ModPlan>();
-        foreach (var def in manifest.Mods)
+        var files = new List<PlannedFile>();
+        var mirrors = new List<string>();
+        foreach (var e in def.Install)
         {
-            var files = new List<PlannedFile>();
-            var mirrors = new List<string>();
-            foreach (var e in def.Install)
+            var from = Path.GetFullPath(Path.Combine(root, e.From.Replace('/', Path.DirectorySeparatorChar)));
+            if (!from.StartsWith(Path.GetFullPath(root), StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException($"mods.json: «{def.Name}» prende i file da fuori dal pacchetto: {e.From}");
+            if (Directory.Exists(from))
             {
-                var from = Path.GetFullPath(Path.Combine(root, e.From.Replace('/', Path.DirectorySeparatorChar)));
-                if (!from.StartsWith(Path.GetFullPath(root), StringComparison.OrdinalIgnoreCase))
-                    throw new InvalidDataException($"mods.json: «{def.Name}» prende i file da fuori dal pacchetto: {e.From}");
-                if (Directory.Exists(from))
-                {
-                    foreach (var f in Directory.EnumerateFiles(from, "*", SearchOption.AllDirectories)
-                                 .Order(StringComparer.OrdinalIgnoreCase))
-                        files.Add(Plan(f, Target.Combine(e.To, Path.GetRelativePath(from, f))));
-                    if (e.Mirror) mirrors.Add(e.To);
-                }
-                else if (File.Exists(from))
-                {
-                    files.Add(Plan(from, e.To));
-                }
-                else
-                {
-                    throw new InvalidDataException($"Nel pacchetto delle mod manca «{e.From}», che serve a {def.Name}.");
-                }
+                foreach (var f in Directory.EnumerateFiles(from, "*", SearchOption.AllDirectories)
+                             .Order(StringComparer.OrdinalIgnoreCase))
+                    files.Add(Plan(f, Target.Combine(e.To, Path.GetRelativePath(from, f))));
+                if (e.Mirror) mirrors.Add(e.To);
             }
-            string? image = null;
-            if (!string.IsNullOrWhiteSpace(def.Image))
+            else if (File.Exists(from))
             {
-                var p = Path.GetFullPath(Path.Combine(root, def.Image));
-                if (File.Exists(p)) image = p;
+                files.Add(Plan(from, e.To));
             }
-            plans.Add(new ModPlan { Def = def, Files = files, Mirrors = mirrors, ImagePath = image });
+            else
+            {
+                throw new InvalidDataException($"Nel pacchetto delle mod manca «{e.From}», che serve a {def.Name}.");
+            }
         }
-        return plans;
+        string? image = null;
+        if (!string.IsNullOrWhiteSpace(def.Image))
+        {
+            var p = Path.GetFullPath(Path.Combine(root, def.Image));
+            if (File.Exists(p)) image = p;
+        }
+        return new ModPlan { Def = def, Files = files, Mirrors = mirrors, ImagePath = image };
     }
 
     static PlannedFile Plan(string source, string target)
