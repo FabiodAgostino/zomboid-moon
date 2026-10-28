@@ -1,0 +1,751 @@
+<Window x:Class="Moon.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:c="clr-namespace:Moon.Controls"
+        xmlns:vm="clr-namespace:Moon.ViewModels"
+        Title="Moon" Width="1280" Height="760" ResizeMode="CanMinimize" WindowStartupLocation="CenterScreen"
+        Background="{StaticResource Night}" Foreground="{StaticResource Text}"
+        FontFamily="{StaticResource Body}" FontSize="13.5" Icon="Assets/moon.ico"
+        UseLayoutRounding="True" AllowDrop="True" TextOptions.TextFormattingMode="Ideal">
+
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="48" ResizeBorderThickness="0" GlassFrameThickness="0" CornerRadius="0" UseAeroCaptionButtons="False" />
+    </WindowChrome.WindowChrome>
+
+    <Window.Resources>
+        <c:Visible x:Key="Vis" />
+        <c:Visible x:Key="NotVis" Invert="True" />
+
+        <!-- a piece of news in the home's column -->
+        <DataTemplate x:Key="NewsSmall" DataType="{x:Type vm:NewsItem}">
+            <Border x:Name="row" Padding="0,12,0,12" BorderBrush="{StaticResource Hairline}" BorderThickness="0,1,0,0"
+                    Background="Transparent" Cursor="Hand" MouseLeftButtonUp="NewsSmall_Click">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <Border Style="{StaticResource Badge}" Background="#33FFB547" BorderBrush="#80FFB547" Margin="0,0,8,0"
+                                Visibility="{Binding IsNew, Converter={StaticResource Vis}}">
+                            <TextBlock Style="{StaticResource BadgeText}" Text="NUOVO" Foreground="{StaticResource Accent}" />
+                        </Border>
+                        <TextBlock Text="{Binding DateText}" Foreground="{StaticResource TextFaint}" FontSize="11.5" VerticalAlignment="Center" />
+                    </StackPanel>
+                    <TextBlock x:Name="title" Text="{Binding Title}" FontFamily="{StaticResource Display}" FontWeight="SemiBold" FontSize="16"
+                               Margin="0,5,0,0" TextTrimming="CharacterEllipsis" />
+                    <TextBlock Text="{Binding Excerpt}" Foreground="{StaticResource TextDim}" FontSize="12.5" TextWrapping="Wrap"
+                               MaxHeight="52" TextTrimming="WordEllipsis" Margin="0,4,0,0" LineHeight="17" />
+                </StackPanel>
+            </Border>
+            <DataTemplate.Triggers>
+                <Trigger SourceName="row" Property="IsMouseOver" Value="True">
+                    <Setter TargetName="title" Property="Foreground" Value="{StaticResource Accent}" />
+                </Trigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+
+        <!-- a piece of news in full, in NOTIZIE -->
+        <DataTemplate x:Key="NewsFull" DataType="{x:Type vm:NewsItem}">
+            <Border Background="{StaticResource Glass}" CornerRadius="14" BorderBrush="{StaticResource Hairline}" BorderThickness="1"
+                    Padding="26,20" Margin="0,0,12,14">
+                <StackPanel>
+                    <DockPanel>
+                        <Button DockPanel.Dock="Right" Style="{StaticResource LinkButton}" Content="Apri su GitHub  ↗"
+                                Command="{Binding DataContext.OpenUrlCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                CommandParameter="{Binding Url}" />
+                        <StackPanel Orientation="Horizontal">
+                            <Border Style="{StaticResource Badge}" Background="#33FFB547" BorderBrush="#80FFB547" Margin="0,0,8,0"
+                                    Visibility="{Binding IsNew, Converter={StaticResource Vis}}">
+                                <TextBlock Style="{StaticResource BadgeText}" Text="NUOVO" Foreground="{StaticResource Accent}" />
+                            </Border>
+                            <Border Style="{StaticResource Badge}" Margin="0,0,8,0" Visibility="{Binding HasTag, Converter={StaticResource Vis}}">
+                                <TextBlock Style="{StaticResource BadgeText}" Text="{Binding Tag}" />
+                            </Border>
+                            <TextBlock Text="{Binding DateText}" Foreground="{StaticResource TextFaint}" FontSize="12" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </DockPanel>
+                    <TextBlock Text="{Binding Title}" FontFamily="{StaticResource Display}" FontWeight="Bold" FontSize="25" Margin="0,10,0,0"
+                               TextWrapping="Wrap" />
+                    <TextBlock c:Markdown.Text="{Binding Body}" Foreground="{StaticResource TextDim}" FontSize="14" TextWrapping="Wrap"
+                               LineHeight="22" Margin="0,10,0,0" />
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+
+        <!-- a mod: picture, switch, name, what it is, state and version -->
+        <DataTemplate x:Key="ModCardTemplate" DataType="{x:Type vm:ModCard}">
+            <Border x:Name="card" Width="372" Height="284" Margin="0,0,14,14" CornerRadius="14" Background="{StaticResource Glass}"
+                    BorderBrush="{StaticResource Hairline}" BorderThickness="1" Loaded="Card_Loaded" Unloaded="Card_Unloaded">
+                <Border.RenderTransform>
+                    <TransformGroup>
+                        <TranslateTransform />
+                        <TranslateTransform />
+                    </TransformGroup>
+                </Border.RenderTransform>
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="24" ShadowDepth="6" Direction="270" Opacity="0.35" Color="Black" />
+                </Border.Effect>
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="116" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <!-- the picture, or the initial on a night gradient -->
+                    <Border CornerRadius="13,13,0,0">
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                <GradientStop Offset="0" Color="#1B2A48" />
+                                <GradientStop Offset="0.6" Color="#141C30" />
+                                <GradientStop Offset="1" Color="#2A1A2E" />
+                            </LinearGradientBrush>
+                        </Border.Background>
+                        <TextBlock Text="{Binding Initial}" FontFamily="{StaticResource Display}" FontWeight="Bold" FontSize="110"
+                                   Foreground="#14FFFFFF" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,-10,26,0" />
+                    </Border>
+                    <Border CornerRadius="13,13,0,0" Visibility="{Binding HasImage, Converter={StaticResource Vis}}">
+                        <Border.Background>
+                            <ImageBrush ImageSource="{Binding Image}" Stretch="UniformToFill" AlignmentY="Center" />
+                        </Border.Background>
+                    </Border>
+                    <Border CornerRadius="13,13,0,0">
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                <GradientStop Offset="0" Color="#33000000" />
+                                <GradientStop Offset="0.55" Color="#00000000" />
+                                <GradientStop Offset="1" Color="#F00C111D" />
+                            </LinearGradientBrush>
+                        </Border.Background>
+                    </Border>
+                    <Border Style="{StaticResource Badge}" Background="#99000000" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="14">
+                        <TextBlock x:Name="audience" Style="{StaticResource BadgeText}" Text="{Binding Audience}" />
+                    </Border>
+                    <ToggleButton x:Name="toggle" Style="{StaticResource Switch}" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="14"
+                                  IsChecked="{Binding Switch, Mode=TwoWay}" IsEnabled="{Binding CanToggle}"
+                                  ToolTip="Accendi per installare, spegni per togliere" />
+
+                    <Grid Grid.Row="1" Margin="18,6,18,14">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <TextBlock Text="{Binding Name}" FontFamily="{StaticResource Display}" FontWeight="Bold" FontSize="22" />
+                        <TextBlock Grid.Row="1" Text="{Binding Summary}" FontSize="13" TextWrapping="Wrap" Margin="0,3,0,0" MaxHeight="36"
+                                   TextTrimming="WordEllipsis" />
+                        <TextBlock Grid.Row="2" Text="{Binding Note}" Foreground="{StaticResource TextFaint}" FontSize="12" TextWrapping="Wrap"
+                                   Margin="0,4,0,0" MaxHeight="34" TextTrimming="WordEllipsis" />
+                        <DockPanel Grid.Row="4">
+                            <Button DockPanel.Dock="Right" Style="{StaticResource AccentButton}" Content="AGGIORNA" Padding="12,6"
+                                    Command="{Binding UpdateCommand}" Visibility="{Binding HasUpdate, Converter={StaticResource Vis}}" />
+                            <Button DockPanel.Dock="Right" Style="{StaticResource GhostButton}" Content="SCEGLI CARTELLA" Padding="12,6"
+                                    Command="{Binding ChooseGameCommand}" Visibility="{Binding NeedsGame, Converter={StaticResource Vis}}" />
+                            <Grid Width="10" Height="10" Margin="0,0,10,0" VerticalAlignment="Center">
+                                <Ellipse x:Name="halo" Fill="{StaticResource TextFaint}" Opacity="0">
+                                    <Ellipse.Effect>
+                                        <BlurEffect Radius="8" />
+                                    </Ellipse.Effect>
+                                </Ellipse>
+                                <Ellipse x:Name="dot" Fill="{StaticResource TextFaint}" />
+                            </Grid>
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock x:Name="state" Text="{Binding StatusText}" FontWeight="SemiBold" FontSize="13" TextTrimming="CharacterEllipsis" />
+                                <TextBlock x:Name="version" Text="{Binding VersionText}" Foreground="{StaticResource TextFaint}" FontSize="11.5"
+                                           TextTrimming="CharacterEllipsis" ToolTip="{Binding Where}" />
+                            </StackPanel>
+                        </DockPanel>
+                    </Grid>
+                    <ProgressBar Grid.Row="1" VerticalAlignment="Bottom" Margin="18,0,18,6" Height="3" Style="{StaticResource MoonProgress}"
+                                 c:Smooth.Value="{Binding Progress}" Visibility="{Binding IsWorking, Converter={StaticResource Vis}}" />
+                </Grid>
+            </Border>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding StatusKind}" Value="ok">
+                    <Setter TargetName="dot" Property="Fill" Value="{StaticResource Ok}" />
+                    <Setter TargetName="halo" Property="Fill" Value="{StaticResource Ok}" />
+                    <Setter TargetName="halo" Property="Opacity" Value="0.9" />
+                    <Setter TargetName="card" Property="BorderBrush" Value="#335FD38D" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding StatusKind}" Value="update">
+                    <Setter TargetName="dot" Property="Fill" Value="{StaticResource Warn}" />
+                    <Setter TargetName="halo" Property="Fill" Value="{StaticResource Warn}" />
+                    <Setter TargetName="halo" Property="Opacity" Value="0.9" />
+                    <Setter TargetName="state" Property="Foreground" Value="{StaticResource Warn}" />
+                    <Setter TargetName="card" Property="BorderBrush" Value="#66FFB547" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding StatusKind}" Value="game">
+                    <Setter TargetName="dot" Property="Fill" Value="{StaticResource Danger}" />
+                    <Setter TargetName="state" Property="Foreground" Value="#FF8A8E" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Required}" Value="True">
+                    <Setter TargetName="audience" Property="Foreground" Value="{StaticResource Accent}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsWorking}" Value="True">
+                    <Setter TargetName="state" Property="Text" Value="{Binding WorkText}" />
+                    <Setter TargetName="state" Property="Foreground" Value="{StaticResource Accent}" />
+                    <Setter TargetName="version" Property="Text" Value="un attimo…" />
+                </DataTrigger>
+                <Trigger SourceName="card" Property="IsMouseOver" Value="True">
+                    <Setter TargetName="card" Property="BorderBrush" Value="#59FFFFFF" />
+                    <Trigger.EnterActions>
+                        <BeginStoryboard>
+                            <Storyboard>
+                                <DoubleAnimation Storyboard.TargetName="card" Duration="0:0:0.18" To="-4"
+                                                 Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[1].(TranslateTransform.Y)" />
+                                <DoubleAnimation Storyboard.TargetName="card" Storyboard.TargetProperty="(UIElement.Effect).(DropShadowEffect.Opacity)" To="0.6" Duration="0:0:0.18" />
+                            </Storyboard>
+                        </BeginStoryboard>
+                    </Trigger.EnterActions>
+                    <Trigger.ExitActions>
+                        <BeginStoryboard>
+                            <Storyboard>
+                                <DoubleAnimation Storyboard.TargetName="card" Duration="0:0:0.25" To="0"
+                                                 Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[1].(TranslateTransform.Y)" />
+                                <DoubleAnimation Storyboard.TargetName="card" Storyboard.TargetProperty="(UIElement.Effect).(DropShadowEffect.Opacity)" To="0.35" Duration="0:0:0.25" />
+                            </Storyboard>
+                        </BeginStoryboard>
+                    </Trigger.ExitActions>
+                </Trigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+
+        <!-- the night's slow movements -->
+        <Storyboard x:Key="Night">
+            <DoubleAnimation Storyboard.TargetName="SkyZoom" Storyboard.TargetProperty="ScaleX" From="1" To="1.07" Duration="0:0:48"
+                             AutoReverse="True" RepeatBehavior="Forever">
+                <DoubleAnimation.EasingFunction>
+                    <SineEase EasingMode="EaseInOut" />
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+            <DoubleAnimation Storyboard.TargetName="SkyZoom" Storyboard.TargetProperty="ScaleY" From="1" To="1.07" Duration="0:0:48"
+                             AutoReverse="True" RepeatBehavior="Forever">
+                <DoubleAnimation.EasingFunction>
+                    <SineEase EasingMode="EaseInOut" />
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+            <DoubleAnimation Storyboard.TargetName="CloudsX" Storyboard.TargetProperty="X" From="0" To="-1920" Duration="0:4:20"
+                             RepeatBehavior="Forever" />
+            <DoubleAnimation Storyboard.TargetName="FogBackX" Storyboard.TargetProperty="X" From="0" To="-1920" Duration="0:2:10"
+                             RepeatBehavior="Forever" />
+            <DoubleAnimation Storyboard.TargetName="FogFrontX" Storyboard.TargetProperty="X" From="-1920" To="0" Duration="0:1:30"
+                             RepeatBehavior="Forever" />
+            <DoubleAnimation Storyboard.TargetName="MoonGlow" Storyboard.TargetProperty="Opacity" From="0.55" To="0.95" Duration="0:0:6"
+                             AutoReverse="True" RepeatBehavior="Forever">
+                <DoubleAnimation.EasingFunction>
+                    <SineEase EasingMode="EaseInOut" />
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+            <DoubleAnimation Storyboard.TargetName="FireGlow" Storyboard.TargetProperty="Opacity" From="0.35" To="0.75" Duration="0:0:3.7"
+                             AutoReverse="True" RepeatBehavior="Forever" />
+            <DoubleAnimationUsingKeyFrames Storyboard.TargetName="Lamp" Storyboard.TargetProperty="Opacity" RepeatBehavior="Forever" Duration="0:0:7">
+                <LinearDoubleKeyFrame KeyTime="0:0:0" Value="0.85" />
+                <LinearDoubleKeyFrame KeyTime="0:0:0.6" Value="0.7" />
+                <LinearDoubleKeyFrame KeyTime="0:0:1.4" Value="0.9" />
+                <LinearDoubleKeyFrame KeyTime="0:0:2.9" Value="0.8" />
+                <DiscreteDoubleKeyFrame KeyTime="0:0:3.0" Value="0.25" />
+                <DiscreteDoubleKeyFrame KeyTime="0:0:3.08" Value="0.85" />
+                <DiscreteDoubleKeyFrame KeyTime="0:0:3.2" Value="0.4" />
+                <LinearDoubleKeyFrame KeyTime="0:0:3.5" Value="0.9" />
+                <LinearDoubleKeyFrame KeyTime="0:0:5.2" Value="0.75" />
+                <LinearDoubleKeyFrame KeyTime="0:0:7" Value="0.85" />
+            </DoubleAnimationUsingKeyFrames>
+        </Storyboard>
+    </Window.Resources>
+
+    <Grid x:Name="Root" ClipToBounds="True">
+
+        <!-- ============================================================================================= the night -->
+        <Viewbox x:Name="Scene" Stretch="UniformToFill" Margin="-34" RenderOptions.BitmapScalingMode="HighQuality" IsHitTestVisible="False">
+            <Canvas Width="1920" Height="1140" ClipToBounds="True">
+                <Image Source="Assets/cielo.jpg" Width="1920" Height="1140" RenderTransformOrigin="0.6,0.235">
+                    <Image.RenderTransform>
+                        <TransformGroup>
+                            <ScaleTransform x:Name="SkyZoom" />
+                            <TranslateTransform x:Name="SkyShift" />
+                        </TransformGroup>
+                    </Image.RenderTransform>
+                </Image>
+                <Ellipse x:Name="MoonGlow" Canvas.Left="832" Canvas.Top="-52" Width="640" Height="640" Opacity="0.7">
+                    <Ellipse.Fill>
+                        <RadialGradientBrush>
+                            <GradientStop Offset="0.2" Color="#40A8C8FF" />
+                            <GradientStop Offset="0.45" Color="#1A8FB4FF" />
+                            <GradientStop Offset="1" Color="#008FB4FF" />
+                        </RadialGradientBrush>
+                    </Ellipse.Fill>
+                    <Ellipse.RenderTransform>
+                        <TranslateTransform x:Name="MoonShift" />
+                    </Ellipse.RenderTransform>
+                </Ellipse>
+                <Canvas>
+                    <Canvas.RenderTransform>
+                        <TranslateTransform x:Name="CloudShift" />
+                    </Canvas.RenderTransform>
+                    <StackPanel Orientation="Horizontal">
+                        <StackPanel.RenderTransform>
+                            <TranslateTransform x:Name="CloudsX" />
+                        </StackPanel.RenderTransform>
+                        <Image Source="Assets/nuvole.png" Width="1920" Height="706" />
+                        <Image Source="Assets/nuvole.png" Width="1920" Height="706" />
+                    </StackPanel>
+                </Canvas>
+                <Ellipse x:Name="FireGlow" Canvas.Left="1460" Canvas.Top="660" Width="700" Height="280" Opacity="0.5">
+                    <Ellipse.Fill>
+                        <RadialGradientBrush>
+                            <GradientStop Offset="0" Color="#66FF6A2B" />
+                            <GradientStop Offset="0.5" Color="#22FF6A2B" />
+                            <GradientStop Offset="1" Color="#00FF6A2B" />
+                        </RadialGradientBrush>
+                    </Ellipse.Fill>
+                </Ellipse>
+                <Image Source="Assets/colline.png" Width="1920" Height="1140">
+                    <Image.RenderTransform>
+                        <TranslateTransform x:Name="HillsShift" />
+                    </Image.RenderTransform>
+                </Image>
+                <Canvas Canvas.Top="560" Opacity="0.9">
+                    <Canvas.RenderTransform>
+                        <TranslateTransform x:Name="FogBackShift" />
+                    </Canvas.RenderTransform>
+                    <StackPanel Orientation="Horizontal">
+                        <StackPanel.RenderTransform>
+                            <TranslateTransform x:Name="FogBackX" />
+                        </StackPanel.RenderTransform>
+                        <Image Source="Assets/nebbia.png" Width="1920" Height="456" />
+                        <Image Source="Assets/nebbia.png" Width="1920" Height="456" />
+                    </StackPanel>
+                </Canvas>
+                <Image Source="Assets/terra.png" Width="1920" Height="1140">
+                    <Image.RenderTransform>
+                        <TranslateTransform x:Name="GroundShift" />
+                    </Image.RenderTransform>
+                </Image>
+                <Ellipse x:Name="Lamp" Canvas.Left="226" Canvas.Top="711" Width="88" Height="88" Opacity="0.85">
+                    <Ellipse.Fill>
+                        <RadialGradientBrush>
+                            <GradientStop Offset="0" Color="#AAFFC074" />
+                            <GradientStop Offset="0.35" Color="#44FF9A3C" />
+                            <GradientStop Offset="1" Color="#00FF9A3C" />
+                        </RadialGradientBrush>
+                    </Ellipse.Fill>
+                    <Ellipse.RenderTransform>
+                        <TranslateTransform x:Name="LampShift" />
+                    </Ellipse.RenderTransform>
+                </Ellipse>
+                <Canvas Canvas.Top="640" Opacity="0.5">
+                    <Canvas.RenderTransform>
+                        <TranslateTransform x:Name="FogFrontShift" />
+                    </Canvas.RenderTransform>
+                    <StackPanel Orientation="Horizontal">
+                        <StackPanel.RenderTransform>
+                            <TranslateTransform x:Name="FogFrontX" />
+                        </StackPanel.RenderTransform>
+                        <Image Source="Assets/nebbia.png" Width="1920" Height="456" RenderTransformOrigin="0.5,0.5">
+                            <Image.RenderTransform>
+                                <ScaleTransform ScaleX="-1" />
+                            </Image.RenderTransform>
+                        </Image>
+                        <Image Source="Assets/nebbia.png" Width="1920" Height="456" RenderTransformOrigin="0.5,0.5">
+                            <Image.RenderTransform>
+                                <ScaleTransform ScaleX="-1" />
+                            </Image.RenderTransform>
+                        </Image>
+                    </StackPanel>
+                </Canvas>
+                <c:Fireflies Width="1920" Height="1140">
+                    <c:Fireflies.RenderTransform>
+                        <TranslateTransform x:Name="FliesShift" />
+                    </c:Fireflies.RenderTransform>
+                </c:Fireflies>
+            </Canvas>
+        </Viewbox>
+
+        <!-- shadows that keep the text readable -->
+        <Rectangle IsHitTestVisible="False">
+            <Rectangle.Fill>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                    <GradientStop Offset="0" Color="#D9050810" />
+                    <GradientStop Offset="0.32" Color="#8C050810" />
+                    <GradientStop Offset="0.6" Color="#00050810" />
+                </LinearGradientBrush>
+            </Rectangle.Fill>
+        </Rectangle>
+        <Rectangle IsHitTestVisible="False">
+            <Rectangle.Fill>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                    <GradientStop Offset="0" Color="#CC03050A" />
+                    <GradientStop Offset="0.11" Color="#0003050A" />
+                    <GradientStop Offset="0.70" Color="#0003050A" />
+                    <GradientStop Offset="0.86" Color="#B303050A" />
+                    <GradientStop Offset="1" Color="#F203050A" />
+                </LinearGradientBrush>
+            </Rectangle.Fill>
+        </Rectangle>
+        <Rectangle IsHitTestVisible="False">
+            <Rectangle.Fill>
+                <RadialGradientBrush RadiusX="0.75" RadiusY="0.8">
+                    <GradientStop Offset="0.55" Color="#00000000" />
+                    <GradientStop Offset="1" Color="#99000000" />
+                </RadialGradientBrush>
+            </Rectangle.Fill>
+        </Rectangle>
+        <Rectangle x:Name="PageShade" IsHitTestVisible="False" Fill="#99050810" Opacity="0" />
+
+        <!-- ============================================================================================= the window -->
+        <Grid x:Name="Chrome">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="48" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="112" />
+            </Grid.RowDefinitions>
+
+            <!-- title bar -->
+            <Grid x:Name="TitleBar">
+                <StackPanel Orientation="Horizontal" Margin="18,0,0,0">
+                    <Image Source="Assets/luna.png" Width="26" Height="26" VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality" />
+                    <c:SpacedText Text="MOON" FontFamily="{StaticResource Display}" FontWeight="Bold" FontSize="17" Spacing="5" Margin="10,1,0,0"
+                                  VerticalAlignment="Center" Foreground="{StaticResource Text}" />
+                    <Rectangle Width="1" Height="18" Fill="{StaticResource HairlineStrong}" Margin="22,0,6,0" VerticalAlignment="Center" />
+                    <RadioButton x:Name="NavHome" Content="HOME" GroupName="nav" IsChecked="True" Style="{StaticResource NavTab}"
+                                 WindowChrome.IsHitTestVisibleInChrome="True" Checked="Nav_Checked" />
+                    <RadioButton x:Name="NavMods" Content="MOD" GroupName="nav" Style="{StaticResource NavTab}"
+                                 WindowChrome.IsHitTestVisibleInChrome="True" Checked="Nav_Checked" />
+                    <RadioButton x:Name="NavNews" Content="NOTIZIE" GroupName="nav" Style="{StaticResource NavTab}"
+                                 WindowChrome.IsHitTestVisibleInChrome="True" Checked="Nav_Checked" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Border Style="{StaticResource Badge}" Background="#33FF5A5F" BorderBrush="#80FF5A5F" VerticalAlignment="Center" Margin="0,0,12,0"
+                            Visibility="{Binding IsDryRun, Converter={StaticResource Vis}}" ToolTip="Avviato con --prova: non avvia il gioco">
+                        <TextBlock Style="{StaticResource BadgeText}" Text="PROVA" />
+                    </Border>
+                    <TextBlock Text="{Binding VersionText}" Foreground="{StaticResource TextFaint}" FontSize="12" VerticalAlignment="Center" Margin="0,0,14,0" />
+                    <Button Style="{StaticResource WindowButton}" Content="&#xE921;" Click="Minimize_Click" Height="48"
+                            WindowChrome.IsHitTestVisibleInChrome="True" ToolTip="Riduci a icona" />
+                    <Button Style="{StaticResource CloseButton}" Content="&#xE8BB;" Click="Close_Click" Height="48"
+                            WindowChrome.IsHitTestVisibleInChrome="True" ToolTip="Chiudi" />
+                </StackPanel>
+            </Grid>
+
+            <!-- banners: a new launcher, no connection -->
+            <StackPanel Grid.Row="1">
+                <Border Margin="24,2,24,4" CornerRadius="9" Padding="14,8,8,8" Background="#F01C1408" BorderBrush="#80FFB547" BorderThickness="1"
+                        Visibility="{Binding LauncherUpdateAvailable, Converter={StaticResource Vis}}">
+                    <DockPanel>
+                        <Button DockPanel.Dock="Right" Style="{StaticResource AccentButton}" Content="AGGIORNA E RIAVVIA" Padding="14,6"
+                                Command="{Binding UpdateLauncherCommand}" />
+                        <TextBlock Style="{StaticResource Icon}" Text="&#xE896;" Foreground="{StaticResource Accent}" FontSize="16" Margin="2,0,12,0" />
+                        <TextBlock VerticalAlignment="Center" TextTrimming="CharacterEllipsis">
+                            <Run Text="Nuovo launcher" FontWeight="SemiBold" Foreground="{StaticResource Accent}" />
+                            <Run Text="  " />
+                            <Run Text="{Binding LauncherUpdateText, Mode=OneWay}" />
+                        </TextBlock>
+                    </DockPanel>
+                </Border>
+                <Border Margin="24,2,24,4" CornerRadius="9" Padding="14,8,8,8" Background="#F0121822" BorderBrush="#40FFFFFF" BorderThickness="1"
+                        Visibility="{Binding Offline, Converter={StaticResource Vis}}">
+                    <DockPanel>
+                        <Button DockPanel.Dock="Right" Style="{StaticResource GhostButton}" Content="RIPROVA" Padding="14,6" Command="{Binding RetryCommand}" />
+                        <TextBlock Style="{StaticResource Icon}" Text="&#xEB55;" Foreground="{StaticResource TextDim}" FontSize="16" Margin="2,0,12,0" />
+                        <TextBlock VerticalAlignment="Center" Foreground="{StaticResource TextDim}" TextTrimming="CharacterEllipsis"
+                                   Text="Non riesco a collegarmi a GitHub: uso le mod e le notizie che ho già scaricato." />
+                    </DockPanel>
+                </Border>
+            </StackPanel>
+
+            <!-- the pages -->
+            <Grid Grid.Row="2">
+
+                <!-- HOME -->
+                <Grid x:Name="PageHome" Margin="64,0,36,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="330" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel x:Name="Hero" VerticalAlignment="Center" Margin="0,0,0,24">
+                        <c:SpacedText Text="PROJECT ZOMBOID  ·  BUILD 42" FontFamily="{StaticResource Display}" FontWeight="SemiBold" FontSize="13"
+                                      Spacing="2.4" Foreground="{StaticResource Accent}" Margin="4,0,0,0" />
+                        <c:SpacedText Text="MOON" FontFamily="{StaticResource Display}" FontWeight="Bold" FontSize="150" Spacing="16" Margin="-4,-14,0,-22">
+                            <c:SpacedText.Foreground>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                    <GradientStop Offset="0.15" Color="#FFFFFF" />
+                                    <GradientStop Offset="1" Color="#9DB8E8" />
+                                </LinearGradientBrush>
+                            </c:SpacedText.Foreground>
+                            <c:SpacedText.Effect>
+                                <DropShadowEffect Color="#7FA8FF" BlurRadius="56" ShadowDepth="0" Opacity="0.6" />
+                            </c:SpacedText.Effect>
+                        </c:SpacedText>
+                        <TextBlock Text="Knox County, Kentucky. Luglio 1993." FontFamily="{StaticResource Display}" FontSize="23" Margin="2,0,0,0" />
+                        <TextBlock Text="Di notte resta solo la luna. Le mod le prepara il launcher: la strada è affar tuo."
+                                   Foreground="{StaticResource TextDim}" FontSize="15" Margin="2,8,0,0" TextWrapping="Wrap" MaxWidth="470"
+                                   HorizontalAlignment="Left" />
+                        <WrapPanel Margin="2,26,0,0">
+                            <Border Style="{StaticResource Badge}" Padding="10,5" Margin="0,0,8,8" Background="#1FFFFFFF" CornerRadius="14">
+                                <StackPanel Orientation="Horizontal">
+                                    <Ellipse Width="7" Height="7" Fill="{StaticResource Ok}" Margin="0,0,8,0" VerticalAlignment="Center" />
+                                    <TextBlock Text="Server Moon" FontSize="12.5" />
+                                </StackPanel>
+                            </Border>
+                            <Border Style="{StaticResource Badge}" Padding="10,5" Margin="0,0,8,8" Background="#1FFFFFFF" CornerRadius="14"
+                                    Cursor="Hand" MouseLeftButtonUp="GoMods">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Style="{StaticResource Icon}" Text="&#xE74C;" FontSize="12" Margin="0,0,8,0" Foreground="{StaticResource Accent}" />
+                                    <TextBlock Text="{Binding ModsSummary}" FontSize="12.5" />
+                                </StackPanel>
+                            </Border>
+                        </WrapPanel>
+                        <TextBlock Text="{Binding SourceText}" Foreground="{StaticResource TextFaint}" FontSize="11.5" Margin="4,2,0,0" />
+                    </StackPanel>
+
+                    <Border x:Name="NewsColumn" Grid.Column="1" VerticalAlignment="Top" Margin="0,18,0,0" Background="{StaticResource Glass}"
+                            CornerRadius="14" BorderBrush="{StaticResource Hairline}" BorderThickness="1" Padding="20,16,20,6">
+                        <StackPanel>
+                            <DockPanel>
+                                <Button DockPanel.Dock="Right" Style="{StaticResource LinkButton}" Content="Tutte  →" Click="GoNews" />
+                                <c:SpacedText Text="NOVITÀ" FontFamily="{StaticResource Display}" FontWeight="SemiBold" FontSize="12" Spacing="2.4"
+                                              Foreground="{StaticResource Accent}" VerticalAlignment="Center" />
+                            </DockPanel>
+                            <ItemsControl ItemsSource="{Binding LatestNews}" ItemTemplate="{StaticResource NewsSmall}" Margin="0,10,0,0" />
+                        </StackPanel>
+                    </Border>
+                </Grid>
+
+                <!-- MOD -->
+                <Grid x:Name="PageMods" Margin="48,0,34,0" Visibility="Collapsed">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <DockPanel Margin="0,6,14,0">
+                        <Button DockPanel.Dock="Right" Style="{StaticResource AccentButton}" Content="AGGIORNA TUTTE" VerticalAlignment="Bottom"
+                                Command="{Binding UpdateAllCommand}" Visibility="{Binding AnyUpdates, Converter={StaticResource Vis}}" />
+                        <StackPanel>
+                            <c:SpacedText Text="LE MOD DI MOON" FontFamily="{StaticResource Display}" FontWeight="SemiBold" FontSize="12" Spacing="2.4"
+                                          Foreground="{StaticResource Accent}" />
+                            <TextBlock Style="{StaticResource H1}" Text="Scegli cosa installare" Margin="0,4,0,0" />
+                            <TextBlock Foreground="{StaticResource TextDim}" Margin="0,4,0,0" TextWrapping="Wrap"
+                                       Text="Accendi una mod e il launcher la installa e la tiene aggiornata; spegnila e la toglie. I salvataggi, le impostazioni e le altre mod restano come sono." />
+                        </StackPanel>
+                    </DockPanel>
+                    <ScrollViewer Grid.Row="1" Margin="0,18,0,0" VerticalScrollBarVisibility="Auto" Focusable="False">
+                        <ScrollViewer.OpacityMask>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                <GradientStop Offset="0.94" Color="Black" />
+                                <GradientStop Offset="1" Color="Transparent" />
+                            </LinearGradientBrush>
+                        </ScrollViewer.OpacityMask>
+                        <ItemsControl ItemsSource="{Binding Mods}" ItemTemplate="{StaticResource ModCardTemplate}" Focusable="False">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                        </ItemsControl>
+                    </ScrollViewer>
+                    <Border Grid.Row="1" Margin="0,18,14,0" VerticalAlignment="Top" Background="{StaticResource Glass}" CornerRadius="14"
+                            BorderBrush="#66FF5A5F" BorderThickness="1" Padding="24,20" Visibility="{Binding HasLoadError, Converter={StaticResource Vis}}">
+                        <DockPanel>
+                            <Button DockPanel.Dock="Right" Style="{StaticResource GhostButton}" Content="RIPROVA" Command="{Binding RetryCommand}"
+                                    VerticalAlignment="Center" />
+                            <TextBlock Style="{StaticResource Icon}" Text="&#xE783;" FontSize="22" Foreground="{StaticResource Danger}" Margin="0,0,16,0" />
+                            <StackPanel>
+                                <TextBlock Text="Non riesco a preparare le mod" FontFamily="{StaticResource Display}" FontWeight="SemiBold" FontSize="18" />
+                                <TextBlock Text="{Binding LoadError}" Foreground="{StaticResource TextDim}" TextWrapping="Wrap" Margin="0,4,0,0" />
+                            </StackPanel>
+                        </DockPanel>
+                    </Border>
+                    <Border Grid.Row="2" Margin="0,4,14,12" Background="{StaticResource GlassLight}" CornerRadius="10" Padding="16,9"
+                            BorderBrush="{StaticResource Hairline}" BorderThickness="1">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="24" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <DockPanel>
+                                <Button DockPanel.Dock="Right" Style="{StaticResource GhostButton}" Content="APRI" Padding="12,4"
+                                        Command="{Binding OpenModsFolderCommand}" VerticalAlignment="Center" />
+                                <TextBlock Style="{StaticResource Icon}" Text="&#xE8B7;" FontSize="16" Foreground="{StaticResource TextDim}" Margin="0,0,12,0" />
+                                <StackPanel VerticalAlignment="Center" Margin="0,0,12,0">
+                                    <TextBlock Text="CARTELLA DELLE MOD" Style="{StaticResource Kicker}" Foreground="{StaticResource TextFaint}" FontSize="10.5" />
+                                    <TextBlock Text="{Binding ModsFolderText}" FontSize="12" Foreground="{StaticResource TextDim}" TextTrimming="CharacterEllipsis"
+                                               ToolTip="{Binding ModsFolderText}" />
+                                </StackPanel>
+                            </DockPanel>
+                            <DockPanel Grid.Column="2">
+                                <Button DockPanel.Dock="Right" Style="{StaticResource GhostButton}" Content="CAMBIA" Padding="12,4"
+                                        Command="{Binding ChooseGameCommand}" VerticalAlignment="Center" />
+                                <TextBlock Style="{StaticResource Icon}" Text="&#xE7FC;" FontSize="16" Foreground="{StaticResource TextDim}" Margin="0,0,12,0" />
+                                <StackPanel VerticalAlignment="Center" Margin="0,0,12,0">
+                                    <TextBlock Text="PROJECT ZOMBOID" Style="{StaticResource Kicker}" Foreground="{StaticResource TextFaint}" FontSize="10.5" />
+                                    <TextBlock Text="{Binding GameText}" FontSize="12" Foreground="{StaticResource TextDim}" TextTrimming="CharacterEllipsis"
+                                               ToolTip="{Binding GameText}" />
+                                </StackPanel>
+                            </DockPanel>
+                        </Grid>
+                    </Border>
+                </Grid>
+
+                <!-- NOTIZIE -->
+                <Grid x:Name="PageNews" Margin="48,0,34,0" Visibility="Collapsed">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <DockPanel Margin="0,6,14,0">
+                        <Button DockPanel.Dock="Right" Style="{StaticResource GhostButton}" Content="TUTTE LE RELEASE  ↗" VerticalAlignment="Bottom"
+                                Click="OpenReleases" />
+                        <StackPanel>
+                            <c:SpacedText Text="NOTIZIE DAL SERVER" FontFamily="{StaticResource Display}" FontWeight="SemiBold" FontSize="12" Spacing="2.4"
+                                          Foreground="{StaticResource Accent}" />
+                            <TextBlock Style="{StaticResource H1}" Text="Cosa c'è di nuovo su Moon" Margin="0,4,0,0" />
+                        </StackPanel>
+                    </DockPanel>
+                    <ScrollViewer Grid.Row="1" Margin="0,18,0,8" VerticalScrollBarVisibility="Auto" Focusable="False">
+                        <ScrollViewer.OpacityMask>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                <GradientStop Offset="0.94" Color="Black" />
+                                <GradientStop Offset="1" Color="Transparent" />
+                            </LinearGradientBrush>
+                        </ScrollViewer.OpacityMask>
+                        <ItemsControl x:Name="NewsList" ItemsSource="{Binding News}" ItemTemplate="{StaticResource NewsFull}" Focusable="False" />
+                    </ScrollViewer>
+                </Grid>
+            </Grid>
+
+            <!-- ======================================================================================= the action bar -->
+            <Grid x:Name="ActionBar" Grid.Row="3" Margin="34,0,34,24">
+                <Grid.RenderTransform>
+                    <TranslateTransform />
+                </Grid.RenderTransform>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Rectangle Grid.ColumnSpan="3" Height="1" VerticalAlignment="Top" Margin="0,4,0,0" IsHitTestVisible="False">
+                    <Rectangle.Fill>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                            <GradientStop Offset="0" Color="#00FFB547" />
+                            <GradientStop Offset="0.2" Color="#66FFB547" />
+                            <GradientStop Offset="0.6" Color="#22FFFFFF" />
+                            <GradientStop Offset="1" Color="#00FFFFFF" />
+                        </LinearGradientBrush>
+                    </Rectangle.Fill>
+                </Rectangle>
+
+                <Button x:Name="PlayButton" Style="{StaticResource PlayButton}" Width="252" Height="66" VerticalAlignment="Bottom"
+                        Command="{Binding PlayCommand}" IsDefault="True">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource Icon}" Text="&#xE768;" FontSize="20" Margin="0,0,14,0"
+                                   Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                        <c:SpacedText Text="{Binding PlayLabel}" FontFamily="{StaticResource Display}" FontWeight="Bold" FontSize="28" Spacing="3"
+                                      VerticalAlignment="Center" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                    </StackPanel>
+                </Button>
+
+                <Grid Grid.Column="1" Margin="30,0,28,2" VerticalAlignment="Bottom">
+                    <StackPanel Visibility="{Binding ShowProgress, Converter={StaticResource NotVis}}">
+                        <TextBlock Text="{Binding StatusTitle}" FontFamily="{StaticResource Display}" FontWeight="SemiBold" FontSize="19"
+                                   TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding StatusDetail}" Foreground="{StaticResource TextDim}" TextTrimming="CharacterEllipsis" Margin="0,3,0,0"
+                                   ToolTip="{Binding StatusDetail}" />
+                        <Button Style="{StaticResource LinkButton}" Content="Gioca lo stesso  →" HorizontalAlignment="Left" Margin="0,5,0,0"
+                                Command="{Binding PlayAnywayCommand}" Visibility="{Binding ShowPlayAnyway, Converter={StaticResource Vis}}" />
+                    </StackPanel>
+                    <StackPanel Visibility="{Binding ShowProgress, Converter={StaticResource Vis}}">
+                        <DockPanel>
+                            <TextBlock DockPanel.Dock="Right" Text="{Binding PercentText}" FontFamily="{StaticResource Display}" FontWeight="SemiBold"
+                                       FontSize="17" Foreground="{StaticResource Accent}" />
+                            <TextBlock Text="{Binding ProgressTitle}" FontFamily="{StaticResource Display}" FontWeight="SemiBold" FontSize="17"
+                                       TextTrimming="CharacterEllipsis" />
+                        </DockPanel>
+                        <ProgressBar Style="{StaticResource MoonProgress}" Margin="0,9,0,8" c:Smooth.Value="{Binding Progress}"
+                                     IsIndeterminate="{Binding Indeterminate}" />
+                        <TextBlock Text="{Binding ProgressDetail}" Foreground="{StaticResource TextFaint}" FontSize="12" TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                </Grid>
+
+                <StackPanel Grid.Column="2" VerticalAlignment="Bottom" Margin="0,0,0,4" Width="250">
+                    <TextBlock Text="PROJECT ZOMBOID" Style="{StaticResource Kicker}" Foreground="{StaticResource TextFaint}" FontSize="10.5"
+                               HorizontalAlignment="Right" />
+                    <DockPanel Margin="0,5,0,0" HorizontalAlignment="Right">
+                        <Ellipse x:Name="GameDot" Width="7" Height="7" Margin="0,0,8,0" VerticalAlignment="Center">
+                            <Ellipse.Style>
+                                <Style TargetType="Ellipse">
+                                    <Setter Property="Fill" Value="{StaticResource Danger}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding GameFound}" Value="True">
+                                            <Setter Property="Fill" Value="{StaticResource Ok}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Ellipse.Style>
+                        </Ellipse>
+                        <TextBlock Text="{Binding GameText}" FontSize="12" Foreground="{StaticResource TextDim}" TextTrimming="CharacterEllipsis"
+                                   ToolTip="{Binding GameText}" />
+                    </DockPanel>
+                    <Button Style="{StaticResource LinkButton}" Content="Cambia cartella" Command="{Binding ChooseGameCommand}" HorizontalAlignment="Right"
+                            Margin="0,4,0,0" />
+                </StackPanel>
+            </Grid>
+        </Grid>
+
+        <!-- ============================================================================================= on top -->
+        <StackPanel x:Name="Toasts" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,58,22,0" Width="350" />
+
+        <Border x:Name="DropHint" Visibility="Collapsed" Background="#CC03050A" IsHitTestVisible="False">
+            <Border HorizontalAlignment="Center" VerticalAlignment="Center" Padding="40,30" CornerRadius="16" BorderThickness="2"
+                    BorderBrush="{StaticResource Accent}" Background="#E6101624">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource Icon}" Text="&#xE8B7;" FontSize="40" Foreground="{StaticResource Accent}" HorizontalAlignment="Center" />
+                    <TextBlock Text="Lascia qui la cartella di Project Zomboid" FontFamily="{StaticResource Display}" FontWeight="SemiBold" FontSize="20"
+                               Margin="0,14,0,0" HorizontalAlignment="Center" />
+                    <TextBlock Text="di solito …\Steam\steamapps\common\ProjectZomboid" Foreground="{StaticResource TextDim}" Margin="0,6,0,0"
+                               HorizontalAlignment="Center" />
+                </StackPanel>
+            </Border>
+        </Border>
+
+        <Grid x:Name="DialogLayer" Visibility="Collapsed" Background="#B8020306">
+            <Border x:Name="DialogCard" Width="540" HorizontalAlignment="Center" VerticalAlignment="Center" CornerRadius="16"
+                    Background="#F70E1320" BorderBrush="{StaticResource HairlineStrong}" BorderThickness="1" Padding="28,24,24,22"
+                    RenderTransformOrigin="0.5,0.5">
+                <Border.RenderTransform>
+                    <ScaleTransform x:Name="DialogScale" />
+                </Border.RenderTransform>
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="40" ShadowDepth="10" Direction="270" Opacity="0.6" Color="Black" />
+                </Border.Effect>
+                <StackPanel>
+                    <DockPanel>
+                        <Grid DockPanel.Dock="Left" Width="40" Height="40" Margin="0,0,16,0" VerticalAlignment="Top">
+                            <Ellipse Fill="#1FFFB547" />
+                            <TextBlock x:Name="DialogIcon" Style="{StaticResource Icon}" FontSize="18" Foreground="{StaticResource Accent}"
+                                       HorizontalAlignment="Center" />
+                            <Ellipse x:Name="DialogSpinner" StrokeThickness="3" Stroke="{StaticResource Accent}" StrokeDashArray="4 8"
+                                     StrokeDashCap="Round" RenderTransformOrigin="0.5,0.5" Visibility="Collapsed">
+                                <Ellipse.RenderTransform>
+                                    <RotateTransform x:Name="SpinnerAngle" />
+                                </Ellipse.RenderTransform>
+                            </Ellipse>
+                        </Grid>
+                        <StackPanel>
+                            <TextBlock x:Name="DialogTitle" FontFamily="{StaticResource Display}" FontWeight="Bold" FontSize="22" TextWrapping="Wrap" />
+                            <TextBlock x:Name="DialogMessage" Foreground="{StaticResource TextDim}" FontSize="14" TextWrapping="Wrap" Margin="0,8,0,0"
+                                       LineHeight="21" />
+                            <Border x:Name="DialogAdvice" Margin="0,14,0,0" Padding="12,9" CornerRadius="8" Background="#14FFFFFF"
+                                    BorderBrush="{StaticResource Hairline}" BorderThickness="1">
+                                <TextBlock x:Name="DialogAdviceText" FontSize="13" TextWrapping="Wrap" />
+                            </Border>
+                        </StackPanel>
+                    </DockPanel>
+                    <StackPanel x:Name="DialogButtons" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,22,0,0" />
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <Rectangle x:Name="Curtain" Fill="#03050A" IsHitTestVisible="False" />
+    </Grid>
+</Window>

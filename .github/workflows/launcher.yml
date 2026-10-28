@@ -1,0 +1,64 @@
+# The Moon launcher (MoonLauncher.exe) and the mods' package (moon-mods.zip).
+#  - push or pull request that touches them: builds both and keeps them as the run's artifact, to try them;
+#  - a release published on GitHub: builds both and attaches MoonLauncher.exe, moon-mods.zip and mods.json to it.
+#    The launchers already out there read the latest release: they download the new mods and, when "launcher" in
+#    mods.json went up, offer the new launcher. The release's notes are the news the launcher shows;
+#  - by hand (Actions, Launcher, Run workflow) with a tag: builds that tag and attaches the files to its release again.
+name: Launcher
+
+on:
+  push:
+    branches: [main]
+    paths: ['launcher/**', 'mods.json', 'mods/**', 'admin-scorte/**', 'zombot/**', '.github/workflows/launcher.yml']
+  pull_request:
+    paths: ['launcher/**', 'mods.json', 'mods/**', 'admin-scorte/**', 'zombot/**', '.github/workflows/launcher.yml']
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release a cui allegare i file (per esempio v1.2.0); vuoto: compila soltanto'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    env:
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name || inputs.tag || github.ref }}
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Pacchetto delle mod
+        id: mods
+        shell: pwsh
+        run: ./launcher/tools/impacchetta.ps1 -Out dist
+
+      - name: Launcher
+        shell: pwsh
+        run: |
+          dotnet publish launcher/Moon.csproj -c Release -o publish
+          Copy-Item publish/MoonLauncher.exe dist/
+          $exe = Get-Item dist/MoonLauncher.exe
+          "MoonLauncher.exe $($exe.VersionInfo.ProductVersion), $([Math]::Round($exe.Length / 1MB)) MB"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: moon-${{ steps.mods.outputs.launcher }}
+          path: dist/
+
+      - name: Allega alla release
+        if: env.TAG != ''
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$env:TAG" dist/MoonLauncher.exe dist/moon-mods.zip dist/mods.json --clobber --repo "${{ github.repository }}"

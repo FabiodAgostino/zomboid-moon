@@ -1,0 +1,50 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The launcher of the Moon server: one MoonLauncher.exe that starts without installing anything (dotnet publish).
+       Not "Moon.exe": some antivirus programs (Bitdefender, at least) block any file called Moon.dll. -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>MoonLauncher</AssemblyName>
+    <RootNamespace>Moon</RootNamespace>
+    <ApplicationIcon>Assets\moon.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Product>Moon</Product>
+    <Title>Moon</Title>
+    <Description>Il launcher del server Moon: mod, aggiornamenti e Project Zomboid</Description>
+    <Company>Moon</Company>
+    <Copyright>Moon</Copyright>
+    <NeutralLanguage>it-IT</NeutralLanguage>
+    <SatelliteResourceLanguages>it</SatelliteResourceLanguages>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+
+    <!-- one exe with the .NET runtime inside: nobody has to install anything -->
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <!-- precompiled code: the window opens in half the time, for 5 MB more -->
+    <PublishReadyToRun>true</PublishReadyToRun>
+    <DebugType>embedded</DebugType>
+  </PropertyGroup>
+
+  <!-- the launcher's version is the "launcher" field of mods.json: the launchers already out there read it from the
+       latest release and offer the update when it is higher than their own -->
+  <PropertyGroup>
+    <MoonManifestText>$([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)..\mods.json'))</MoonManifestText>
+    <Version>$([System.Text.RegularExpressions.Regex]::Replace($(MoonManifestText), '(?s)^.*?"launcher"\s*:\s*"([0-9.]+)".*$', '$1'))</Version>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\*.png;Assets\*.jpg;Assets\moon.ico" Exclude="Assets\splash.png" />
+    <SplashScreen Include="Assets\splash.png" />
+    <None Include="art\**" />
+    <None Include="tools\**" />
+  </ItemGroup>
+
+</Project>

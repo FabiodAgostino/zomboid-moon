@@ -1,0 +1,31 @@
+{
+  "launcher": "1.0.0",
+  "mods": [
+    {
+      "id": "silenziatori",
+      "name": "Silenziatori",
+      "version": "1.5.31-moon.1",
+      "audience": "Per tutti",
+      "summary": "I silenziatori per le armi, in italiano e senza i bug dell'originale.",
+      "note": "Per ora sul server è disattivata: installarla è facoltativa.",
+      "image": "mods/Silenziatori/42/poster.png",
+      "installedVersion": { "file": "{zomboid}/mods/Silenziatori/42/mod.info", "key": "modversion" },
+      "install": [
+        { "from": "mods/Silenziatori", "to": "{zomboid}/mods/Silenziatori", "mirror": true }
+      ]
+    },
+    {
+      "id": "admin-scorte",
+      "name": "Admin-Scorte",
+      "version": "1.0",
+      "audience": "Solo admin",
+      "summary": "Le finestre di ZomBOT per gestire le basi e le loro scorte.",
+      "note": "Funzionano solo se sei admin sul server: per gli altri non fanno niente.",
+      "afterInstall": "Da admin: tasto destro sul pavimento, «ZomBOT: basi...».",
+      "install": [
+        { "from": "admin-scorte/shared", "to": "{game}/media/lua/shared" },
+        { "from": "admin-scorte/client", "to": "{game}/media/lua/client" }
+      ]
+    }
+  ]
+}
