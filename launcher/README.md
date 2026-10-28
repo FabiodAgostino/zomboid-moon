@@ -13,7 +13,7 @@
 - **Le installazioni del bat.** Riconosce le mod installate con `mod-moon-server.bat` (dai file, e dalla versione scritta in `media\lua\Moon-<mod>.version`), e scrive quei file come il bat: si può passare dall'uno all'altro.
 - **In home**, come il bat, una tabella con ogni mod, la sua versione e com'è sul computer: aggiornata, da aggiornare, non installata, disattivata.
 - **File condivisi.** Un file che due mod mettono nello stesso posto (`ZomBotMenu.lua`, in Admin-Scorte e in ZomBOT) resta finché è installata almeno una delle due.
-- **GIOCA** avvia il gioco con `steam://rungameid/108600`; senza Steam, con `ProjectZomboid64.exe`. Quando il gioco è aperto il launcher si riduce a icona e le mod non si toccano: se serve, aspetta che il gioco si chiuda.
+- **GIOCA** avvia il gioco con `steam://rungameid/108600`; senza Steam, con `ProjectZomboid64.exe`. Se prima c'è da installare o aggiornare (INSTALLA, AGGIORNA), lo fa e poi avvia il gioco. **Quando il gioco parte, il launcher si chiude.** Se l'avvio non riesce resta aperto e dice perché. Con il gioco già aperto le mod non si toccano: se serve, il launcher aspetta che si chiuda.
 - **Il gioco** lo trova come il bat: nella cartella data al launcher (trascinata sulla finestra o sull'exe, oppure scelta con «Cambia cartella»), poi nella cartella di Steam e in tutte le librerie di `libraryfolders.vdf`.
 - **Notizie**: sono le note delle release di GitHub, scritte in markdown.
 - **Si aggiorna da solo.** Se il campo `launcher` di `mods.json` nell'ultima release è più alto della versione dell'exe, compare **AGGIORNA E RIAVVIA**. Il launcher scarica il nuovo exe, ne controlla lo SHA-256, prende il posto del vecchio e si riavvia.
@@ -77,13 +77,37 @@ Si fa il commit, e al prossimo avvio ogni launcher la mostra come «Disattivata�
 
 ## Pubblicare una release
 
-Si pubblica una release su GitHub con le sue note, che diventano la notizia nel launcher. Per esempio:
+Una release non deve mai essere visibile senza `MoonLauncher.exe`: GitHub aggiunge sempre «Source code (zip)», che sono i sorgenti del repo, e chi arriva sulla pagina prima dell'exe scarica quello. Quindi si prepara la release come bozza, si allegano i file, e solo alla fine la si pubblica:
 
-```bash
-gh release create v1.1.0 --title "Arriva ZomBOT" --notes-file note.md
-```
+1. Il tag sul commit da pubblicare, con la versione di `launcher` in `mods.json`:
 
-Il workflow [`.github/workflows/launcher.yml`](../.github/workflows/launcher.yml) parte da solo. Compila `MoonLauncher.exe`, prepara `moon-mods.zip` e li allega alla release insieme a `mods.json`, in pochi minuti. Il workflow si può anche lanciare a mano dalla scheda Actions, indicando un tag per rifare gli allegati di una release.
+   ```bash
+   git tag v1.0.1 origin/main
+   ```
+
+   ```bash
+   git push origin v1.0.1
+   ```
+
+2. La release come bozza. Le note diventano la notizia nel launcher e cominciano sempre con la riga «Scarica **MoonLauncher.exe** (non "Source code")»:
+
+   ```bash
+   gh release create v1.0.1 --draft --verify-tag --title "Moon 1.0.1" --notes-file note.md
+   ```
+
+3. Il workflow [`.github/workflows/launcher.yml`](../.github/workflows/launcher.yml) compila `MoonLauncher.exe`, prepara `moon-mods.zip` e li allega alla bozza insieme a `mods.json`, in pochi minuti:
+
+   ```bash
+   gh workflow run launcher.yml -f tag=v1.0.1
+   ```
+
+4. Quando nella bozza ci sono i tre file, la si pubblica:
+
+   ```bash
+   gh release edit v1.0.1 --draft=false --latest
+   ```
+
+Pubblicando, il workflow parte di nuovo: se l'exe c'è già non tocca niente. Se invece una release viene pubblicata senza file, li allega lui, ma per qualche minuto la pagina resta senza exe.
 
 ## Compilare e provare
 
@@ -106,7 +130,8 @@ Per provarlo senza toccare il gioco vero ci sono alcune opzioni da riga di coman
 | `--dati <cartella>` | al posto di `%LocalAppData%\Moon` |
 | `--sorgente <cartella>` | prende le mod da una copia locale del repo invece che da GitHub |
 | `--api <url>` | l'indirizzo delle API di GitHub (per un finto server) |
-| `--prova` | non avvia il gioco e non cerca il gioco in Steam: usa solo `--gioco` |
+| `--prova` | non avvia il gioco e non cerca il gioco in Steam: usa solo `--gioco` (dopo GIOCA il launcher si chiude come sempre) |
+| `--prova-errore` | come `--prova`, ma l'avvio del gioco non riesce: per vedere l'errore |
 
 ## Grafica
 

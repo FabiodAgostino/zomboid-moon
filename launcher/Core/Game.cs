@@ -70,8 +70,9 @@ public static partial class Game
     }
 
     /// <summary>Starts the game through Steam; without Steam's link, the game's own exe. Returns what it did.</summary>
-    public static string Launch(string? gameFolder, bool dryRun)
+    public static string Launch(string? gameFolder, bool dryRun, bool dryRunFails = false)
     {
+        if (dryRunFails) throw new Win32Exception("Prova: Steam non risponde e la cartella del gioco non c'è.");
         if (dryRun) return $"prova: avvierei steam://rungameid/{SteamAppId}";
         try
         {
