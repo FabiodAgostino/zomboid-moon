@@ -79,6 +79,13 @@ G.asked = G.asked or {} -- getTimestampMs() of the questions sent in the last ho
 -- bytes of «à» (the tests run in one); the game's Lua (Kahlua) works on whole characters.
 local CONTROL = "[" .. string.char(1) .. "-" .. string.char(31) .. string.char(127) .. "]"
 
+-- whether a table has no key: the game's Lua (Kahlua, 42.21) has no `next` (measured on 04/11/2026: calling it
+-- stopped the minute's work), pairs is there in the game and in the tests
+local function isEmpty(t)
+    for _ in pairs(t) do return false end
+    return true
+end
+
 local function trim(text)
     text = string.gsub(tostring(text or ""), CONTROL, " ")
     text = string.gsub(text, " +", " ")
@@ -409,7 +416,7 @@ function G.onColor(args)
     else
         if entry == nil then return end -- never coloured here: nothing to take off
         G.known[key].objects[index] = nil
-        if next(G.known[key].objects) == nil then G.known[key] = nil end
+        if isEmpty(G.known[key].objects) then G.known[key] = nil end
         entry = { original = entry.original } -- no colour: the game's own back
     end
     -- a blinking container gets its colour back when the blink ends
