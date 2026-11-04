@@ -1,0 +1,8 @@
+name=ZomBOT (Moon)
+id=ZomBOTMoon
+poster=poster.png
+icon=icon.png
+description=ZomBOT nel gioco, per il server Moon: scrivi in chat «zombot» e la tua domanda e la risposta arriva solo a te; dentro una base il contenitore che ha ciò che cerchi lampeggia; casse colorate dal tasto destro. Per gli admin del server, le finestre delle basi, delle scorte e delle lapidi. Si scarica da sola entrando su Moon: su altri server non serve.
+author=Moon
+modversion=2.0.0
+versionMin=42.0.0

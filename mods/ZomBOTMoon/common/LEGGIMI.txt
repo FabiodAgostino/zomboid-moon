@@ -1,0 +1,1 @@
+Cartella richiesta dalla Build 42 per ogni mod: i file di ZomBOT (Moon) sono in 42/.
