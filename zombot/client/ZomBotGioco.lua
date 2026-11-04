@@ -233,7 +233,7 @@ function G.ask(question)
         return false
     end
     if #question > G.MAX_TEXT then
-        G.say("la domanda è troppo lunga: al massimo 300 caratteri.", "note")
+        G.say("la domanda \195\168 troppo lunga: al massimo 300 caratteri.", "note")
         return false
     end
     local nowMs = getTimestampMs()
@@ -248,7 +248,7 @@ function G.ask(question)
         return false
     end
     if #recent >= G.PER_HOUR then
-        G.say("hai già fatto 30 domande nell'ultima ora: riprova più tardi.", "note")
+        G.say("hai gi\195\160 fatto 30 domande nell'ultima ora: riprova pi\195\185 tardi.", "note")
         return false
     end
     table.insert(G.asked, nowMs)
@@ -645,7 +645,7 @@ end
 function ZomBotGiocoMain:createChildren()
     ISCollapsableWindow.createChildren(self)
     local width = self.width - PAD * 2
-    self.intro = G.wrap(G.HOW_TO .. " Se sei dentro una base, il contenitore più vicino che le ha lampeggia per un "
+    self.intro = G.wrap(G.HOW_TO .. " Se sei dentro una base, il contenitore pi\195\185 vicino che le ha lampeggia per un "
         .. "minuto: cliccalo o aprilo per fermarlo.", width)
     local y = self:top() + FONT_HGT_MEDIUM + 4 + #self.intro * FONT_HGT_SMALL + PAD
     self.colorsBox = ISTickBox:new(PAD, y, textWidth("Colora le casse") + 40, BUTTON_HGT, "", self,
@@ -844,7 +844,7 @@ end
 
 table.insert(ZomBotMenu.defs, {
     kind = "extra", id = "zombot-colors", order = 21, available = elsewhere,
-    label = function() return "Casse colorate: " .. (G.setting().colors and "sì" or "no") end,
+    label = function() return "Casse colorate: " .. (G.setting().colors and "s\195\172" or "no") end,
     onClick = function() G.setColors(not G.setting().colors) end,
 })
 

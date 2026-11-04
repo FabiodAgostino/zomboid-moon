@@ -242,10 +242,10 @@ end
 
 -- the same checks as the server, so a wrong number is said at once (the server checks again)
 function Core.thresholdError(critical, scarce, good)
-    if not (critical and scarce and good) then return "Scrivi tre numeri interi (0 o più)." end
-    if math.max(critical, scarce, good) > 1000000 then return "Il massimo è 1.000.000." end
-    if critical > scarce then return "La soglia critica deve essere più bassa (o uguale) di quella di scarsità." end
-    if good <= scarce then return "La soglia buona deve essere più alta di quella di scarsità." end
+    if not (critical and scarce and good) then return "Scrivi tre numeri interi (0 o pi\195\185)." end
+    if math.max(critical, scarce, good) > 1000000 then return "Il massimo \195\168 1.000.000." end
+    if critical > scarce then return "La soglia critica deve essere pi\195\185 bassa (o uguale) di quella di scarsit\195\160." end
+    if good <= scarce then return "La soglia buona deve essere pi\195\185 alta di quella di scarsit\195\160." end
     return nil
 end
 
@@ -254,7 +254,7 @@ function Core.baseError(name, r, oldName)
     if #name < 1 or #name > 40 then return "Serve un nome di 1-40 caratteri." end
     local other = Core.findBase(name)
     if other and (oldName == nil or string.lower(oldName) ~= string.lower(other.name)) then
-        return "C'è già una base che si chiama '" .. other.name .. "'."
+        return "C'\195\168 gi\195\160 una base che si chiama '" .. other.name .. "'."
     end
     if r == nil or r.x1 == nil then return "Manca il rettangolo: disegnalo." end
     if Core.volume(r) > Core.MAX_SQUARES then
@@ -268,7 +268,7 @@ function Core.floorsText(z1, z2)
     local function one(z)
         if z == 0 then return "piano terra" end
         if z < 0 then return "cantina (" .. z .. ")" end
-        return z .. "° piano"
+        return z .. "\194\176 piano"
     end
     if z1 == z2 then return one(z1) end
     return "da " .. one(z1) .. " a " .. one(z2)
@@ -390,12 +390,12 @@ function Core.ruleLabel(key)
     if kind == "fluid" then return Core.fluidLabel(rest) .. " (litri)" end
     if kind == "tool" then return Core.toolLabel(rest) end
     if kind == "books" then
-        return rest and ("Libri di " .. ((data.skills or {})[rest] or rest)) or "Libri delle abilità (tutti)"
+        return rest and ("Libri di " .. ((data.skills or {})[rest] or rest)) or "Libri delle abilit\195\160 (tutti)"
     end
     if kind == "magazines" then
         return rest and ("Riviste di " .. ((data.series or {})[rest] or rest)) or "Riviste di ricette (tutte)"
     end
-    if kind == "vhs" then return rest and ("VHS di " .. Core.tapeSkillLabel(rest)) or "VHS delle abilità (tutte)" end
+    if kind == "vhs" then return rest and ("VHS di " .. Core.tapeSkillLabel(rest)) or "VHS delle abilit\195\160 (tutte)" end
     return Core.unitLabel(key, Core.itemName(key))
 end
 
@@ -419,7 +419,7 @@ end
 -- «Critico fino a 100, scarseggia fino a 500, buono da 1.000», «1 copia di ogni volume», «Ognuna: c'è o manca»
 function Core.ruleText(rule)
     local kind = Core.ruleKind(rule.key)
-    if kind == "vhs" then return "Ognuna: c'è o manca" end
+    if kind == "vhs" then return "Ognuna: c'\195\168 o manca" end
     if Core.isSet(kind) then
         local copies = rule.good == 1 and "1 copia" or (rule.good .. " copie")
         return copies .. (kind == "books" and " di ogni volume" or " di ognuna")
@@ -469,14 +469,14 @@ function Core.categories()
     end
     local volumes, skills, magazines = count(data.books), count(data.skills), count(data.magazines)
     local out = {
-        { key = "libri", label = "Libri delle abilità", icon = "Base.Book", copies = true, none = "Non tracciati",
-          what = volumes .. " volumi di " .. skills .. " abilità" },
+        { key = "libri", label = "Libri delle abilit\195\160", icon = "Base.Book", copies = true, none = "Non tracciati",
+          what = volumes .. " volumi di " .. skills .. " abilit\195\160" },
         { key = "riviste", label = "Riviste di ricette", icon = "Base.Magazine", copies = true, none = "Non tracciate",
           what = magazines .. " riviste che insegnano ricette" },
     }
     if Core.tapeCount(nil) > 0 then -- an older ZomBotData.lua knows no tapes
-        out[#out + 1] = { key = "vhs", label = "VHS delle abilità", icon = "Base.VHS_Retail", none = "Non tracciate",
-            what = Core.tapeCount(nil) .. " cassette che insegnano: ognuna c'è o manca" }
+        out[#out + 1] = { key = "vhs", label = "VHS delle abilit\195\160", icon = "Base.VHS_Retail", none = "Non tracciate",
+            what = Core.tapeCount(nil) .. " cassette che insegnano: ognuna c'\195\168 o manca" }
     end
     out[#out + 1] = { key = Core.FOOD, label = "Provviste", icon = "Base.TinnedBeans", none = "Non tracciate",
         what = "Tutto il cibo, in porzioni da 25 di fame (circa un pasto)" }
@@ -560,7 +560,7 @@ end
 -- the text cut to `width` pixels, by whole words when it can («Aggiungi a scorta: Acqua...»): buttons of other mods
 -- can have any label. Only plain spaces split words: %s and %p depend on the locale outside the game, where a byte
 -- of «à» can count as a space
-UI.BYTES = #"à" > 1 -- true in a C Lua (bytes), false in the game's Kahlua (letters)
+UI.BYTES = #"\195\160" > 1 -- true in a C Lua (bytes), false in the game's Kahlua (letters)
 
 function UI.fit(text, width, font)
     text = (tostring(text or ""):gsub("^ +", ""):gsub(" +$", ""))
@@ -948,7 +948,7 @@ function ZomBotRulesWindow.drawRow(list, y, item, alt)
     end
     local top = y + (item.height - FONT_HGT_SMALL * 2) / 2
     list:drawText(row.label, x, top, 1, 1, 1, 1, UIFont.Small)
-    local text = Core.ruleText(row.rule) .. (Core.isLegacy(row.rule.key) and " - si può solo togliere" or "")
+    local text = Core.ruleText(row.rule) .. (Core.isLegacy(row.rule.key) and " - si pu\195\178 solo togliere" or "")
     list:drawText(text, x, top + FONT_HGT_SMALL, GREY.r, GREY.g, GREY.b, 1, UIFont.Small)
     -- how it stands, on the right: a coloured square and the number
     local s = Core.ruleStatus(list.owner:base(), row.rule)
@@ -965,14 +965,14 @@ function ZomBotRulesWindow:render()
     local base = self:base()
     local y = self:top()
     if base == nil then
-        self:drawText("La base '" .. self.baseName .. "' non c'è più.", PAD, y, RED.r, RED.g, RED.b, 1, UIFont.Medium)
+        self:drawText("La base '" .. self.baseName .. "' non c'\195\168 pi\195\185.", PAD, y, RED.r, RED.g, RED.b, 1, UIFont.Medium)
         self.editButton:setEnable(false)
         self.removeButton:setEnable(false)
         return
     end
     self:drawText(base.name, PAD, y, GOLD.r, GOLD.g, GOLD.b, 1, UIFont.Medium)
     local count = #(base.rules or {})
-    local text = "Niente da controllare: le categorie da «Scorte», il resto con il tasto destro su un oggetto."
+    local text = "Niente da controllare: le categorie da \194\171Scorte\194\187, il resto con il tasto destro su un oggetto."
     if count > 0 then
         text = (count == 1 and "1 cosa da controllare" or (count .. " cose da controllare"))
             .. ", con i numeri dell'ultimo conteggio completo."
@@ -1253,7 +1253,7 @@ function ZomBotBaseEditor:render()
     if r then
         local volume = Core.volume({ x1 = r.x1, y1 = r.y1, x2 = r.x2, y2 = r.y2, z1 = self.floors[1], z2 = self.floors[2] })
         local c = volume > Core.MAX_SQUARES and RED or GREY
-        self:drawText(string.format("%d x %d m, %s caselle con i piani (massimo %s). Il giallo sul terreno è la base.",
+        self:drawText(string.format("%d x %d m, %s caselle con i piani (massimo %s). Il giallo sul terreno \195\168 la base.",
             r.x2 - r.x1 + 1, r.y2 - r.y1 + 1, Core.amount(volume), Core.amount(Core.MAX_SQUARES)), PAD, y, c.r, c.g, c.b, 1, UIFont.Small)
         for _, other in ipairs(Core.state.bases or {}) do
             if (not self.base or other.id ~= self.base.id) and r.x1 <= other.x2 and other.x1 <= r.x2 and r.y1 <= other.y2 and other.y1 <= r.y2 then
@@ -1442,7 +1442,7 @@ function ZomBotUI.startMapTool(editor)
     local map = ISWorldMap_instance
     if not map or not map:isVisible() then
         editor:setVisible(true)
-        editor:setStatus("La mappa del mondo non è disponibile su questo server.", true)
+        editor:setStatus("La mappa del mondo non \195\168 disponibile su questo server.", true)
         return
     end
     map.symbolsUI:setCurrentTool(ZomBotUI.mapToolClass():new(map.symbolsUI, editor))
@@ -1512,7 +1512,7 @@ function ZomBotStockWindow:render()
     -- how much there is now, and in which band the typed thresholds put it
     local unit = self.litres and " L" or ""
     if self.info == nil then
-        self:drawText("Conto quanto ce n'è adesso nella base...", PAD, y, GREY.r, GREY.g, GREY.b, 1, UIFont.Small)
+        self:drawText("Conto quanto ce n'\195\168 adesso nella base...", PAD, y, GREY.r, GREY.g, GREY.b, 1, UIFont.Small)
     elseif self.info.error then
         self:drawText("Non riesco a contare adesso: " .. tostring(self.info.error), PAD, y, RED.r, RED.g, RED.b, 1, UIFont.Small)
     else
@@ -1533,7 +1533,7 @@ function ZomBotStockWindow:render()
             self:drawText("Con queste soglie: " .. level.label, PAD, y + FONT_HGT_SMALL, level.r, level.g, level.b, 1, UIFont.Small)
         end
         if (self.info.loaded or 0) < (self.info.squares or 0) then
-            self:drawText("Una parte della base non è in memoria: il numero può essere più basso.", PAD, y + FONT_HGT_SMALL * 2,
+            self:drawText("Una parte della base non \195\168 in memoria: il numero pu\195\178 essere pi\195\185 basso.", PAD, y + FONT_HGT_SMALL * 2,
                 GOLD.r, GOLD.g, GOLD.b, 1, UIFont.Small)
         end
     end
@@ -1547,9 +1547,9 @@ function ZomBotStockWindow:render()
     end
     local fair = Core.LEVELS.fair
     self:drawRect(PAD, self.helpY + 3, 14, FONT_HGT_SMALL - 4, 1, fair.r, fair.g, fair.b)
-    self:drawText("Fra 'scarseggia' e 'buono' è sufficiente.", PAD + 22, self.helpY, GREY.r, GREY.g, GREY.b, 1, UIFont.Small)
+    self:drawText("Fra 'scarseggia' e 'buono' \195\168 sufficiente.", PAD + 22, self.helpY, GREY.r, GREY.g, GREY.b, 1, UIFont.Small)
     local how = self.tool and "Contano tutti gli attrezzi che fanno questo lavoro, i rotti no."
-        or "Scatole, pacchi e caricatori contano per ciò che contengono."
+        or "Scatole, pacchi e caricatori contano per ci\195\178 che contengono."
     self:drawText(how, PAD + 22, self.helpY + FONT_HGT_SMALL, GREY.r, GREY.g, GREY.b, 1, UIFont.Small)
     local lines = 2
     if self.tool then
@@ -1670,13 +1670,13 @@ function ZomBotCategoriesWindow:render()
     local base = self:base()
     local y = self:top()
     if base == nil then
-        self:drawText("La base '" .. self.baseName .. "' non c'è più.", PAD, y, RED.r, RED.g, RED.b, 1, UIFont.Medium)
+        self:drawText("La base '" .. self.baseName .. "' non c'\195\168 pi\195\185.", PAD, y, RED.r, RED.g, RED.b, 1, UIFont.Medium)
         for _, button in pairs(self.toggles) do button:setEnable(false) end
         self.allButton:setEnable(false)
         return
     end
     self:drawText(base.name, PAD, y, GOLD.r, GOLD.g, GOLD.b, 1, UIFont.Medium)
-    self:drawText("Ogni categoria è un solo controllo, con i numeri dell'ultimo conteggio completo.", PAD,
+    self:drawText("Ogni categoria \195\168 un solo controllo, con i numeri dell'ultimo conteggio completo.", PAD,
         y + FONT_HGT_MEDIUM + 2, GREY.r, GREY.g, GREY.b, 1, UIFont.Small)
     y = self:rowsTop()
     for _, category in ipairs(self.categories) do
