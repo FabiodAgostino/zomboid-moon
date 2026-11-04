@@ -41,6 +41,8 @@ public sealed class MainViewModel : Observable, IDisposable
     readonly Sources sources;
     readonly DispatcherTimer watch;
     IReadOnlyList<Release> releases = [];
+    IReadOnlyList<ModDef> replacing = [];
+    bool cleanupWaiting;
     ModSource? source;
     Installer? installer;
     List<ModPlan> plans = [];
@@ -95,7 +97,15 @@ public sealed class MainViewModel : Observable, IDisposable
     public string PlayLabel { get => playLabel; private set => Set(ref playLabel, value); }
 
     bool playEnabled;
-    public bool PlayEnabled { get => playEnabled; private set => Set(ref playEnabled, value); }
+    public bool PlayEnabled
+    {
+        get => playEnabled;
+        private set
+        {
+            // the button asks the command again now, not at the next click or key
+            if (Set(ref playEnabled, value)) CommandManager.InvalidateRequerySuggested();
+        }
+    }
 
     bool showPlayAnyway;
     public bool ShowPlayAnyway { get => showPlayAnyway; private set => Set(ref showPlayAnyway, value); }
@@ -202,21 +212,26 @@ public sealed class MainViewModel : Observable, IDisposable
             source = await sources.ResolveAsync(releases, isOffline, Reporter(null), CancellationToken.None);
             SourceText = source.Label;
             BeginProgress("Controllo le mod sul tuo computer", "confronto i file, uno per uno", true);
-            var root = source;
-            plans = await Task.Run(() => ModPlan.Build(root.Manifest, root.Root));
-            Mods.Clear();
-            for (var i = 0; i < plans.Count; i++)
-                Mods.Add(new ModCard(plans[i], i, ToggleAsync, c => InstallAsync([c], latest: true), UninstallAsync,
-                    ChooseVersionAsync, ChooseGameAsync));
-
-            // which mods are disabled: the main branch says it now, the release said it when it came out
+            // the main branch says now which mods are disabled and which old files go; the release said it when it
+            // came out. The mods that another one replaces (ZomBOT and Admin-Scorte, inside ZomBOT (Moon)) have no card.
             var live = await sources.LiveAsync(isOffline, CancellationToken.None);
+            replacing = (live ?? source.Manifest).Mods.Where(m => m.Replaces is not null).ToList();
+            var replaced = new HashSet<string>(source.Manifest.Mods.Concat(replacing).SelectMany(m => m.Replaces?.Mods ?? []),
+                StringComparer.OrdinalIgnoreCase);
+            var root = source;
+            plans = await Task.Run(() => ModPlan.Build(root.Manifest, root.Root).Where(p => !replaced.Contains(p.Def.Id)).ToList());
+            Mods.Clear();
+            // the mods that Moon needs first
+            foreach (var plan in plans.OrderByDescending(p => p.Def.Required))
+                Mods.Add(new ModCard(plan, Mods.Count, ToggleAsync, c => InstallAsync([c], latest: true), UninstallAsync,
+                    ChooseVersionAsync, ChooseGameAsync));
             foreach (var card in Mods)
             {
-                var def = live?.GetValueOrDefault(card.Def.Id) ?? card.Def;
+                var def = live?.Mods.FirstOrDefault(m => m.Id.Equals(card.Def.Id, StringComparison.OrdinalIgnoreCase)) ?? card.Def;
                 card.Disabled = def.Disabled;
                 card.DisabledNote = def.StateNote;
             }
+            await CleanOldFilesAsync();
             await RefreshAsync();
             CheckLauncherUpdate();
             foreach (var card in Mods.Where(m => m.Disabled && m.IsOn))
@@ -238,6 +253,18 @@ public sealed class MainViewModel : Observable, IDisposable
             UpdatePlayState();
             watch.Start();
         }
+        if (!HasLoadError) await InstallMissingRequiredAsync();
+    }
+
+    /// <summary>
+    /// The mods that Moon needs (ZomBOT (Moon)), installed without asking as soon as the launcher opens when they are
+    /// missing. With the game open, GIOCA does it later.
+    /// </summary>
+    async Task InstallMissingRequiredAsync()
+    {
+        var missing = Mods.Where(m => m.Required && !m.Disabled && m.State == ModState.NotInstalled).ToList();
+        if (missing.Count == 0 || await Task.Run(Game.IsRunning)) return;
+        await InstallAsync(missing, latest: true);
     }
 
     /// <summary>The older versions of every mod, from the older releases: the menus fill in while the launcher is ready.</summary>
@@ -340,6 +367,7 @@ public sealed class MainViewModel : Observable, IDisposable
         gameFolder = found;
         GameFound = true;
         GameText = found;
+        await CleanOldFilesAsync();
         if (Mods.Count > 0) await RefreshAsync();
         Toast("Project Zomboid trovato", found, ToastKind.Ok);
     }
@@ -351,6 +379,77 @@ public sealed class MainViewModel : Observable, IDisposable
         gameRunning = running;
         if (running && !options.DryRun) Minimize();
         UpdatePlayState();
+        if (running || IsBusy || HasLoadError) return;
+        if (cleanupWaiting) await CleanOldFilesAsync();
+        // the game was open when the launcher started: the mod that Moon needs goes in now
+        await InstallMissingRequiredAsync();
+    }
+
+    /// <summary>
+    /// The old copies of the mods that another one replaces (ZomBOT and Admin-Scorte in the game's folder, now inside
+    /// ZomBOT (Moon)): the game loads them on every server, and the servers that check the Lua files kick whoever has
+    /// them. Exactly the files that mods.json lists, nothing else; with the game open, as soon as it closes; without
+    /// the game's folder, nothing.
+    /// </summary>
+    async Task CleanOldFilesAsync()
+    {
+        if (gameFolder is null || replacing.Count == 0) return;
+        var roots = new Roots(options.ZomboidFolder, gameFolder);
+        var found = replacing.SelectMany(m => m.Replaces!.Files.Select(t => (Mod: m, Path: roots.Resolve(t))))
+            .Where(x => x.Path is not null && File.Exists(x.Path)).Select(x => (x.Mod, Path: x.Path!)).ToList();
+        if (found.Count == 0)
+        {
+            cleanupWaiting = false;
+            return;
+        }
+        var names = string.Join(" e ", found.Select(f => f.Mod.Replaces!.What).Where(w => w.Length > 0).Distinct());
+        if (names.Length == 0) names = "mod che non si usano più";
+        if (await Task.Run(Game.IsRunning))
+        {
+            if (!cleanupWaiting)
+                Toast($"Vecchi file di {names} da togliere", "Chiudi Project Zomboid e li tolgo io: sugli altri server ti fanno espellere.",
+                    ToastKind.Warning);
+            cleanupWaiting = true;
+            return;
+        }
+        cleanupWaiting = false;
+        var failed = await Task.Run(() =>
+        {
+            var left = new List<string>();
+            foreach (var (_, path) in found)
+            {
+                try
+                {
+                    File.SetAttributes(path, FileAttributes.Normal);
+                    File.Delete(path);
+                }
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+                {
+                    left.Add(path);
+                }
+            }
+            return left;
+        });
+        // the launcher's own record of those mods goes too: they are not on this computer any more
+        foreach (var id in replacing.SelectMany(m => m.Replaces!.Mods)) store.State.Mods.Remove(id);
+        store.SaveState();
+        if (failed.Count > 0)
+        {
+            await ShowErrorAsync(new InstallerException(
+                $"Non riesco a togliere {failed.Count} vecchi file di {names} dalla cartella del gioco: \"{Path.Combine(gameFolder, "media", "lua")}\".",
+                "Chiudi il gioco e riprova, oppure riavvia il launcher come amministratore.", true), "Vecchi file da togliere");
+            return;
+        }
+        var mod = found[0].Mod;
+        // said, without stopping the launcher until OK
+        _ = Dialog(new DialogRequest
+        {
+            Title = $"Ho tolto i vecchi file di {names}",
+            Message = $"{names} ora {(names.Contains(" e ", StringComparison.Ordinal) ? "sono" : "è")} dentro la mod {mod.Name}, che installo e aggiorno io. "
+                      + "Dalla cartella del gioco ho tolto i loro vecchi file: sugli altri server non ti faranno più espellere.",
+            Advice = string.Join(", ", found.Select(f => Path.GetFileName(f.Path))),
+            Icon = "\uE73E",
+        });
     }
 
     /// <summary>
@@ -359,6 +458,10 @@ public sealed class MainViewModel : Observable, IDisposable
     /// </summary>
     async Task PlayAsync()
     {
+        if (IsBusy) return;
+        // the mod that Moon needs must be exactly the release's: looked at again now, since its files may have changed
+        // while the launcher was open. Missing or different, it is installed before the game starts, without asking.
+        if (installer is not null && !HasLoadError) await RefreshAsync();
         if (PlayLabel is "INSTALLA" or "AGGIORNA")
         {
             var todo = Mods.Where(m => (m.Required && m.State == ModState.NotInstalled && !m.Disabled) || m.HasUpdate).ToList();
@@ -455,14 +558,15 @@ public sealed class MainViewModel : Observable, IDisposable
     {
         var current = new Installer(plans, new Roots(options.ZomboidFolder, gameFolder), store);
         installer = current;
-        var states = await Task.Run(() => current.Plans.Select(p => (Status: current.Status(p), Where: current.Where(p))).ToList());
-        for (var i = 0; i < Mods.Count && i < states.Count; i++)
+        var states = await Task.Run(() => current.Plans.ToDictionary(p => p.Def.Id, p => (Status: current.Status(p), Where: current.Where(p)),
+            StringComparer.OrdinalIgnoreCase));
+        foreach (var card in Mods)
         {
-            var (status, where) = states[i];
-            Mods[i].Status = status;
-            Mods[i].Where = where.Length == 0
+            if (!states.TryGetValue(card.Def.Id, out var state)) continue;
+            card.Status = state.Status;
+            card.Where = state.Where.Length == 0
                 ? "nella cartella del gioco, che non ho trovato"
-                : $"{Mods[i].Plan.Files.Count} file in {where}";
+                : $"{card.Plan.Files.Count} file in {state.Where}";
         }
         var installable = Mods.Count(m => !m.Disabled);
         var installed = Mods.Count(m => m.IsOn && !m.Disabled);

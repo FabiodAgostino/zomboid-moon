@@ -30,7 +30,8 @@ public sealed class Installer(IReadOnlyList<ModPlan> plans, Roots roots, Store s
     {
         if (plan.NeedsGame && Roots.Game is null) return new(ModState.NeedsGame, null, null);
         if (!IsPresent(plan)) return new(ModState.NotInstalled, null, null);
-        if (store.State.Mods.TryGetValue(plan.Def.Id, out var mine) && mine.Pinned && mine.Version != plan.Def.Version)
+        // an older version chosen by the user stays; not for a mod that Moon needs, which must be the server's
+        if (store.State.Mods.TryGetValue(plan.Def.Id, out var mine) && mine.Pinned && mine.Version != plan.Def.Version && !plan.Def.Required)
             return new(ModState.Installed, mine.Version, null, Pinned: true);
         var why = Difference(plan);
         return why is null

@@ -140,10 +140,10 @@ public sealed class Sources(GitHub github, string cacheFolder, string? localFold
     }
 
     /// <summary>
-    /// The mods as the main branch has them now, for their state: disabling a mod is one line of mods.json and a
-    /// commit, without a release. Kept for when GitHub cannot be reached; null when it was never read.
+    /// mods.json as the main branch has it now, for the state of the mods and the old files to remove: disabling a mod
+    /// is one line and a commit, without a release. Kept for when GitHub cannot be reached; null when never read.
     /// </summary>
-    public async Task<Dictionary<string, ModDef>?> LiveAsync(bool offline, CancellationToken ct)
+    public async Task<Manifest?> LiveAsync(bool offline, CancellationToken ct)
     {
         if (localFolder is not null) return null;
         var file = Path.Combine(cacheFolder, "mods-main.json");
@@ -167,7 +167,7 @@ public sealed class Sources(GitHub github, string cacheFolder, string? localFold
         if (json is null) return null;
         try
         {
-            return Manifest.Parse(json).Mods.ToDictionary(m => m.Id, StringComparer.OrdinalIgnoreCase);
+            return Manifest.Parse(json);
         }
         catch (Exception e) when (e is JsonException or InvalidDataException)
         {

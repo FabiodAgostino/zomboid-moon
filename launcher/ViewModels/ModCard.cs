@@ -78,6 +78,9 @@ public sealed class ModCard : Observable
     public ICommand ChooseGameCommand { get; }
     public ICommand ToggleVersionsCommand { get; }
 
+    /// <summary>A mod that Moon needs: no switch, the launcher installs and updates it by itself.</summary>
+    public bool HasSwitch => !Def.Required;
+
     // ---- state ------------------------------------------------------------------------------------------------------
 
     ModStatus status = new(ModState.NotInstalled, null, null);
@@ -142,10 +145,10 @@ public sealed class ModCard : Observable
 
     public bool HasUpdate => State == ModState.Outdated && !Disabled;
     public bool NeedsGame => State == ModState.NeedsGame && !Disabled;
-    public bool CanToggle => !IsWorking && State != ModState.NeedsGame && !Disabled;
+    public bool CanToggle => !IsWorking && State != ModState.NeedsGame && !Disabled && !Def.Required;
     /// <summary>A disabled mod that is still installed: the card offers to remove it, it never does it by itself.</summary>
     public bool CanRemove => Disabled && IsOn && !IsWorking;
-    public string StateLabel => Disabled ? "DISATTIVATA" : "INSTALLABILE";
+    public string StateLabel => Disabled ? "DISATTIVATA" : Def.Required ? "SERVE PER MOON" : "INSTALLABILE";
 
     /// <summary>ok, update, off, game, disabled: the colour of the state's dot.</summary>
     public string StatusKind => Disabled ? (IsOn ? "update" : "disabled") : State switch
@@ -210,6 +213,7 @@ public sealed class ModCard : Observable
         if (Versions.All(o => o.Version != selectedVersion)) selectedVersion = Def.Version;
         MarkSelected();
         Raise(nameof(SelectedVersion));
+        Raise(nameof(VersionLabel));
         Raise(nameof(HasVersions));
         Raise(nameof(CanChooseVersion));
         Raise(nameof(VersionsCountText));
@@ -218,7 +222,10 @@ public sealed class ModCard : Observable
     public ModVersion? FindVersion(string version) => Versions.FirstOrDefault(o => o.Version == version)?.Source;
 
     public bool HasVersions => Versions.Count > 1;
-    public bool CanChooseVersion => HasVersions && !IsWorking && !Disabled;
+    /// <summary>Not for a mod that Moon needs: it must be the server's version, the latest.</summary>
+    public bool CanChooseVersion => HasVersions && !IsWorking && !Disabled && !Def.Required;
+
+    public string VersionLabel => $"v{SelectedVersion}";
     public string VersionsCountText => Versions.Count == 1 ? "1 versione" : $"{Versions.Count} versioni";
 
     string selectedVersion;
@@ -231,6 +238,7 @@ public sealed class ModCard : Observable
             if (!Set(ref selectedVersion, value)) return;
             MarkSelected();
             Raise(nameof(VersionText));
+            Raise(nameof(VersionLabel));
         }
     }
 

@@ -6,12 +6,13 @@
 
 ## Cosa fa
 
-- **Mod come schede con un interruttore.** Accendi e la mod si installa; spegni e si toglie, dopo una domanda. Tutte sono facoltative. Una mod con `"required": true` è una che serve per entrare sul server (oggi nessuna): finché manca, GIOCA diventa **INSTALLA**.
+- **Mod come schede con un interruttore.** Accendi e la mod si installa; spegni e si toglie, dopo una domanda. Le altre sono facoltative; una mod con `"required": true` invece serve per entrare sul server (oggi ZomBOT (Moon)) e dalla 1.0.2 ha una scheda senza interruttore, con «SERVE PER MOON»: **il launcher la installa da solo all'avvio se manca**, e **GIOCA la aggiorna prima di avviare** se non è identica a quella della release, senza chiedere. Per lei non c'è la scelta della versione: deve essere quella del server.
 - **Aggiornamenti.** All'avvio legge l'ultima release del repo e scarica il suo `moon-mods.zip` (una sola volta per release). Confronta ogni file installato con quello della release, byte per byte, come faceva il bat con `fc /b`. Se qualcosa è diverso la mod diventa **Da aggiornare**, e GIOCA diventa **AGGIORNA**.
 - **Versione a scelta.** Accanto al nome di ogni mod c'è la sua versione: con più versioni pubblicate si apre un menu con tutte, la più nuova in cima. Una versione precedente si installa dalla release che l'aveva pubblicata; la scheda dice «versione scelta da te», e il launcher non la aggiorna da solo finché non si sceglie di nuovo l'ultima.
 - **Stato: «Installabile» o «Disattivata».** Lo decide il repo (vedi [Disattivare una mod](#disattivare-o-riattivare-una-mod)). Una mod disattivata non si installa né si aggiorna. Se qualcuno ce l'ha già, il launcher lo avvisa e nella scheda offre **TOGLI**, ma non la toglie da solo: tenerla installata non fa niente di male, il gioco carica solo quello che il server chiede.
 - **Le installazioni del bat.** Riconosce le mod installate con `mod-moon-server.bat` (dai file, e dalla versione scritta in `media\lua\Moon-<mod>.version`), e scrive quei file come il bat: si può passare dall'uno all'altro.
 - **In home**, come il bat, una tabella con ogni mod, la sua versione e com'è sul computer: aggiornata, da aggiornare, non installata, disattivata.
+- **Le mod che una mod sostituisce** (dalla 1.0.2). ZomBOT (Moon) contiene ZomBOT e Admin-Scorte, che prima si copiavano nella cartella del gioco: le loro schede non si vedono più, e **all'avvio il launcher toglie dalla cartella del gioco i loro vecchi file**, solo quelli che `mods.json` elenca, e dice quali. Il gioco li caricherebbe su qualsiasi server, e chi controlla i file Lua espelle chi li ha. Se il gioco è aperto aspetta che si chiuda; se non conosce la cartella del gioco non fa niente.
 - **File condivisi.** Un file che due mod mettono nello stesso posto (`ZomBotMenu.lua`, in Admin-Scorte e in ZomBOT) resta finché è installata almeno una delle due.
 - **GIOCA** avvia il gioco con `steam://rungameid/108600`; senza Steam, con `ProjectZomboid64.exe`. Se prima c'è da installare o aggiornare (INSTALLA, AGGIORNA), lo fa e poi avvia il gioco. **Quando il gioco parte, il launcher si chiude.** Se l'avvio non riesce resta aperto e dice perché. Con il gioco già aperto le mod non si toccano: se serve, il launcher aspetta che si chiuda.
 - **Il gioco** lo trova come il bat: nella cartella data al launcher (trascinata sulla finestra o sull'exe, oppure scelta con «Cambia cartella»), poi nella cartella di Steam e in tutte le librerie di `libraryfolders.vdf`.
@@ -56,6 +57,41 @@ Le mod non sono scritte nel launcher: sono in [`mods.json`](../mods.json), in ci
 | `mirror` | `true` rende la cartella di destinazione identica alla mod, come `robocopy /MIR`: i file in più vengono cancellati. Si può solo per una cartella propria dentro `{zomboid}`, per esempio `{zomboid}/mods/Silenziatori`. |
 
 Due mod possono mettere lo stesso file nello stesso posto solo se i due file sono identici: il pacchetto della release lo controlla e si ferma se non è così.
+
+### Una mod che ne sostituisce altre: `replaces`
+
+ZomBOT (Moon) è ZomBOT e Admin-Scorte insieme, in una mod vera dentro `{zomboid}/mods`. La sua voce dice quali mod prende il posto e quali vecchi file togliere:
+
+```json
+{
+  "id": "zombot-moon",
+  "name": "ZomBOT (Moon)",
+  "versionFile": "mods/ZomBOTMoon/42/mod.info",
+  "versionKey": "modversion",
+  "state": "installabile",
+  "required": true,
+  "installedVersion": { "file": "{zomboid}/mods/ZomBOTMoon/42/mod.info", "key": "modversion" },
+  "install": [
+    { "from": "mods/ZomBOTMoon", "to": "{zomboid}/mods/ZomBOTMoon", "mirror": true }
+  ],
+  "replaces": {
+    "mods": ["zombot", "admin-scorte"],
+    "what": "ZomBOT e Admin-Scorte",
+    "files": [
+      "{game}/media/lua/client/ZomBotGioco.lua",
+      "{game}/media/lua/Moon-ZomBOT.version"
+    ]
+  }
+}
+```
+
+| Campo di `replaces` | Cosa fa |
+| --- | --- |
+| `mods` | Gli `id` delle mod che questa sostituisce: le loro schede non si vedono più. |
+| `what` | Come chiamarle nei messaggi: «Ho tolto i vecchi file di ZomBOT e Admin-Scorte». |
+| `files` | I vecchi file da togliere quando ci sono: esattamente questi, solo file, mai cartelle. Il launcher li legge dal `mods.json` del ramo `main`, quindi si cambiano con un commit. |
+
+**Perché ZomBOT e Admin-Scorte restano anche in `mods`, come «disattivata».** I launcher 1.0.1 non conoscono `replaces` e lo saltano, ma leggono ancora `mods`. Accettano solo gli stati «installabile» e «disattivata», e ogni mod deve avere i suoi file nel pacchetto: con uno stato nuovo, o senza le cartelle `zombot/` e `admin-scorte/`, non riuscirebbero a leggere la release e non proporrebbero nemmeno l'aggiornamento. Così invece mostrano ZomBOT (Moon) da installare e le due vecchie «Disattivate», con il motivo, e si aggiornano alla 1.0.2, che fa il resto. Quando nessuno usa più la 1.0.1, quelle due voci e le loro cartelle si possono togliere.
 
 Il campo `launcher` in cima a `mods.json` è la versione del launcher (diventa anche la versione dell'exe). Alzalo quando cambi il codice del launcher: chi ha una versione più vecchia riceve l'aggiornamento.
 

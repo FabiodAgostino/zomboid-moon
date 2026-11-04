@@ -1,11 +1,42 @@
 {
-  "launcher": "1.0.1",
+  "launcher": "1.0.2",
   "mods": [
+    {
+      "id": "zombot-moon",
+      "name": "ZomBOT (Moon)",
+      "versionFile": "mods/ZomBOTMoon/42/mod.info",
+      "versionKey": "modversion",
+      "state": "installabile",
+      "required": true,
+      "audience": "Per tutti",
+      "summary": "ZomBOT e Admin-Scorte in una mod sola: le domande a ZomBOT dalla chat del gioco, il contenitore che lampeggia dove c'è ciò che cerchi, le casse colorate e, per gli admin, le finestre delle basi e delle scorte.",
+      "note": "Serve per giocare su Moon: la installo e la aggiorno io. Sugli altri server non si carica.",
+      "afterInstall": "Nel gioco scrivi in chat «zombot» e la domanda, per esempio «zombot dove trovo le asce?».",
+      "image": "mods/ZomBOTMoon/42/poster.png",
+      "installedVersion": { "file": "{zomboid}/mods/ZomBOTMoon/42/mod.info", "key": "modversion" },
+      "install": [
+        { "from": "mods/ZomBOTMoon", "to": "{zomboid}/mods/ZomBOTMoon", "mirror": true }
+      ],
+      "replaces": {
+        "mods": ["zombot", "admin-scorte"],
+        "what": "ZomBOT e Admin-Scorte",
+        "files": [
+          "{game}/media/lua/client/ZomBotGioco.lua",
+          "{game}/media/lua/client/ZomBotMenu.lua",
+          "{game}/media/lua/client/ZomBotStockUI.lua",
+          "{game}/media/lua/client/ZomBotGravesUI.lua",
+          "{game}/media/lua/shared/ZomBotData.lua",
+          "{game}/media/lua/Moon-ZomBOT.version",
+          "{game}/media/lua/Moon-Admin-Scorte.version"
+        ]
+      }
+    },
     {
       "id": "zombot",
       "name": "ZomBOT",
       "versionFile": "zombot/VERSION",
-      "state": "installabile",
+      "state": "disattivata",
+      "stateNote": "Ora è dentro la mod ZomBOT (Moon): aggiorna il launcher, la installa lui e toglie questi vecchi file.",
       "audience": "Per tutti",
       "summary": "Le domande a ZomBOT dalla chat del gioco, il contenitore che lampeggia dove c'è ciò che cerchi, le casse colorate.",
       "note": "Facoltativa: chi non ce l'ha entra lo stesso.",
@@ -19,7 +50,8 @@
       "id": "admin-scorte",
       "name": "Admin-Scorte",
       "versionFile": "admin-scorte/VERSION",
-      "state": "installabile",
+      "state": "disattivata",
+      "stateNote": "Ora è dentro la mod ZomBOT (Moon): aggiorna il launcher, la installa lui e toglie questi vecchi file.",
       "audience": "Solo admin",
       "summary": "Le finestre di ZomBOT per gestire le basi e le loro scorte.",
       "note": "A chi non è admin mostra solo dove un oggetto manca nelle basi.",

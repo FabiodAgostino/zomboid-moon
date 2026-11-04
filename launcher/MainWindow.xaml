@@ -123,10 +123,15 @@
                                 Visibility="{Binding Disabled, Converter={StaticResource Vis}}">
                             <TextBlock Style="{StaticResource BadgeText}" Text="DISATTIVATA" Foreground="#FFB3B6" />
                         </Border>
+                        <Border Style="{StaticResource Badge}" Background="#CC3A2A10" BorderBrush="#99FFB547" Margin="6,0,0,0"
+                                Visibility="{Binding Required, Converter={StaticResource Vis}}">
+                            <TextBlock Style="{StaticResource BadgeText}" Text="SERVE PER MOON" Foreground="{StaticResource Accent}" />
+                        </Border>
                     </StackPanel>
                     <ToggleButton x:Name="toggle" Style="{StaticResource Switch}" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="14"
                                   IsChecked="{Binding Switch, Mode=TwoWay}" IsEnabled="{Binding CanToggle}" AutomationProperties.Name="{Binding Name}"
-                                  ToolTip="Accendi per installare, spegni per togliere" />
+                                  ToolTip="Accendi per installare, spegni per togliere"
+                                  Visibility="{Binding HasSwitch, Converter={StaticResource Vis}}" />
 
                     <Grid Grid.Row="1" Margin="18,6,18,14">
                         <Grid.RowDefinitions>
@@ -141,7 +146,7 @@
                                     AutomationProperties.Name="{Binding Name, StringFormat=Versioni di {0}}"
                                     VerticalAlignment="Center" ToolTip="Scegli la versione">
                                 <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="{Binding SelectedVersion, StringFormat=v{0}}" />
+                                    <TextBlock Text="{Binding VersionLabel}" />
                                     <TextBlock Style="{StaticResource Icon}" Text="&#xE70D;" FontSize="9" Margin="7,1,0,0"
                                                Visibility="{Binding HasVersions, Converter={StaticResource Vis}}" />
                                 </StackPanel>
@@ -151,7 +156,7 @@
                         </DockPanel>
                         <TextBlock Grid.Row="1" Text="{Binding Summary}" FontSize="13" TextWrapping="Wrap" Margin="0,3,0,0" MaxHeight="36"
                                    TextTrimming="WordEllipsis" />
-                        <TextBlock Grid.Row="2" Text="{Binding Note}" Foreground="{StaticResource TextFaint}" FontSize="12" TextWrapping="Wrap"
+                        <TextBlock x:Name="note" Grid.Row="2" Text="{Binding Note}" Foreground="{StaticResource TextFaint}" FontSize="12" TextWrapping="Wrap"
                                    Margin="0,4,0,0" MaxHeight="34" TextTrimming="WordEllipsis" />
                         <DockPanel Grid.Row="4">
                             <Button DockPanel.Dock="Right" Style="{StaticResource AccentButton}" Content="AGGIORNA" Padding="12,6"
@@ -230,6 +235,10 @@
                     <Setter TargetName="state" Property="Foreground" Value="{StaticResource Warn}" />
                     <Setter TargetName="card" Property="BorderBrush" Value="#66FFB547" />
                 </DataTrigger>
+                <DataTrigger Binding="{Binding Required}" Value="True">
+                    <Setter TargetName="note" Property="MaxHeight" Value="64" />
+                    <Setter TargetName="note" Property="Foreground" Value="{StaticResource TextDim}" />
+                </DataTrigger>
                 <DataTrigger Binding="{Binding StatusKind}" Value="disabled">
                     <Setter TargetName="dot" Property="Fill" Value="#5A2A30" />
                     <Setter TargetName="state" Property="Foreground" Value="#FF8A8E" />
@@ -281,7 +290,7 @@
                 </Grid.ColumnDefinitions>
                 <Ellipse x:Name="dot" Width="7" Height="7" Fill="{StaticResource TextFaint}" HorizontalAlignment="Left" VerticalAlignment="Center" />
                 <TextBlock Grid.Column="1" Text="{Binding Name}" FontWeight="SemiBold" FontSize="13" TextTrimming="CharacterEllipsis" />
-                <TextBlock Grid.Column="2" Text="{Binding SelectedVersion, StringFormat=v{0}}" Foreground="{StaticResource TextDim}" FontSize="12.5"
+                <TextBlock Grid.Column="2" Text="{Binding VersionLabel}" Foreground="{StaticResource TextDim}" FontSize="12.5"
                            TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
                 <TextBlock x:Name="state" Grid.Column="3" Text="{Binding StatusText}" Foreground="{StaticResource TextDim}" FontSize="12.5"
                            TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />

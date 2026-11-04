@@ -60,8 +60,34 @@ public sealed class Manifest
                         $"mods.json: «{mod.Name}» chiede di rendere identica la cartella {e.To}: si può solo per una cartella sua dentro {{zomboid}}, come {{zomboid}}/mods/{mod.Name}.");
             }
         }
+        foreach (var mod in m.Mods.Where(x => x.Replaces is not null))
+        {
+            var files = mod.Replaces!.Files;
+            for (var i = 0; i < files.Count; i++)
+            {
+                files[i] = Target.Normalize(files[i], mod.Name);
+                if (Target.Depth(files[i]) < 2)
+                    throw new InvalidDataException($"mods.json: «{mod.Name}» vuole togliere {files[i]}: si tolgono solo file, non cartelle intere.");
+            }
+        }
         return m;
     }
+}
+
+/// <summary>
+/// The mods that a mod takes the place of, and their old files to remove wherever they still are. ZomBOT (Moon) holds
+/// ZomBOT and Admin-Scorte, which used to be copied into the game's folder: the game loads those files on every
+/// server, and a server that checks the Lua files kicks whoever has them. A launcher older than 1.0.2 does not know
+/// this field and skips it, so mods.json stays readable for it.
+/// </summary>
+public sealed class ReplacesDef
+{
+    /// <summary>The ids of mods.json's mods it replaces: their cards are not shown any more.</summary>
+    public List<string> Mods { get; set; } = [];
+    /// <summary>What they were, for the messages: «ZomBOT e Admin-Scorte».</summary>
+    public string What { get; set; } = "";
+    /// <summary>The old files to delete when they are there: exactly these, and nothing else.</summary>
+    public List<string> Files { get; set; } = [];
 }
 
 public sealed class ModDef
@@ -93,6 +119,8 @@ public sealed class ModDef
     /// </summary>
     public VersionProbe? InstalledVersion { get; set; }
     public List<InstallEntry> Install { get; set; } = [];
+    /// <summary>The mods this one replaces and their old files to remove (ZomBOT (Moon): ZomBOT and Admin-Scorte).</summary>
+    public ReplacesDef? Replaces { get; set; }
 }
 
 public sealed class VersionProbe
