@@ -6,7 +6,8 @@ rem    Silenziatori  - the suppressor mod (a fixed, Italian copy of Kiidxatlas' 
 rem                    %UserProfile%\Zomboid\mods. DISABLED for now (the user, 28/10/2026): shown as «Disattivata»,
 rem                    installed by no option, but still removed by «Disinstalla» for whoever has it. To turn it back
 rem                    on, empty SIL_DISABLED below: one line.
-rem    Admin-Scorte  - ZomBOT's bases and stocks (ZomBotData.lua, ZomBotStockUI.lua, ZomBotMenu.lua), copied into the
+rem    Admin-Scorte  - ZomBOT's bases and stocks (ZomBotData.lua, ZomBotStockUI.lua, ZomBotGravesUI.lua,
+rem                    ZomBotMenu.lua), copied into the
 rem                    game's media\lua folders. An admin gets the windows (right click, «ZomBOT»); any other player
 rem                    only the box under the items that says where they are missing or short in a base. The server
 rem                    refuses every change from non-admins.
@@ -48,6 +49,7 @@ set "ZBSRC=%HERE%zombot"
 if not exist "%SILSRC%\42\mod.info" goto not_extracted
 if not exist "%ADMSRC%\VERSION" goto not_extracted
 if not exist "%ADMSRC%\client\ZomBotStockUI.lua" goto not_extracted
+if not exist "%ADMSRC%\client\ZomBotGravesUI.lua" goto not_extracted
 if not exist "%ADMSRC%\client\ZomBotMenu.lua" goto not_extracted
 if not exist "%ADMSRC%\shared\ZomBotData.lua" goto not_extracted
 if not exist "%ZBSRC%\VERSION" goto not_extracted
@@ -421,6 +423,7 @@ set "ADMSTATE=%Y%vecchia%N%"
 if defined ADMINST if not "%ADMINST%"=="%ADMVER%" set "ADMSTATE=%Y%vecchia%N% %D%· hai la %ADMINST%%N%"
 fc /b "%ADMSRC%\shared\ZomBotData.lua" "%LUA%\shared\ZomBotData.lua" >nul 2>nul || goto status_zombot
 fc /b "%ADMSRC%\client\ZomBotStockUI.lua" "%LUA%\client\ZomBotStockUI.lua" >nul 2>nul || goto status_zombot
+fc /b "%ADMSRC%\client\ZomBotGravesUI.lua" "%LUA%\client\ZomBotGravesUI.lua" >nul 2>nul || goto status_zombot
 fc /b "%ADMSRC%\client\ZomBotMenu.lua" "%LUA%\client\ZomBotMenu.lua" >nul 2>nul || goto status_zombot
 set "ADMSTATE=%G%aggiornata%N%"
 :status_zombot
@@ -492,6 +495,8 @@ echo         %D%» ZomBotData.lua     in %LUA%\shared%N%
 copy /y "%ADMSRC%\shared\ZomBotData.lua" "%LUA%\shared\ZomBotData.lua" >nul 2>nul || exit /b 1
 echo         %D%» ZomBotStockUI.lua  in %LUA%\client%N%
 copy /y "%ADMSRC%\client\ZomBotStockUI.lua" "%LUA%\client\ZomBotStockUI.lua" >nul 2>nul || exit /b 1
+echo         %D%» ZomBotGravesUI.lua in %LUA%\client%N%
+copy /y "%ADMSRC%\client\ZomBotGravesUI.lua" "%LUA%\client\ZomBotGravesUI.lua" >nul 2>nul || exit /b 1
 echo         %D%» ZomBotMenu.lua     in %LUA%\client  · lo stesso file di ZomBOT%N%
 copy /y "%ADMSRC%\client\ZomBotMenu.lua" "%LUA%\client\ZomBotMenu.lua" >nul 2>nul || exit /b 1
 (echo %ADMVER%)>"%ADMMARK%" 2>nul || exit /b 1
@@ -535,11 +540,14 @@ echo   %C%[%STEP%/%STEPS%]%N% Tolgo %B%Admin-Scorte%N% dalla cartella del gioco
 if not defined GAME goto remove_no_game
 echo         %D%» ZomBotData.lua     da %LUA%\shared%N%
 echo         %D%» ZomBotStockUI.lua  da %LUA%\client%N%
+echo         %D%» ZomBotGravesUI.lua da %LUA%\client%N%
 if exist "%LUA%\shared\ZomBotData.lua" del /q "%LUA%\shared\ZomBotData.lua" 2>nul
 if exist "%LUA%\client\ZomBotStockUI.lua" del /q "%LUA%\client\ZomBotStockUI.lua" 2>nul
+if exist "%LUA%\client\ZomBotGravesUI.lua" del /q "%LUA%\client\ZomBotGravesUI.lua" 2>nul
 if exist "%ADMMARK%" del /q "%ADMMARK%" 2>nul
 if exist "%LUA%\shared\ZomBotData.lua" exit /b 1
 if exist "%LUA%\client\ZomBotStockUI.lua" exit /b 1
+if exist "%LUA%\client\ZomBotGravesUI.lua" exit /b 1
 if exist "%ADMMARK%" exit /b 1
 rem the shared file stays while ZomBOT, found by its own file, still uses it
 if exist "%LUA%\client\ZomBotGioco.lua" goto uninstall_admin_keep_menu

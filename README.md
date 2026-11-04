@@ -7,7 +7,7 @@ Le mod per giocare a **Project Zomboid** (Build 42) sul server **Moon**, con un 
 | Mod | Versione | Stato | A chi serve | Cos'è |
 | --- | --- | --- | --- | --- |
 | **ZomBOT** | 1.0.1 | Installabile | **a tutti** | Le domande a ZomBOT dalla chat del gioco, il contenitore che lampeggia dove c'è ciò che cerchi, le casse colorate. Vedi [ZomBOT: cosa fa](#zombot-cosa-fa). |
-| **Admin-Scorte** | 1.1.1 | Installabile | **agli admin** del server | Le finestre di ZomBOT per gestire le basi e le loro scorte; a chi non è admin mostra solo dove un oggetto manca nelle basi. Vedi [Admin-Scorte: cosa fa](#admin-scorte-cosa-fa). |
+| **Admin-Scorte** | 1.2.0 | Installabile | **agli admin** del server | Le finestre di ZomBOT per gestire le basi e le loro scorte; a chi non è admin mostra solo dove un oggetto manca nelle basi. Vedi [Admin-Scorte: cosa fa](#admin-scorte-cosa-fa). |
 | **Silenziatori** | 1.5.31-moon.1 | **Disattivata** | per ora a nessuno | I silenziatori per le armi: la mod Simple Suppressors di Kiidxatlas, tradotta in italiano e corretta. Per ora il pacchetto non la installa: vedi [Silenziatori (disattivata)](#silenziatori-disattivata). |
 
 ---
@@ -90,7 +90,7 @@ Il file `ZomBotMenu.lua` lo usano sia Admin-Scorte sia ZomBOT (vedi sotto): se t
 | --- | --- | --- |
 | ZomBOT | `ZomBotGioco.lua` | `<cartella del gioco>\media\lua\client\` |
 | ZomBOT e Admin-Scorte | `ZomBotMenu.lua` (lo stesso file per tutte e due) | `<cartella del gioco>\media\lua\client\` |
-| Admin-Scorte | `ZomBotStockUI.lua` | `<cartella del gioco>\media\lua\client\` |
+| Admin-Scorte | `ZomBotStockUI.lua`, `ZomBotGravesUI.lua` | `<cartella del gioco>\media\lua\client\` |
 | Admin-Scorte | `ZomBotData.lua` | `<cartella del gioco>\media\lua\shared\` |
 | ZomBOT, Admin-Scorte | `Moon-ZomBOT.version`, `Moon-Admin-Scorte.version`: la versione installata, una riga | `<cartella del gioco>\media\lua\` |
 | Silenziatori (disattivata) | la cartella `Silenziatori` | `C:\Users\<il tuo nome>\Zomboid\mods\` |
@@ -109,7 +109,7 @@ Perché Admin-Scorte e ZomBOT vanno nella cartella del gioco e non tra le mod? I
 
 **I colori del menu non si vedono e compaiono simboli strani.** Succede con le versioni di Windows più vecchie di Windows 10: il file funziona lo stesso.
 
-**Ho un Mac o Linux.** `mod-moon-server.bat` funziona solo su Windows. A mano, dentro la cartella del gioco: per ZomBOT copia `zombot/client/ZomBotGioco.lua` e `zombot/client/ZomBotMenu.lua` in `media/lua/client/`; per Admin-Scorte copia `admin-scorte/client/ZomBotStockUI.lua` e `admin-scorte/client/ZomBotMenu.lua` in `media/lua/client/` e `admin-scorte/shared/ZomBotData.lua` in `media/lua/shared/`.
+**Ho un Mac o Linux.** `mod-moon-server.bat` funziona solo su Windows. A mano, dentro la cartella del gioco: per ZomBOT copia `zombot/client/ZomBotGioco.lua` e `zombot/client/ZomBotMenu.lua` in `media/lua/client/`; per Admin-Scorte copia `admin-scorte/client/ZomBotStockUI.lua`, `admin-scorte/client/ZomBotGravesUI.lua` e `admin-scorte/client/ZomBotMenu.lua` in `media/lua/client/` e `admin-scorte/shared/ZomBotData.lua` in `media/lua/shared/`.
 
 ## ZomBOT: cosa fa
 
