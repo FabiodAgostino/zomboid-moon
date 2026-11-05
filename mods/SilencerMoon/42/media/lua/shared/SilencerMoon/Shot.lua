@@ -1,13 +1,20 @@
 -- SilencerMoon: what happens when a suppressed weapon fires.
 --
--- Noise (every game that shows the shot): the game's own Lua makes the shot's noise (ISReloadWeaponAction.attackHook,
--- on Hook.Attack, where the radius is weapon:getSoundRadius() times the sandbox FirearmNoiseMultiplier, halved
--- indoors) and in multiplayer the shooter's game sends it to the server. OnWeaponSwing fires just before
--- (SwipeStatePlayer.enter, for every player in that state, before any check of who is local), so the radius, the
--- sound and the muzzle flash are set there, for the other players' shots too: on their screens the shot sound comes
--- from the weapon of that player as their game has it (SwipeStatePlayer.OnAnimEvent_PlaySwingSoundAlways reads
--- getSwingSound()). None of them is saved with the weapon: they are set again before every shot and given back when
--- the suppressor is gone or worn out.
+-- Noise (every game that shows the shot, never the dedicated server). The game makes a shot's noise in its own Lua:
+-- ISReloadWeaponAction.attackHook, on Hook.Attack (IsoLivingCharacter.AttemptAttack), reads the weapon's sound radius
+-- (times the sandbox FirearmNoiseMultiplier, halved indoors) and its swing sound before the attack starts.
+-- OnWeaponSwing (SwipeStatePlayer.enter) comes later: too late for that shot. So the weapon in hand always carries the
+-- right values. They are set when a player takes it in hand (OnEquipPrimary, for every player: also another player,
+-- whose weapon arrives whole, parts included, with each EquipPacket) and checked at every update of a local player
+-- (OnPlayerUpdate: a suppressor mounted, removed or worn out changes them before the next trigger pull).
+-- OnWeaponSwing stays as a last check. None of them is saved with the weapon: a fresh copy has the game's values.
+--
+-- What the others get. The sound goes by name from the shooter's game (IsoPlayer.playRangedWeaponShootSound sends
+-- RangedWeaponSound), and so does the noise the zombies hear: the shooter's values are what everyone gets. The muzzle
+-- flash is drawn by each game from its own copy of the shooter's weapon (EffectsManager.startMuzzleFlash reads
+-- getMuzzleFlashModelKey): hidden by the same values on that copy. When a suppressor wears out, the server tells
+-- every game (COMMAND_WORN), so the others' copies show the flash again. The short light of every firearm shot (an
+-- IsoLightSource that startMuzzleFlash makes whatever the weapon) cannot be removed by a mod.
 --
 -- Wear (decided by the server): OnWeaponSwingHitPoint fires on the shooter's game for every round, missed shots
 -- included, but on a dedicated server only for rounds that hit something (network/fields/hit/Player.attack). So the
@@ -24,6 +31,7 @@ SilencerMoon.Shot = Shot
 
 Shot.COMMAND_MODULE = "SilencerMoon"
 Shot.COMMAND_SHOT = "shot"
+Shot.COMMAND_WORN = "worn" -- server to every game: { player = online id, id = weapon id }
 
 ---------------------------------------------------------------- noise
 
@@ -105,11 +113,53 @@ function Shot.isRound(character, weapon)
 	return Core.activeTier(weapon) ~= nil
 end
 
--- Every player's shot, not only ours: the others must hear and see it suppressed too.
-local function onWeaponSwing(character, weapon)
-	if character and instanceof(character, "IsoPlayer") then
-		Shot.applyNoise(weapon)
+-- What was applied last to the weapon in each local player's hand: { weapon, part, working }.
+local held = {}
+
+-- Every update of a local player: one look at the weapon in hand; the values are set again only when the weapon, its
+-- suppressor or the suppressor's state changed (a few calls a frame, nothing else).
+function Shot.keep(player)
+	local index = player:getPlayerNum()
+	local weapon = player:getPrimaryHandItem()
+	local last = held[index]
+	if not weapon or not instanceof(weapon, "HandWeapon") or not weapon:isRanged() then
+		if last then held[index] = nil end
+		return
 	end
+	local part = weapon:getWeaponPart(Core.PART_TYPE)
+	local working = part ~= nil and part:getCondition() > 0
+	if last and last.weapon == weapon and last.part == part and last.working == working then return end
+	held[index] = { weapon = weapon, part = part, working = working }
+	Shot.applyNoise(weapon)
+end
+
+-- The server says another player's suppressor wore out: our copy of that weapon learns it (the shooter's own copy
+-- comes with syncHandWeaponFields).
+function Shot.onWorn(args)
+	if type(args) ~= "table" or not args.player or not args.id then return end
+	local player = getPlayerByOnlineID(args.player)
+	if not player or player:isLocalPlayer() then return end
+	local weapon = player:getPrimaryHandItem()
+	if not weapon or not instanceof(weapon, "HandWeapon") or weapon:getID() ~= args.id then return end
+	local part = Core.suppressor(weapon)
+	if part and part:getCondition() > 0 then part:setCondition(0) end
+	Shot.applyNoise(weapon)
+end
+
+local function onPlayerUpdate(player)
+	if player and player:isLocalPlayer() then Shot.keep(player) end
+end
+
+local function onEquipPrimary(character, item)
+	if character and item and instanceof(character, "IsoPlayer") then Shot.applyNoise(item) end
+end
+
+local function onWeaponSwing(character, weapon)
+	if character and instanceof(character, "IsoPlayer") then Shot.applyNoise(weapon) end
+end
+
+local function onServerCommand(module, command, args)
+	if module == Shot.COMMAND_MODULE and command == Shot.COMMAND_WORN then Shot.onWorn(args) end
 end
 
 local function onHitPoint(character, weapon)
@@ -121,17 +171,17 @@ local function onHitPoint(character, weapon)
 	end
 end
 
--- Errors are written once and the handler rests a little: a broken feature must never take the shot with it.
+-- Each different error is written once (at most 20 for a handler) and the handler keeps working: a failure on one
+-- shot, square or command must never skip the next ones, nor take the game's own work with it.
 local function guarded(name, callback)
-	local seen, restUntil = {}, 0
+	local seen, written = {}, 0
 	return function(...)
-		if restUntil > 0 and getTimestampMs() < restUntil then return end
 		local ok, result = pcall(callback, ...)
 		if ok then return result end
-		restUntil = getTimestampMs() + 10000
 		local text = tostring(result)
-		if not seen[text] then
+		if not seen[text] and written < 20 then
 			seen[text] = true
+			written = written + 1
 			print("[SilencerMoon] " .. name .. ": " .. text)
 		end
 	end
@@ -140,8 +190,14 @@ Shot.guarded = guarded
 
 if not SilencerMoon.shotEventsAdded then
 	SilencerMoon.shotEventsAdded = true
-	Events.OnWeaponSwing.Add(guarded("OnWeaponSwing", onWeaponSwing))
 	Events.OnWeaponSwingHitPoint.Add(guarded("OnWeaponSwingHitPoint", onHitPoint))
+	-- the noise is for the games that show the shot: not the dedicated server
+	if not isServer() then
+		Events.OnPlayerUpdate.Add(guarded("OnPlayerUpdate", onPlayerUpdate))
+		Events.OnEquipPrimary.Add(guarded("OnEquipPrimary", onEquipPrimary))
+		Events.OnWeaponSwing.Add(guarded("OnWeaponSwing", onWeaponSwing))
+		Events.OnServerCommand.Add(guarded("OnServerCommand", onServerCommand))
+	end
 end
 
 ---------------------------------------------------------------- recipes

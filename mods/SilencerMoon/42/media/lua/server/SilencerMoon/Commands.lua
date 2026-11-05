@@ -1,6 +1,8 @@
 -- SilencerMoon on the server: each round the shooter's game reports (shared/SilencerMoon/Shot.lua) is rolled here,
 -- then the weapon goes back to its owner. The report is checked: the weapon in hand, a working SilencerMoon
--- suppressor, and no more rounds than a firearm can fire (a burst of at most 20 in any second).
+-- suppressor, and no more rounds than a firearm can fire (a burst of at most 20 in any second). When the suppressor
+-- wears out, every game is told (Shot.COMMAND_WORN), so the others stop hiding that weapon's flash. While the restore
+-- is on (shared/SilencerMoon/Restore.lua), a reported round fixes the weapon at once instead of wearing it.
 --
 -- A multiplayer client loads media/lua/server too (GameLoadingState.enter, with no condition): this file is for the
 -- server and single player only.
@@ -9,9 +11,11 @@ if isClient() then return end
 require "SilencerMoon/Core"
 require "SilencerMoon/Stats"
 require "SilencerMoon/Shot"
+require "SilencerMoon/Restore"
 
 local Core = SilencerMoon.Core
 local Shot = SilencerMoon.Shot
+local Restore = SilencerMoon.Restore
 
 local WINDOW_MS = 1000
 local MAX_PER_WINDOW = 20
@@ -37,8 +41,18 @@ local function onClientCommand(module, command, player, args)
 	if args.id ~= weapon:getID() then return end
 	if not Core.activeTier(weapon) then return end
 	if not allowed(player) then return end
+	if Restore.active() then
+		if Restore.weapon(weapon, player) then
+			Restore.count(1)
+			syncHandWeaponFields(player, weapon)
+		end
+		return
+	end
 	if Shot.wear(weapon) then
 		syncHandWeaponFields(player, weapon)
+		if not Core.activeTier(weapon) then
+			sendServerCommand(Shot.COMMAND_MODULE, Shot.COMMAND_WORN, { player = player:getOnlineID(), id = weapon:getID() })
+		end
 	end
 end
 

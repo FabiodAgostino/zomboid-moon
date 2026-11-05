@@ -6,6 +6,8 @@
 --
 -- The game builds one tooltip per inventory panel and reuses it for whatever the mouse is on (setItem), so every
 -- tooltip gets a renderer that first draws the game's own (or another mod's) and then adds ours when it applies.
+-- The game places and draws its tooltip first, every frame: ours goes right under it, or right over it when the
+-- screen ends first, and never moves the game's (moving it then would put our lines over its last ones).
 
 require "ISUI/ISToolTipInv"
 require "SilencerMoon/Core"
@@ -72,6 +74,17 @@ local function drawBar(self, x, y, h, row)
 	end
 end
 
+-- Where our block goes, relative to the game's tooltip at (absX, absY), baseH high: under it, or over it when it
+-- would leave the screen at the bottom and fits above; moved left as far as it would leave the screen on the right.
+function Tooltip.place(absX, absY, baseH, width, extra, screenW, screenH)
+	local top = baseH
+	if absY + baseH + extra > screenH and absY - extra >= 0 then top = -extra end
+	local left = 0
+	local overflow = absX + width - screenW
+	if overflow > 0 then left = -math.min(overflow, absX) end
+	return left, top
+end
+
 local function render(self, tier, part, mounted)
 	if ISContextMenu and ISContextMenu.instance and ISContextMenu.instance.visibleCheck then return end
 	local font = UIFont.Small
@@ -104,30 +117,26 @@ local function render(self, tier, part, mounted)
 	for _, line in ipairs(footer) do width = math.max(width, text:MeasureStringX(font, line) + PAD * 2) end
 	width = math.max(width, self:getWidth())
 	local extra = 4 + lineH * (1 + #rows + #footer) + 4
-	local baseH = self:getHeight()
-	local height = baseH + extra
 	local core = getCore()
-	self:setX(math.max(0, math.min(self:getX(), core:getScreenWidth() - width - 1)))
-	self:setY(math.max(0, math.min(self:getY(), core:getScreenHeight() - height - 1)))
-	self:setWidth(width)
-	self:setHeight(height)
+	local x0, y0 = Tooltip.place(self:getAbsoluteX(), self:getAbsoluteY(), self:getHeight(), width, extra,
+		core:getScreenWidth(), core:getScreenHeight())
 	local bg, border = self.backgroundColor, self.borderColor
-	self:drawRect(0, baseH, width, extra, bg.a, bg.r, bg.g, bg.b)
-	self:drawRectBorder(0, baseH, width, extra, border.a, border.r, border.g, border.b)
+	self:drawRect(x0, y0, width, extra, bg.a, bg.r, bg.g, bg.b)
+	self:drawRectBorder(x0, y0, width, extra, border.a, border.r, border.g, border.b)
 
-	local y = baseH + 4
-	self:drawText(title, PAD, y, 1, 1, 1, 1, font)
+	local y = y0 + 4
+	self:drawText(title, x0 + PAD, y, 1, 1, 1, 1, font)
 	y = y + lineH
-	local barX = PAD + labelW + PAD
+	local barX = x0 + PAD + labelW + PAD
 	local barH = math.max(4, lineH - 6)
 	for _, row in ipairs(rows) do
-		self:drawText(row.label, PAD, y, 0.9, 0.9, 0.9, 1, font)
+		self:drawText(row.label, x0 + PAD, y, 0.9, 0.9, 0.9, 1, font)
 		drawBar(self, barX, y + (lineH - barH) / 2, barH, row)
 		self:drawText(row.value, barX + BAR_W + PAD, y, 1, 1, 1, 1, font)
 		y = y + lineH
 	end
 	for _, line in ipairs(footer) do
-		self:drawText(line, PAD, y, 0.8, 0.8, 0.8, 1, font)
+		self:drawText(line, x0 + PAD, y, 0.8, 0.8, 0.8, 1, font)
 		y = y + lineH
 	end
 end

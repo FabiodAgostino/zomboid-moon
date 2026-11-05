@@ -45,6 +45,19 @@ SYNCED = 0
 function syncHandWeaponFields(player, weapon) SYNCED = SYNCED + 1 end
 ADDED = {}
 function sendAddItemToContainer(container, item) table.insert(ADDED, item) end
+BROADCAST = {}
+function sendServerCommand(a, b, c, d)  -- (module, command, args) to every game; (player, ...) to one
+    if type(a) == "string" then table.insert(BROADCAST, { module = a, command = b, args = c }) end
+end
+PLAYERS_BY_ID = {}
+function getPlayerByOnlineID(id) return PLAYERS_BY_ID[id] end
+MODDATA = {}
+ModData = {
+    exists = function(k) return MODDATA[k] ~= nil end,
+    get = function(k) return MODDATA[k] end,
+    getOrCreate = function(k) MODDATA[k] = MODDATA[k] or {}; return MODDATA[k] end,
+    transmit = function(k) end,
+}
 XP = 0
 function addXp(character, perk, amount) XP = XP + amount end
 Perks = { Mechanics = "Mechanics" }
@@ -134,8 +147,11 @@ end
 
 function newPlayer()
     local p = { classes = { IsoPlayer = true, IsoGameCharacter = true }, shove = false, empty = false,
-        primary = nil, name = "tester", mechanics = 10, wrench = true, inVehicle = nil, items = {} }
-    function p:isLocalPlayer() return true end
+        primary = nil, name = "tester", mechanics = 10, wrench = true, inVehicle = nil, items = {},
+        remote = false, num = 0, onlineId = 1 }
+    function p:isLocalPlayer() return not self.remote end
+    function p:getPlayerNum() return self.num end
+    function p:getOnlineID() return self.onlineId end
     function p:isDoShove() return self.shove end
     function p:isRangedWeaponEmpty() return self.empty end
     function p:getPrimaryHandItem() return self.primary end
@@ -155,7 +171,6 @@ function newVehicle(engine)
     function v:getModData() return self.modData end
     function v:transmitModData() self.transmitted = self.transmitted + 1 end
     function v:isEngineRunning() return self.running end
-    function v:isInArea(area, character) return true end
     local part = { vehicle = v }
     function part:getVehicle() return self.vehicle end
     function part:getArea() return "Engine" end
@@ -406,6 +421,24 @@ def test_the_server_takes_at_most_20_rounds_a_second(server):
     assert w.parts["Suppressor"].condition == 79
 
 
+def test_a_worn_out_suppressor_is_announced_to_every_game_once(server):
+    player = server.eval("newPlayer()")
+    player.onlineId = 5
+    w = server.eval('newWeapon("Base.AssaultRifle", 30, 1.0, 1.6)')
+    w.parts["Suppressor"] = server.eval('newPart("SilencerMoon.Suppressor_Rifle_Ballistic", 2)')
+    player.primary = w
+    command = server.eval("SilencerMoon.onClientCommand")
+    args = server.eval(f"{{ id = {w.id} }}")
+    command("SilencerMoon", "shot", player, args)
+    assert len(server.eval("BROADCAST")) == 0
+    command("SilencerMoon", "shot", player, args)
+    command("SilencerMoon", "shot", player, args)  # worn out: no longer a working suppressor, ignored
+    sent = server.eval("BROADCAST")
+    assert w.parts["Suppressor"].condition == 0 and len(sent) == 1
+    assert sent[1].module == "SilencerMoon" and sent[1].command == "worn"
+    assert sent[1].args.player == 5 and sent[1].args.id == w.id
+
+
 # ------------------------------------------------------------------ noise
 
 
@@ -459,6 +492,100 @@ def test_another_players_shot_is_suppressed_on_my_screen_too(lua):
     lua.execute("CLIENT = true")
     lua.eval("EVENTS.OnWeaponSwingHitPoint.list[1]")(remote, w)
     assert len(lua.eval("SENT")) == 0  # only the shooter's own game reports the round
+
+
+def ballistic_pistol(lua):
+    lua.execute('FRESH["Base.Pistol"] = { radius = 100, swing = "M9Shoot", flash = "flash_key" }')
+    w = lua.eval('newWeapon("Base.Pistol", 15, 0.6, 1.0)')
+    w.swing = "M9Shoot"
+    w.parts["Suppressor"] = lua.eval('newPart("SilencerMoon.Suppressor_Pistol_Ballistic", 10)')
+    return w
+
+
+SUPPRESSED = (35, "SilencerMoon_Suppressed9mm", None)
+VANILLA = (100, "M9Shoot", "flash_key")
+
+
+def noise(w):
+    return (w.radius, w.swing, w.flash)
+
+
+def test_the_weapon_in_hand_is_ready_before_the_first_shot(lua):
+    """attackHook (Hook.Attack) reads the radius and the sound before OnWeaponSwing: the values are there already."""
+    player, w = lua.eval("newPlayer()"), ballistic_pistol(lua)
+    player.primary = w
+    update = lua.eval("EVENTS.OnPlayerUpdate.list[1]")
+    update(player)
+    assert noise(w) == SUPPRESSED
+    w.radius = 77  # nothing changed in hand: nothing is set again
+    update(player)
+    assert w.radius == 77
+    w.radius = 35
+    w.parts["Suppressor"].condition = 0  # worn out: the game's values before the next trigger pull
+    update(player)
+    assert noise(w) == VANILLA
+    fresh = ballistic_pistol(lua)  # a new copy (logged in again, another weapon): set at once
+    player.primary = fresh
+    update(player)
+    assert noise(fresh) == SUPPRESSED
+    fresh.parts["Suppressor"] = None  # taken off
+    update(player)
+    assert noise(fresh) == VANILLA
+    player.primary = None
+    update(player)
+
+
+def test_another_players_weapon_is_set_when_it_comes_into_their_hands(lua):
+    """Their weapon arrives whole with each EquipPacket: the flash on my screen is drawn from that copy."""
+    remote, w = lua.eval("newPlayer()"), ballistic_pistol(lua)
+    remote.remote = True
+    lua.eval("EVENTS.OnEquipPrimary.list[1]")(remote, w)
+    assert noise(w) == SUPPRESSED
+    lua.eval("EVENTS.OnEquipPrimary.list[1]")(remote, None)  # empty hands
+
+
+def test_the_others_learn_that_a_suppressor_wore_out(lua):
+    remote, w = lua.eval("newPlayer()"), ballistic_pistol(lua)
+    remote.remote, remote.onlineId, remote.primary = True, 7, w
+    lua.globals().PLAYERS_BY_ID[7] = remote
+    lua.eval("EVENTS.OnEquipPrimary.list[1]")(remote, w)
+    on_server = lua.eval("EVENTS.OnServerCommand.list[1]")
+    on_server("SilencerMoon", "worn", lua.eval(f"{{ player = 7, id = {w.id + 1} }}"))  # another weapon
+    on_server("Other", "worn", lua.eval(f"{{ player = 7, id = {w.id} }}"))
+    on_server("SilencerMoon", "worn", lua.eval(f"{{ player = 8, id = {w.id} }}"))  # nobody
+    assert noise(w) == SUPPRESSED
+    on_server("SilencerMoon", "worn", lua.eval(f"{{ player = 7, id = {w.id} }}"))
+    assert w.parts["Suppressor"].condition == 0 and noise(w) == VANILLA
+    mine = ballistic_pistol(lua)  # my own copy comes from the server with syncHandWeaponFields, not from here
+    me = lua.eval("newPlayer()")
+    me.onlineId, me.primary = 9, mine
+    lua.globals().PLAYERS_BY_ID[9] = me
+    on_server("SilencerMoon", "worn", lua.eval(f"{{ player = 9, id = {mine.id} }}"))
+    assert mine.parts["Suppressor"].condition == 10
+
+
+def test_the_dedicated_server_does_not_watch_the_noise():
+    lua = lua_runtime()
+    lua.execute("SERVER = true")
+    for name in ("shared/SilencerMoon/Core.lua", "shared/SilencerMoon/Stats.lua", "shared/SilencerMoon/Shot.lua"):
+        lua.execute((LUA / name).read_text(encoding="utf-8"))
+    assert lua.eval("EVENTS.OnWeaponSwingHitPoint") is not None
+    for name in ("OnPlayerUpdate", "OnEquipPrimary", "OnWeaponSwing", "OnServerCommand"):
+        assert lua.eval(f"EVENTS.{name}") is None, name
+
+
+def test_a_failing_handler_keeps_working_and_writes_the_error_once(lua):
+    lua.execute("""
+        PRINTED = {}
+        print = function(s) table.insert(PRINTED, s) end
+        CALLS = 0
+        function flaky(fail) CALLS = CALLS + 1; if fail then error("boom") end return "ok" end
+    """)
+    handler = lua.eval("SilencerMoon.Shot.guarded")("test", lua.eval("flaky"))
+    handler(True)
+    handler(True)
+    assert handler(False) == "ok"  # no pause after an error: the next square or shot is never skipped
+    assert lua.eval("CALLS") == 3 and len(lua.eval("PRINTED")) == 1
 
 
 # ------------------------------------------------------------------ alloy recipes
@@ -533,6 +660,18 @@ def test_the_tooltip_bars():
         assert [tooltip.valueText(rows[i]) for i in (1, 2, 3)] == values, tier_id
 
 
+def test_the_tooltip_block_goes_under_or_over_and_never_moves_the_games():
+    runtime = lua_runtime("shared/SilencerMoon/Core.lua", "client/SilencerMoon/Tooltip.lua")
+    place = runtime.eval("SilencerMoon.Tooltip.place")
+    assert place(100, 100, 200, 300, 80, 1920, 1080) == (0, 200)  # under the game's
+    assert place(100, 900, 150, 300, 80, 1920, 1080) == (0, -80)  # the screen ends first: over it
+    assert place(100, 20, 1040, 300, 80, 1920, 1080) == (0, 1040)  # no room either way: under
+    assert place(1800, 100, 200, 300, 80, 1920, 1080) == (-180, 200)  # the right edge
+    text = (LUA / "client" / "SilencerMoon" / "Tooltip.lua").read_text()
+    for call in ("setX(", "setY(", "setWidth(", "setHeight("):  # the game placed and drew its own already
+        assert call not in text, call
+
+
 # ------------------------------------------------------------------ static checks
 
 
@@ -595,7 +734,7 @@ def test_every_item_model_icon_and_file_the_scripts_name_exists():
         texture = re.search(r"texture = (\w+)", body)
         if texture:
             assert (MEDIA / "textures" / f"{texture.group(1)}.png").exists(), texture.group(1)
-    for line in re.findall(r"ModelWeaponPart = (\S+) (\S+) canon canon", script_text()):
+    for line in re.findall(r"ModelWeaponPart = (\S+) (\S+) canon muzzle", script_text()):
         item, model = (x.split(".", 1)[1] for x in line)
         assert item in items and model in models, line
     for body in recipes.values():
@@ -662,3 +801,113 @@ def test_the_shared_zombot_menu_is_the_same_file_as_in_zombot_moon():
 def test_a_worn_out_suppressor_shows_no_bars():
     text = (LUA / "client" / "SilencerMoon" / "Tooltip.lua").read_text()
     assert "local rows = worn and {} or Tooltip.rows(tier)" in text
+
+
+# ------------------------------------------------------------------ weapon models (no model of the game is written)
+
+# The "muzzle" point of the model of each supported firearm, from 42.21 media/scripts/generated/models_weapons.txt,
+# and the model of each item (its WeaponSprite). Checked against the installed game when it is there.
+VANILLA_MUZZLE = {
+    "Handgun": ((0.0, 0.1466, -0.0236), (-90.0, 0.0, 0.0)),
+    "Handgun02": ((0.0, 0.1432, -0.0225), (-90.0, 0.0, 0.0)),
+    "Handgun03": ((0.0, 0.1443, -0.0279), (-90.0, 0.0, 0.0)),
+    "Trapper_Carbine": ((0.0, 0.353, 0.021), (-90.0, 0.0, -180.0)),
+    "L92_Carbine": ((0.0, 0.3866, 0.0263), (-90.0, 0.0, -180.0)),
+    "L94_Rifle": ((0.0, 0.3866, 0.0263), (-90.0, 0.0, -180.0)),
+    "AssaultRifle": ((0.0, 0.3993, 0.0237), (-90.0, 0.0, -180.0)),
+    "VarmintRifle": ((0.0, 0.5065, 0.0331), (-90.0, 0.0, 180.0)),
+    "M14": ((0.0, 0.5004, 0.0297), (-90.0, 0.0, -180.0)),
+    "HuntingRifle": ((0.0, 0.4968, 0.0308), (-90.0, 0.0, 180.0)),
+    "MSR7T_Rifle": ((0.0, 0.4968, 0.0308), (-90.0, 0.0, 180.0)),
+    "JS14_Rifle": ((0.0, 0.3822, 0.0321), (-90.0, 0.0, -180.0)),
+}
+WEAPON_MODEL = {
+    "Pistol": "Handgun03", "Pistol2": "Handgun02", "Pistol3": "Handgun", "TrapperCarbine": "Trapper_Carbine",
+    "L92_Carbine": "L92_Carbine", "AssaultRifle": "AssaultRifle", "VarmintRifle": "VarmintRifle",
+    "JS14_Rifle": "JS14_Rifle", "AssaultRifle2": "M14", "HuntingRifle": "HuntingRifle",
+    "MSR7T_Rifle": "MSR7T_Rifle", "L94_Rifle": "L94_Rifle",
+}
+GAME_SCRIPTS = Path(r"C:\Program Files (x86)\Steam\steamapps\common\ProjectZomboid\media\scripts")
+
+
+def _mul(a, b):
+    return [[sum(a[i][k] * b[k][j] for k in range(4)) for j in range(4)] for i in range(4)]
+
+
+def _attachment(offset, rotate, scale=1.0):
+    """ModelInstanceRenderData.makeAttachmentTransform: translation(offset).rotateXYZ(rotate, degrees).scale(scale)."""
+    import math
+
+    m = [[1, 0, 0, offset[0]], [0, 1, 0, offset[1]], [0, 0, 1, offset[2]], [0, 0, 0, 1]]
+    for axis, deg in zip("xyz", rotate):
+        c, s = math.cos(math.radians(deg)), math.sin(math.radians(deg))
+        r = {
+            "x": [[1, 0, 0, 0], [0, c, -s, 0], [0, s, c, 0], [0, 0, 0, 1]],
+            "y": [[c, 0, s, 0], [0, 1, 0, 0], [-s, 0, c, 0], [0, 0, 0, 1]],
+            "z": [[c, -s, 0, 0], [s, c, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]],
+        }[axis]
+        m = _mul(m, r)
+    return _mul(m, [[scale, 0, 0, 0], [0, scale, 0, 0], [0, 0, scale, 0], [0, 0, 0, 1]])
+
+
+def _numbers(text):
+    return tuple(float(x) for x in text.split())
+
+
+def _attachments(body):
+    out = {}
+    for name, inner in re.findall(r"attachment (\w+)\s*\{([^}]*)\}", body):
+        out[name] = dict((k, v.strip()) for k, v in re.findall(r"(\w+) = ([^,]+),", inner))
+    return out
+
+
+def test_no_model_of_the_game_is_written():
+    """A second body of a model resets it (mesh, texture, scale) before loading: the guns would lose their mesh."""
+    for path in sorted(SCRIPTS.glob("*.txt")):
+        text = path.read_text(encoding="utf-8")
+        module = re.search(r"^module (\w+)", text, re.M).group(1)
+        models = re.findall(r"^\s*model (\w+)\s*\{", text, re.M)
+        assert module == "SilencerMoon" or not models, (path.name, models)
+        assert not set(models) & set(VANILLA_MUZZLE), path.name
+
+
+def test_each_part_sits_on_the_muzzle_where_simple_suppressors_put_it():
+    """parent point x part point (the game never inverts the part's) = the muzzle offset, unturned, part's scale."""
+    models, items = blocks("model"), blocks("item")
+    seen = 0
+    for item, model in WEAPON_MODEL.items():
+        offset, rotate = VANILLA_MUZZLE[model]
+        lines = re.findall(r"ModelWeaponPart = (\S+) (\S+) (\S+) (\S+),", items[item])
+        assert len(lines) == 3, item
+        for _part, part_model, self_point, parent_point in lines:
+            assert (self_point, parent_point) == ("canon", "muzzle"), (item, part_model)
+            canon = _attachments(models[part_model.split(".", 1)[1]])["canon"]
+            assert set(canon) <= {"offset", "rotate", "scale"}, canon
+            scale = float(canon.get("scale", 1))
+            part = _attachment(_numbers(canon["offset"]), _numbers(canon["rotate"]), scale)
+            got = _mul(_attachment(offset, rotate), part)
+            want = _mul(_attachment(offset, (0, 0, 0)), _attachment((0, 0, 0), (0, 0, 0), scale))
+            assert all(abs(got[i][j] - want[i][j]) < 1e-9 for i in range(4) for j in range(4)), (item, part_model)
+            seen += 1
+    assert seen == 36
+
+
+def test_attachments_use_only_keys_the_game_reads():
+    """ModelScript.LoadAttachment reads bone, offset, rotate and scale (a zoffset there was ignored)."""
+    for body in blocks("model").values():
+        for name, keys in _attachments(body).items():
+            assert set(keys) <= {"bone", "offset", "rotate", "scale"}, (name, keys)
+
+
+@pytest.mark.skipif(not GAME_SCRIPTS.exists(), reason="the game is not installed here")
+def test_the_muzzles_are_those_of_the_installed_game():
+    text = "\n".join(p.read_text(encoding="utf-8", errors="replace") for p in GAME_SCRIPTS.rglob("*.txt"))
+    for model, (offset, rotate) in VANILLA_MUZZLE.items():
+        start = re.search(rf"\bmodel\s+{model}\s*\{{", text)
+        assert start, model
+        body = text[start.end() : text.index("\n    }", start.end())]
+        muzzle = _attachments(body)["muzzle"]
+        assert _numbers(muzzle["offset"]) == offset and _numbers(muzzle["rotate"]) == rotate, model
+    for item, model in WEAPON_MODEL.items():
+        body = re.search(rf"\bitem\s+{item}\s*\{{(.*?)\n\s*\}}", text, re.S).group(1)
+        assert re.search(r"WeaponSprite\s*=\s*([^,\s]+)", body).group(1) == model, item

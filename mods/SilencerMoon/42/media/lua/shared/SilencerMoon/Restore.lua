@@ -6,11 +6,13 @@
 -- InventoryItem.loadItem drops the whole weapon). So every SilencerMoon suppressor must come off before the mod goes.
 --
 -- An admin turns it on from the window "ZomBOT" > "Silenziatori" (client/SilencerMoon/Admin.lua). The server keeps it
--- in the world's mod data (it survives restarts)
--- and while it is on: nobody can mount a SilencerMoon suppressor; the weapons of every player online are fixed at
--- once and every ten game minutes (so also those of whoever logs in later), those in the loaded vehicles too; those
--- in containers, on the ground and on corpses as their area loads. A detached suppressor stays next to its weapon.
--- What is never loaded while it is on (a base nobody visits, a player who never logs in) is not reached.
+-- in the world's mod data (it survives restarts) and while it is on: nobody can mount a SilencerMoon suppressor; the
+-- weapons of every player online are fixed at once and every ten game minutes (so also those of whoever logs in
+-- later; a player who fires first is fixed at that shot, server/SilencerMoon/Commands.lua), those in the loaded
+-- vehicles too, sent again to whoever is near; those in containers, on the ground and on corpses as their area loads.
+-- A detached suppressor stays next to its weapon. An area already loaded when the restore is turned on is checked
+-- only when it loads again: so the server is restarted after turning it on. What is never loaded while it is on (a
+-- base nobody visits, a player who never logs in) is not reached.
 
 require "SilencerMoon/Core"
 require "SilencerMoon/Stats"
@@ -99,17 +101,47 @@ function Restore.weapon(weapon, owner)
 	return true
 end
 
--- Every weapon in a container, bags inside included. The owner (a player) gets each fixed weapon sent back.
-function Restore.container(container, owner)
+-- The container and item the game can send to the clients that see them. The game sends a container's change only
+-- for a container with an object (a vehicle, a crate, a corpse: getParent) or a bag lying on the ground; a bag inside
+-- another container travels inside the outermost one.
+function Restore.sendable(container, item)
+	for _ = 1, 16 do
+		if container:getParent() ~= nil then break end
+		local bag = container:getContainingItem()
+		if not bag or bag:getWorldItem() ~= nil then break end
+		local outer = bag:getContainer()
+		if not outer then break end
+		container, item = outer, bag
+	end
+	return container, item
+end
+
+-- Every weapon in a container, bags inside included. The owner (a player) gets each fixed weapon sent back. With
+-- `resend` (the loaded vehicles) the clients near the container get the server's copy again (replacing their own,
+-- which would still show the suppressor), once for each outermost item.
+function Restore.container(container, owner, resend)
 	if not container then return 0 end
 	local found = container:getAllEvalRecurse(Restore.needs)
 	local fixed = 0
+	local toSend, order = {}, {}
 	for i = 0, found:size() - 1 do
 		local weapon = found:get(i)
 		if Restore.weapon(weapon, owner) then
 			fixed = fixed + 1
 			if owner and isServer() then syncHandWeaponFields(owner, weapon) end
+			if resend and isServer() then
+				local where, item = Restore.sendable(weapon:getContainer() or container, weapon)
+				local key = item:getID()
+				if not toSend[key] then
+					toSend[key] = { where = where, item = item }
+					order[#order + 1] = key
+				end
+			end
 		end
+	end
+	for _, key in ipairs(order) do
+		local entry = toSend[key]
+		sendReplaceItemInContainer(entry.where, entry.item, entry.item)
 	end
 	return fixed
 end
@@ -145,7 +177,7 @@ function Restore.vehicles()
 		local vehicle = vehicles:next()
 		for i = 0, vehicle:getPartCount() - 1 do
 			local container = vehicle:getPartByIndex(i):getItemContainer()
-			if container then fixed = fixed + Restore.container(container, nil) end
+			if container then fixed = fixed + Restore.container(container, nil, true) end
 		end
 	end
 	return fixed

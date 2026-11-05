@@ -44,11 +44,13 @@ end
 
 ISSilencerMoonTakeOilFilter = ISBaseTimedAction:derive("ISSilencerMoonTakeOilFilter")
 
+-- No check of the position here, as in the game's own engine actions (ISTakeEngineParts, ISRepairEngine: commented
+-- out): the walk to the engine comes first (ISPathFindAction), and on the server, checked every tick, a position a
+-- little behind would stop the action by itself.
 function ISSilencerMoonTakeOilFilter:isValid()
 	-- a real boolean: the server reads it through protectedCallBoolean
 	if not self.vehicle or not self.part or self.character:getVehicle() then return false end
-	if not OilFilter.check(self.character, self.vehicle) then return false end
-	return self.vehicle:isInArea(self.part:getArea(), self.character) == true
+	return OilFilter.check(self.character, self.vehicle) == true
 end
 
 function ISSilencerMoonTakeOilFilter:waitToStart()

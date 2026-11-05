@@ -4,7 +4,7 @@ world's mod data. Same runner as test_silencermoon.py."""
 
 import pytest
 
-from test_silencermoon import f32, lua_runtime, script_text
+from test_silencermoon import LUA, f32, lua_runtime, script_text
 
 RESTORE_PRELUDE = r"""
 MODDATA, TRANSMITTED = {}, 0
@@ -31,9 +31,17 @@ function javaList(t)
     return l
 end
 
-function newContainer()
-    local c = { items = {} }
+REPLACED = {}
+function sendReplaceItemInContainer(container, old, new)
+    table.insert(REPLACED, { container = container, item = new, same = rawequal(old, new) })
+end
+
+-- parent: the object the container belongs to (a vehicle, a crate, a corpse); bag: the bag it is the inside of
+function newContainer(parent)
+    local c = { items = {}, parent = parent }
     function c:AddItem(item) table.insert(self.items, item); item.container = self; return item end
+    function c:getParent() return self.parent end
+    function c:getContainingItem() return self.bag end
     function c:getAllEvalRecurse(pred)
         local out = {}
         local function walk(cont)
@@ -49,8 +57,13 @@ function newContainer()
 end
 
 function newBag()
-    local bag = { classes = { InventoryContainer = true, InventoryItem = true }, inner = newContainer() }
+    NEXT_ID = NEXT_ID + 1
+    local bag = { classes = { InventoryContainer = true, InventoryItem = true }, inner = newContainer(), id = NEXT_ID }
+    bag.inner.bag = bag
     function bag:getInventory() return self.inner end
+    function bag:getID() return self.id end
+    function bag:getContainer() return self.container end
+    function bag:getWorldItem() return self.world end
     return bag
 end
 
@@ -86,6 +99,7 @@ end
 
 function newVehicleWith(container)
     local v = {}
+    container.parent = v
     function v:getPartCount() return 2 end
     function v:getPartByIndex(i)
         local part = {}
@@ -197,6 +211,7 @@ def test_turning_it_on_fixes_the_weapons_of_the_players_online_at_once():
     reply = lua.eval("SERVERCMDS[1]")
     assert reply.command == "restoreState" and reply.args.active is True and reply.args.fixedNow == 2
     assert lua.eval("SilencerMoon.Restore.players")() == 0  # done: a second round finds nothing
+    assert len(lua.eval("REPLACED")) == 0  # the owner got them with syncHandWeaponFields
 
 
 def test_only_an_admin_can_turn_it_on():
@@ -247,6 +262,43 @@ def test_vehicles_and_loading_squares_are_fixed_while_it_is_on():
     dropped = list(square.dropped.values())
     assert len(dropped) == 1 and same(lua, dropped[0], ground_part)  # the one on the ground lies next to it
     assert lua.eval("MODDATA.SilencerMoon.fixed") == 5
+    replaced = lua.eval("REPLACED")
+    assert len(replaced) == 1 and same(lua, replaced[1].item, in_trunk)  # a loading square: no client has it yet
+
+
+def test_the_players_near_a_vehicle_get_its_fixed_weapons_again():
+    """Their game keeps its own copy of the trunk: the server's copy replaces it, once per outermost item."""
+    lua = restore_runtime()
+    trunk = lua.eval("newContainer()")
+    loose, loose_part = lua.eval("suppressedIn")(trunk)
+    bag = lua.eval("newBag()")
+    trunk.AddItem(trunk, bag)
+    pouch = lua.eval("newBag()")
+    bag.inner.AddItem(bag.inner, pouch)
+    lua.eval("suppressedIn")(pouch.inner)
+    lua.eval("suppressedIn")(bag.inner)
+    lua.globals().VEHICLES[1] = lua.eval("newVehicleWith")(trunk)
+    lua.eval("SilencerMoon.onRestoreCommand")(lua.eval("newAdmin(true)"), "restoreStart")
+    replaced = list(lua.eval("REPLACED").values())
+    assert len(replaced) == 2
+    assert same(lua, replaced[0].item, loose) and same(lua, replaced[1].item, bag)  # the bag carries both inside
+    assert all(same(lua, r.container, trunk) and r.same for r in replaced)
+    assert same(lua, loose_part.container, trunk)
+    assert lua.eval("MODDATA.SilencerMoon.fixed") == 3
+
+
+def test_a_player_who_fires_while_it_is_on_is_fixed_at_that_shot():
+    lua = restore_runtime()
+    lua.execute((LUA / "server" / "SilencerMoon" / "Commands.lua").read_text(encoding="utf-8"))
+    lua.execute("MODDATA.SilencerMoon = { restoring = true, fixed = 0 }")
+    player = lua.eval("newAdmin(false)")  # anyone
+    inventory = player.getInventory(player)
+    weapon, part = lua.eval("suppressedIn")(inventory)
+    player.primary = weapon
+    lua.eval("SilencerMoon.onClientCommand")("SilencerMoon", "shot", player, lua.eval(f"{{ id = {weapon.id} }}"))
+    assert weapon.parts["Suppressor"] is None and values(weapon) == ORIGINAL
+    assert same(lua, part.container, inventory) and part.condition == 10  # taken off, not worn
+    assert lua.eval("MODDATA.SilencerMoon.fixed") == 1 and lua.eval("SYNCED") == 1
 
 
 def test_whoever_logs_in_later_is_fixed_within_ten_minutes():
@@ -348,8 +400,6 @@ def admin_runtime(client=False):
     lua.execute((LUA_CLIENT / "Admin.lua").read_text(encoding="utf-8"))
     return lua
 
-
-from test_silencermoon import LUA  # noqa: E402
 
 LUA_CLIENT = LUA / "client" / "SilencerMoon"
 

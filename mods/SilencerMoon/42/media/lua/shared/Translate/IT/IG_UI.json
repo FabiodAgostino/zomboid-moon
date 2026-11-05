@@ -4,7 +4,7 @@
   "IGUI_SilencerMoon_Tier_copper": "Acciaio Ramato",
   "IGUI_SilencerMoon_Tier_ballistic": "Lega Balistica di Recupero",
   "IGUI_SilencerMoon_Noise": "Riduzione rumore",
-  "IGUI_SilencerMoon_Range": "Penalità gittata",
+  "IGUI_SilencerMoon_Range": "Penalità gittata di base",
   "IGUI_SilencerMoon_Damage": "Penalità danno",
   "IGUI_SilencerMoon_Condition": "Condizione del silenziatore: %1/%2",
   "IGUI_SilencerMoon_WornOut": "Consumato: non attutisce più e non toglie più gittata né danno.",
@@ -17,7 +17,7 @@
   "IGUI_SilencerMoon_ValuesTitle": "I silenziatori di SilencerMoon",
   "IGUI_SilencerMoon_ColumnKind": "Tipo",
   "IGUI_SilencerMoon_ColumnNoise": "Rumore",
-  "IGUI_SilencerMoon_ColumnRange": "Gittata",
+  "IGUI_SilencerMoon_ColumnRange": "Gittata base",
   "IGUI_SilencerMoon_ColumnDamage": "Danno",
   "IGUI_SilencerMoon_ColumnLife": "Durata media",
   "IGUI_SilencerMoon_TierName_oilfilter": "Filtro dell'olio",
@@ -28,10 +28,10 @@
   "IGUI_SilencerMoon_RestoreTitle": "Ripristino prima di togliere la mod",
   "IGUI_SilencerMoon_RestoreStateOn": "Acceso: %1 armi sistemate finora.",
   "IGUI_SilencerMoon_RestoreStateOff": "Spento: i silenziatori si montano e funzionano.",
-  "IGUI_SilencerMoon_RestoreExplain": "Da fare prima di togliere SilencerMoon dal server. Acceso, nessuno può montare un silenziatore di SilencerMoon e il server lo toglie da ogni arma, che torna con la sua gittata e il suo danno; il silenziatore resta accanto all'arma. Lo fa subito con le armi dei giocatori collegati e dei veicoli caricati, poi ogni dieci minuti di gioco (anche con chi entra dopo) e con contenitori, oggetti a terra e cadaveri appena la loro zona si carica. Resta acceso anche dopo un riavvio. Lascialo acceso finché tutti sono entrati almeno una volta e le basi sono state visitate: un'arma che ha ancora il silenziatore quando la mod viene tolta sparisce.",
+  "IGUI_SilencerMoon_RestoreExplain": "Da fare prima di togliere SilencerMoon dal server. Acceso, nessuno può montare un silenziatore di SilencerMoon e il server lo toglie da ogni arma, che torna con la sua gittata e il suo danno; il silenziatore resta accanto all'arma. Lo fa subito con le armi dei giocatori collegati e dei veicoli caricati, poi ogni dieci minuti di gioco (anche con chi entra dopo) e con contenitori, oggetti a terra e cadaveri appena la loro zona si carica. Resta acceso anche dopo un riavvio. Dopo averlo acceso riavvia il server: una zona già caricata in quel momento viene ricontrollata solo quando si ricarica. Lascialo acceso finché tutti sono entrati almeno una volta e le basi sono state visitate: un'arma che ha ancora il silenziatore quando la mod viene tolta sparisce.",
   "IGUI_SilencerMoon_RestoreOn": "Accendi il ripristino",
   "IGUI_SilencerMoon_RestoreOff": "Spegni il ripristino",
   "IGUI_SilencerMoon_Refresh": "Aggiorna",
   "IGUI_SilencerMoon_Close": "Chiudi",
-  "IGUI_SilencerMoon_RestoreConfirm": "Accendere il ripristino? Da adesso nessuno potrà montare un silenziatore di SilencerMoon e il server li toglierà da tutte le armi."
+  "IGUI_SilencerMoon_RestoreConfirm": "Accendere il ripristino? Da adesso nessuno potrà montare un silenziatore di SilencerMoon e il server li toglierà da tutte le armi. Dopo, riavvia il server."
 }

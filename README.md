@@ -123,7 +123,7 @@ ZomBOT conta le scorte delle basi (cibo, munizioni, medicine, libri...) e le mos
 
 **SilencerMoon** è la mod dei silenziatori artigianali di Moon, rifatta da capo partendo da Simple Suppressors: prenderà il posto di Silenziatori. **Per ora è in prova**: il launcher non la installa e il server non la usa. Nessun silenziatore si trova già fatto: si costruiscono tutti.
 
-| Silenziatore | Come si ottiene | Rumore | Gittata | Danno | Durata media |
+| Silenziatore | Come si ottiene | Rumore | Gittata di base | Danno | Durata media |
 | --- | --- | ---: | ---: | ---: | ---: |
 | **A filtro dell'olio** | un filtro smontato da un veicolo (Meccanica 8, chiave inglese, una volta per veicolo) + dadi e bulloni, Saldatura 3 | -30% | -40% | -25% | 25 spari |
 | **Acciaio Ramato** | 3 lingotti (pistole) o 4 (fucili) di Acciaio Ramato, Saldatura 7 | -40% | -30% | -20% | 100 spari |
@@ -132,20 +132,21 @@ ZomBOT conta le scorte delle basi (cibo, munizioni, medicine, libri...) e le mos
 - **Le leghe** si fondono alla fornace (fornace di fusione o altoforno) con Forgiatura 5: un fucile a pompa (anche rotto, purché scarico e senza accessori), più 2 scarti di rame e una lamiera piccola per l'Acciaio Ramato, o 2 tubi di metallo e 2 lamiere piccole per la Lega Balistica. Servono crogiolo, pinze e stampo per lingotti, e 8 di carbone. Escono 4 lingotti.
 - **I silenziatori** si saldano con torcia al propano (ne consumano il gas), bacchette per saldatura, maschera, trapano e lima. Le ricette si imparano da una **rivista** piuttosto rara, che si trova nelle armerie, nelle librerie, nelle ferramenta e nelle officine.
 - **Armi:** per le pistole la Pistola, la Pistola M1911 e la Pistola D-E; per i fucili il Fucile d'assalto M16, il Fucile Varmint, il Fucile JS-14, il Fucile M14, il Fucile da caccia, il Fucile tattico MSR7T, il Fucile L94 e anche la Carabina da cacciatore e la Carabina L92 (munizioni da pistola, ma armi da spalla). Niente fucili a pompa né revolver. Il silenziatore a filtro dell'olio va su tutte.
-- **Si monta** con «Migliora» e **si smonta** con «Rimuovi miglioramento» (il tasto destro sull'arma), con un cacciavite. Il rumore è la distanza da cui gli zombie sentono lo sparo; gittata e danno calano finché il silenziatore è montato e funziona. Lo sparo silenziato e la fiammata che non c'è li vedono e li sentono anche gli altri giocatori. Si consuma sparando, a caso: a condizione 0 resta montato ma non fa più niente, e il riquadro dell'oggetto dice solo che è consumato. Finché funziona, le barre nel riquadro mostrano i tre valori.
+- **Si monta** con «Migliora» e **si smonta** con «Rimuovi miglioramento» (il tasto destro sull'arma), con un cacciavite. Il rumore è la distanza da cui gli zombie sentono lo sparo; gittata e danno calano finché il silenziatore è montato e funziona. La gittata che cala è quella di base dell'arma: il bonus della Mira si aggiunge intero, quindi chi ha molta Mira perde meno. Il suono silenziato lo sentono anche gli altri giocatori, e anche loro non vedono la fiammata; resta solo la breve luce che il gioco accende a ogni sparo di un'arma da fuoco, che una mod non può togliere. Si consuma sparando, a caso: a condizione 0 resta montato ma non fa più niente, e il riquadro dell'oggetto dice solo che è consumato. Finché funziona, le barre nel riquadro mostrano i tre valori.
 - **Per gli admin**, nel menu «ZomBOT» del tasto destro, il pulsante **«Silenziatori»** apre una finestra con i valori dei tre silenziatori (fissi nella mod) e il ripristino per togliere la mod (sotto). Con ZomBOT (Moon) il pulsante è nella finestra principale di ZomBOT; senza, «ZomBOT» apre direttamente quella dei silenziatori.
 
 ### Togliere SilencerMoon dal server
 
 **Prima di togliere la mod dal server, un admin deve togliere i silenziatori da tutte le armi.** Un'arma salva la sua gittata e il suo danno, quindi resterebbe penalizzata per sempre; e un'arma con montato un pezzo che non esiste più **sparisce** quando il gioco la ricarica (verificato nel codice del gioco 42.21). Per questo:
 
-1. un admin, nel gioco: **tasto destro → «ZomBOT» → «Silenziatori» → «Accendi il ripristino»** (chiede conferma). Da quel momento nessuno può montarne uno e il server toglie il silenziatore da ogni arma che raggiunge, ridandole gittata e danno; il silenziatore resta accanto all'arma. Subito: le armi dei giocatori collegati e quelle nei veicoli caricati. Poi ogni dieci minuti di gioco, anche con chi entra dopo, e con contenitori, oggetti a terra e cadaveri appena la loro zona si carica. Sopra la testa dell'admin compare quante armi ha sistemato, e la finestra dice quante ne ha sistemate finora («Aggiorna» lo richiede al server). Resta acceso anche dopo un riavvio del server;
-2. lascialo acceso **finché tutti i giocatori sono entrati almeno una volta e le basi e i posti dove ci sono armi sono stati visitati**: quello che nessuno carica non viene raggiunto;
-3. togli la mod dal server; i giocatori la tolgono con il launcher o con `3` di `mod-moon-server.bat`.
+1. un admin, nel gioco: **tasto destro → «ZomBOT» → «Silenziatori» → «Accendi il ripristino»** (chiede conferma). Da quel momento nessuno può montarne uno e il server toglie il silenziatore da ogni arma che raggiunge, ridandole gittata e danno; il silenziatore resta accanto all'arma. Subito: le armi dei giocatori collegati e quelle nei veicoli caricati. Poi ogni dieci minuti di gioco, anche con chi entra dopo, e con contenitori, oggetti a terra e cadaveri appena la loro zona si carica. Sopra la testa dell'admin compare quante armi ha sistemato, e la finestra dice quante ne ha sistemate finora («Aggiorna» lo richiede al server). Resta acceso anche dopo un riavvio del server. Chi spara con un silenziatore montato mentre è acceso viene sistemato a quel colpo;
+2. **riavvia il server**: le zone già caricate quando l'hai acceso (per esempio la base dove c'è sempre qualcuno) vengono ricontrollate solo quando si ricaricano;
+3. lascialo acceso **finché tutti i giocatori sono entrati almeno una volta e le basi e i posti dove ci sono armi sono stati visitati**: quello che nessuno carica non viene raggiunto;
+4. togli la mod dal server; i giocatori la tolgono con il launcher o con `3` di `mod-moon-server.bat`.
 
 Se ci ripensi, nella stessa finestra **«Spegni il ripristino»**: i silenziatori tolti si rimontano a mano.
 
-Mentre il ripristino è acceso, un'arma sistemata dal server in un veicolo vicino può ancora sembrare con il silenziatore a chi è lì accanto, finché la zona non si ricarica o non rientra: è solo la copia sul suo schermo, quella salvata è del server ed è giusta.
+Le armi sistemate nei veicoli vengono rimandate a chi è lì vicino, così anche sul suo schermo il silenziatore è staccato e accanto all'arma.
 
 Il progetto completo, con le scelte e le verifiche fatte sui file del gioco 42.21, è nell'analisi v1.2 (non in questo repository). Le prove del Lua: `python -m pytest -q tests/silencermoon` con un Python che ha `pytest` e `lupa` (per esempio quello di ZomBOT). Gli script in `tools/silencermoon` rifanno le icone ramate, la texture e il poster.
 
