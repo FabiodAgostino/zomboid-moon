@@ -74,6 +74,7 @@ end
 local function notice(player, what, key)
 	reply(player, "notice", { what = what, key = key })
 end
+Server.notice = notice
 
 -- What clients know of a jukebox: enough to play it and to show it, never the whole playlist (they read the CDs from
 -- the container themselves).

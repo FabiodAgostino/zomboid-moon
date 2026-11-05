@@ -20,7 +20,8 @@
   trovato (lo dice al server la mod di chi lo prende, nessun controllo periodico) non esce più, e il server lo scrive
   in `jukeboxmoon_unique.json` perché ZomBOT lo annunci. Se nessuno lo prende, ricade solo dopo il tempo di
   rimozione dei cadaveri del server. Più CD unici escono uno alla volta, nell'ordine in cui sono stati aggiunti
-  (`since` nel file: quando ognuno entra in gioco).
+  (`since` nel file: quando ognuno entra in gioco). Un CD mai raccolto non ferma quelli dopo: ricade dopo il tempo
+  di rimozione dei cadaveri (o 7 giorni di gioco), e una copia vecchia trovata dopo viene tolta.
 - Revisione completa (stesso giorno), verificata nel jar della 42.21:
   - mod: ogni client suona il pezzo solo per sé (`playSound` lo rimandava agli altri, che lo avrebbero sentito due
     volte); funziona in single player; la regola «solo CD» torna quando la casella si ricarica; il suono d'ambiente

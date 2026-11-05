@@ -605,10 +605,36 @@ def test_a_corpse_nobody_loots_lets_it_drop_again_only_after_the_removal_time():
     assert lua.eval("Z3.inventory:containsTypeRecurse(CD)") is True
     s = lua.eval("state()")
     assert s.state == "dropped" and (s.x, s.y) == (40, 40) and s.hours == 1216
+
+
+def test_a_server_that_never_removes_corpses_does_not_stop_the_queue():
     lua = unique_game()
-    lua.execute("SandboxVars.HoursForCorpseRemoval = -1; NEXT_RAND = 0; kill('sprint2', P); HOURS = 99999")
-    lua.execute("NEXT_RAND = 0; Z2 = kill('sprint2', P)")
-    assert lua.eval("Z2.inventory.items:size()") == 0                # corpses never removed: it stays on its own
+    lua.execute("SandboxVars.HoursForCorpseRemoval = -1; NEXT_RAND = 0; kill('sprint2', P)")
+    lua.execute("HOURS = 167; NEXT_RAND = 0; Z2 = kill('sprint2', P)")
+    assert lua.eval("Z2.inventory.items:size()") == 0                # within 7 game days: it waits for somebody
+    lua.execute("HOURS = 168; NEXT_RAND = 0; Z3 = kill('sprint2', P, false, 40, 40)")
+    assert lua.eval("Z3.inventory:containsTypeRecurse(CD)") is True  # then it can fall again: never stuck
+
+
+def test_the_first_copy_taken_is_the_cd_and_a_later_one_goes():
+    lua = unique_game()
+    lua.execute("""
+        SandboxVars.HoursForCorpseRemoval = -1
+        NEXT_RAND = 0; OLD = kill('sprint2', P)                         -- nobody loots it
+        HOURS = 200; NEXT_RAND = 0; NEW = kill('sprint2', P, false, 40, 40)
+        A = OLD.inventory:take(CD); B = NEW.inventory:take(CD)
+        P.inventory.items:add(A); cmd("taken", { album = 5, item = A:getID() })
+    """)
+    assert lua.eval("state().state") == "found" and lua.eval("state().found.copy == A:getID()")
+    lua.execute("""
+        Q = newPlayer("bruno", 40.5, 40.5, 0); Q.inventory.items:add(B)
+        NOW = NOW + 5000; cmd("taken", { album = 5, item = B:getID() }, Q)
+    """)
+    assert lua.eval("Q.inventory.items:size()") == 0 and lua.eval("REMOVED_ITEMS[1] == B")   # the copy goes
+    assert lua.eval("lastOne().player == Q") and lua.eval("lastOne().args.what") == "leftover"
+    lua.execute("NOW = NOW + 5000; cmd('taken', { album = 5, item = A:getID() })")
+    assert lua.eval("P.inventory.items:size()") == 1 and lua.eval("#REMOVED_ITEMS") == 1      # the CD stays
+    assert found(lua)["user"] == "anna"
 
 
 def test_names_are_escaped_for_json():
@@ -681,6 +707,12 @@ def test_the_mod_tells_it_from_the_floor_too():
         ISGrabItemAction.new(P, { FLOOR }, nil, P.inventory):perform()
     """)
     assert lua.eval("state().state") == "found"
+
+
+def test_the_player_reads_why_a_copy_went():
+    lua = unique_game(server=False, client=True)
+    lua.execute("""LOCAL = P; fire("OnServerCommand", "JukeboxMoon", "notice", { what = "leftover" })""")
+    assert lua.eval("P.halo") == "IGUI_JukeboxMoon_Notice_leftover"
 
 
 # ------------------------------------------------------------------------------------------------ the client

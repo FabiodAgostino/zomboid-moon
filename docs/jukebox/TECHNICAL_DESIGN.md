@@ -194,14 +194,21 @@ e nel Lua della 42.21:
   «caduto»: il giocatore lo porta (`containsTypeRecurse`, anche nelle borse), oppure è entro 5 caselle da dove è caduto
   e il CD non è più su un cadavere lì (due caselle intorno): l'ha messo in una cassa, in un'auto, per terra. Allora è
   trovato da lui. I messaggi hanno il limite degli altri comandi (8 ogni 4 s).
-- **Il cadavere che nessuno saccheggia**, senza sorveglianza: il CD resta «caduto», con il posto e l'ora del mondo
-  (`getGameTime():getWorldAgeHours()`). Può ricadere solo se un corridore lo tira di nuovo (1 su `oneIn`) **e** dalla
-  caduta è passato il tempo di rimozione dei cadaveri del server (`SandboxVars.HoursForCorpseRemoval`, ore di gioco,
-  216 di base) senza che nessuno l'abbia segnalato: il cadavere a quel punto non c'è più. Con 0 o meno (i cadaveri
-  restano) non ricade mai. Il controllo si fa solo in quel momento.
-- **Il rischio**: uno spostamento che passasse da una strada che la mod non vede (un'altra azione, un'altra mod), seguito
-  da quel tempo e da un nuovo tiro fortunato, farebbe una seconda copia. Le strade del gioco per prendere un oggetto
-  da un cadavere o da terra sono quelle due.
+- **Il cadavere che nessuno saccheggia non ferma la fila** (con «uno alla volta» un CD mai preso bloccherebbe tutti
+  quelli dopo; richiesta dell'utente). Senza sorveglianza: il CD resta «caduto», con il posto e l'ora del mondo
+  (`getGameTime():getWorldAgeHours()`). Può ricadere da un altro corridore (un nuovo 1 su `oneIn`) quando dalla caduta
+  è passato, senza che nessuno l'abbia segnalato, il tempo di rimozione dei cadaveri del server
+  (`SandboxVars.HoursForCorpseRemoval`, ore di gioco: su Moon 216, letto il 5 novembre 2026; il cadavere a quel punto
+  non c'è più), oppure 7 giorni di gioco (`FALLBACK_HOURS`) su un server che i cadaveri non li toglie mai (0 o meno).
+  Così la fila non resta mai ferma per sempre. Il controllo si fa solo al tiro, mai a intervalli.
+- **Una copia sola, anche se ne cadono due.** Ogni copia che cade ha il suo id (`InventoryItem.getID`, salvato, lo
+  stesso sul client). La prima copia che un giocatore prende è il CD (`found.copy`). Una copia presa dopo, da un vecchio
+  cadavere rimasto lì (solo dove i cadaveri non spariscono), il server la toglie dall'inventario di chi la prende
+  (`getItemWithIDRecursiv`, `Remove`, `sendRemoveItemFromContainer`, come fa il gioco in `ISBuildUtil.lua`) e glielo
+  dice sopra la testa (`setHaloNote`: «Questo CD era una copia: qualcuno ha già trovato quello vero. Si sbriciola.»).
+- **Il rischio che resta**: una copia spostata da una strada che la mod non vede (un'altra azione, un'altra mod) non
+  viene segnalata, quindi nemmeno tolta. Le strade del gioco per prendere un oggetto da un cadavere o da terra sono
+  quelle due.
 - **Salvato** nel mondo (ModData globale `JukeboxMoon.unique`, per numero dell'album): `state` (`waiting`, `dropped`,
   `found`), `since`, nome e artista (un album tolto dal catalogo tiene la sua riga), dove e quando (secondi e ore del
   mondo) è caduto, chi l'ha trovato.

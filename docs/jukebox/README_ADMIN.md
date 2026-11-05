@@ -50,8 +50,10 @@ musica/
 - `"unique": {"from": "runner", "oneIn": 300}` ne fa un **CD unico**: uno solo in tutta la storia del server, mai nel
   bottino né dalla finestra degli admin. Lo porta un corridore ucciso da un giocatore, uno ogni `oneIn` (finché non
   esce); trovato (lo dice al server la mod di chi lo prende), non esce più, e ZomBOT lo annuncia in #zombot. Se
-  nessuno lo prende, può ricadere da un altro corridore solo dopo il tempo di rimozione dei cadaveri del server
-  (`HoursForCorpseRemoval`). `lootWeight` non serve. Non vale per i CD del gioco (`vanillaMedia`).
+  nessuno lo prende, può ricadere da un altro corridore dopo il tempo di rimozione dei cadaveri del server
+  (`HoursForCorpseRemoval`, 216 ore di gioco su Moon), o dopo 7 giorni di gioco se il server non li toglie mai: un
+  CD mai raccolto non ferma i CD unici che vengono dopo. Se poi qualcuno trovasse anche la copia vecchia, il server
+  gliela toglie: ne esiste sempre uno solo. `lootWeight` non serve. Non vale per i CD del gioco (`vanillaMedia`).
   **Uno alla volta**: in gioco c'è un solo CD unico. Il prossimo entra in gioco solo quando quello di prima è stato
   trovato, nell'ordine in cui li aggiungi (il numero dell'album); ognuno con il suo `oneIn`. Un CD unico aggiunto
   quando gli altri sono già stati trovati entra in gioco al riavvio del server dopo `publish`. ZomBOT annuncia ogni

@@ -33,6 +33,7 @@
     "IGUI_JukeboxMoon_Notice_badcount": "From 1 to 20 CDs at a time",
     "IGUI_JukeboxMoon_Notice_noalbum": "This album is gone",
     "IGUI_JukeboxMoon_Notice_spawned": "Made %1 CDs: they are in your inventory",
+    "IGUI_JukeboxMoon_Notice_leftover": "This CD was a copy: someone already found the real one. It crumbles.",
     "IGUI_JukeboxMoon_AdminTitle": "Jukebox: make CDs",
     "IGUI_JukeboxMoon_AdminButton": "Jukebox",
     "IGUI_JukeboxMoon_AdminPick": "Pick an album:",

@@ -71,4 +71,12 @@ end
 wrap(ISInventoryTransferAction, false)
 wrap(ISGrabItemAction, true)
 
+-- A copy of a unique CD already found, removed by the server (Unique.leftover): said over the player's head, as the
+-- game's own notes are (setHaloNote).
+table.insert(Player.listeners, function(kind, data)
+	if kind ~= "notice" or type(data) ~= "table" or data.what ~= "leftover" then return end
+	local player = getPlayer()
+	if player then player:setHaloNote(getText("IGUI_JukeboxMoon_Notice_leftover")) end
+end)
+
 return Finder

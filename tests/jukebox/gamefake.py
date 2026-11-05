@@ -92,6 +92,8 @@ function sendClientCommand(player, module, command, args)
     if not CLIENT and not SERVER then fire("OnClientCommand", module, command, player, args) end
 end
 ADDED = {}
+REMOVED_ITEMS = {}
+function sendRemoveItemFromContainer(container, item) table.insert(REMOVED_ITEMS, item) end
 function sendAddItemToContainer(container, item) table.insert(ADDED, item) end
 
 -- files of Zomboid/Lua
@@ -119,6 +121,7 @@ function newItem(fullType, mediaId)
     function item:getID() return self.id end
     function item:getMediaData() return self.media end
     function item:setRecordedMediaData(m) self.media = m end
+    function item:getContainer() return self.container end
     return item
 end
 RECORDINGS = {}   -- the game's recorded media this imitation knows
@@ -144,6 +147,21 @@ function newContainer(kind)
         end
         return false
     end
+    function c:getItemWithIDRecursiv(id)
+        for _, item in ipairs(self.items.t) do
+            if item:getID() == id then item.container = self return item end
+            if item.inventory then local found = item.inventory:getItemWithIDRecursiv(id) if found then return found end end
+        end
+        return nil
+    end
+    function c:getFirstTypeRecurse(fullType)
+        for _, item in ipairs(self.items.t) do
+            if item:getFullType() == fullType then item.container = self return item end
+            if item.inventory then local found = item.inventory:getFirstTypeRecurse(fullType) if found then return found end end
+        end
+        return nil
+    end
+    function c:Remove(item) self.items:remove(item) end
     function c:take(fullType)   -- (tests) the item out of this container
         for i, item in ipairs(self.items.t) do if item:getFullType() == fullType then table.remove(self.items.t, i) return item end end
     end
@@ -250,6 +268,8 @@ function newPlayer(name, x, y, z, admin)
     function p:isDead() return self.dead end
     function p:getUsername() return self.name end
     function p:getFullName() return self.fullName end
+    function p:removeFromHands(item) return false end
+    function p:setHaloNote(text) self.halo = text end
     function p:getRole() local admin = self.admin return { hasAdminPower = function() return admin end, hasCapability = function() return false end } end
     function p:hasTrait(t) return self.traits[t] == true end
     function p:getInventory() return self.inventory end
