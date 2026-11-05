@@ -47,6 +47,9 @@ function isDebugEnabled() return DEBUG end
 -- the game's random numbers: RANDS keeps every n asked; NEXT_RAND (once) is the answer, else n - 1 (never 0 unless n = 1)
 RANDS = {}
 function ZombRand(n) table.insert(RANDS, n) local r = NEXT_RAND NEXT_RAND = nil if r then return r % n end return n - 1 end
+-- the game's clock in hours since the world began (GameTime.getWorldAgeHours)
+HOURS = 0
+function getGameTime() return { getWorldAgeHours = function() return HOURS end } end
 -- the world's global ModData (saved with the world)
 MODDATA = {}
 ModData = { getOrCreate = function(key) MODDATA[key] = MODDATA[key] or {} return MODDATA[key] end }

@@ -469,6 +469,30 @@ def unique_catalog() -> str:
     return generate.catalog_lua("v1test", albums)
 
 
+# The game's two actions that move items, as the client runs them (42.21: perform() takes queueList[1] and moves its
+# items; ISGrabItemAction's are world objects). Here they move the items themselves, as single player does.
+ACTIONS = r"""
+local function action(name, floor)
+    local c = {}
+    function c.new(character, items, src, dest)
+        return { character = character, queueList = { { items = items } }, src = src, dest = dest, perform = c.perform }
+    end
+    function c.perform(self)
+        local queued = table.remove(self.queueList, 1)
+        for _, entry in ipairs(queued.items) do
+            local item = floor and entry:getItem() or entry
+            if self.src then self.src.items:remove(item) end
+            self.dest.items:add(item)
+        end
+    end
+    _G[name] = c
+end
+action("ISInventoryTransferAction", false)
+action("ISGrabItemAction", true)
+package.preload["TimedActions/ISInventoryTransferAction"] = function() end
+package.preload["TimedActions/ISGrabItemAction"] = function() end
+"""
+
 UNIQUE_WORLD = r"""
 CD = "JukeboxMoon.CD_5"
 function kill(walk, killer, burning, x, y)
@@ -477,12 +501,13 @@ function kill(walk, killer, burning, x, y)
     return z
 end
 function state() return ((MODDATA.JukeboxMoon or {}).unique or {})["5"] or {} end
-function minute() fire("EveryOneMinute") end
+function taken(player) cmd("taken", { album = 5, item = 1 }, player) end
 """
 
 
-def unique_game(server=True):
-    lua = runtime("JukeboxMoon/Server", "JukeboxMoon/Unique", server=server, catalog=unique_catalog())
+def unique_game(server=True, client=False):
+    modules = ["JukeboxMoon/Server", "JukeboxMoon/Unique"] + (["JukeboxMoon/Finder"] if client else [])
+    lua = runtime(*modules, server=server, catalog=unique_catalog(), preload=ACTIONS)
     lua.execute(WORLD + UNIQUE_WORLD)
     return lua
 
@@ -521,56 +546,91 @@ def test_only_a_runner_killed_by_a_player_rolls_and_the_cd_drops_once():
     assert lua.eval("Z3.inventory.items:size()") == 0 and lua.eval("#RANDS") == 2   # out already: no more rolls
 
 
+def test_the_server_does_nothing_on_its_own():
+    lua = unique_game()
+    lua.execute("NEXT_RAND = 0; Z = kill('sprint2', P); P.inventory.items:add(Z.inventory:take(CD))")
+    lua.execute("for i = 1, 30 do fire('EveryOneMinute') end")
+    assert lua.eval("state().state") == "dropped"                    # nobody told it: it does not look
+
+
 def test_found_by_the_player_who_carries_it_and_never_again():
     lua = unique_game()
-    lua.execute("NEXT_RAND = 0; Z = kill('sprint2', P); newCorpse(SQ, Z.inventory); minute()")
-    assert lua.eval("state().state") == "dropped"                    # still on its corpse: it waits
-    lua.execute("P.inventory.items:add(Z.inventory:take(CD)); NOW = NOW + 60000; minute()")
+    lua.execute("taken()")
+    assert lua.eval("state().state") == "waiting"                    # nothing out: a message is ignored
+    lua.execute("NEXT_RAND = 0; Z = kill('sprint2', P); newCorpse(SQ, Z.inventory)")
+    lua.execute("P.inventory.items:add(Z.inventory:take(CD)); NOW = NOW + 60000; taken()")
     assert lua.eval("state().state") == "found"
     assert found(lua) == {"user": "anna", "character": "Nome anna", "at": 160, "from": "runner", "test": False}
-    lua.execute("NEXT_RAND = 0; Z4 = kill('sprint1', P); minute()")
+    lua.execute("NEXT_RAND = 0; Z4 = kill('sprint1', P)")
     assert lua.eval("Z4.inventory.items:size()") == 0 and lua.eval("state().state") == "found"
 
 
-def test_moved_next_to_the_corpse_it_is_found_by_the_player_near():
+def test_put_in_a_crate_where_it_fell_counts_only_off_its_corpse_and_near():
     lua = unique_game()
     lua.execute("""
-        NEXT_RAND = 0; Z = kill('sprint2', P); newCorpse(SQ, Z.inventory)
+        NEXT_RAND = 0; Z = kill('sprint2', P); BODY = newCorpse(SQ, Z.inventory)
+        B = newPlayer("bruno", 200, 200, 0); taken(B)
+    """)
+    assert lua.eval("state().state") == "dropped"                    # far away and not carrying it: refused
+    lua.execute("taken()")
+    assert lua.eval("state().state") == "dropped"                    # near, but it is still on the corpse
+    lua.execute("""
         CRATE = newObject(newSquare(11, 21, 0), 'crate', nil); CRATE.container = newContainer('crate')
-        CRATE.container.items:add(Z.inventory:take(CD)); minute()
+        CRATE.container.items:add(Z.inventory:take(CD)); NOW = NOW + 5000; taken()
     """)
     assert lua.eval("state().state") == "found" and found(lua)["user"] == "anna"
 
 
-def test_a_corpse_gone_with_nobody_near_lets_it_drop_again():
+def test_a_corpse_nobody_loots_lets_it_drop_again_only_after_the_removal_time():
     lua = unique_game()
-    lua.execute("NEXT_RAND = 0; Z = kill('sprint2', P); P.x = 500; minute()")   # no corpse there, nobody near
-    assert lua.eval("state().state") == "dropped"                    # once may be a square still loading
-    lua.execute("minute()")
-    assert lua.eval("state().state") == "waiting" and found(lua) is None
+    lua.execute("SandboxVars.HoursForCorpseRemoval = 216; HOURS = 1000; NEXT_RAND = 0; Z = kill('sprint2', P)")
+    assert lua.eval("state().hours") == 1000
+    lua.execute("HOURS = 1215; NEXT_RAND = 0; Z2 = kill('sprint2', P, false, 40, 40)")
+    assert lua.eval("#RANDS") == 1 and lua.eval("Z2.inventory.items:size()") == 0   # still within the time: no roll
+    lua.execute("HOURS = 1216; NEXT_RAND = 0; Z3 = kill('sprint2', P, false, 40, 40)")
+    assert lua.eval("Z3.inventory:containsTypeRecurse(CD)") is True
+    s = lua.eval("state()")
+    assert s.state == "dropped" and (s.x, s.y) == (40, 40) and s.hours == 1216
+    lua = unique_game()
+    lua.execute("SandboxVars.HoursForCorpseRemoval = -1; NEXT_RAND = 0; kill('sprint2', P); HOURS = 99999")
     lua.execute("NEXT_RAND = 0; Z2 = kill('sprint2', P)")
-    assert lua.eval("Z2.inventory:containsTypeRecurse(CD)") is True
-
-
-def test_where_the_server_has_no_square_it_just_waits():
-    lua = unique_game()
-    lua.execute("NEXT_RAND = 0; kill('sprint2', P, false, 300, 300); minute(); minute(); minute()")
-    assert lua.eval("state().state") == "dropped"
+    assert lua.eval("Z2.inventory.items:size()") == 0                # corpses never removed: it stays on its own
 
 
 def test_names_are_escaped_for_json():
     lua = unique_game()
     lua.execute("""P.fullName = 'Anna "la" \\\\ B'
-        NEXT_RAND = 0; Z = kill('sprint2', P); P.inventory.items:add(Z.inventory:take(CD)); minute()""")
+        NEXT_RAND = 0; Z = kill('sprint2', P); P.inventory.items:add(Z.inventory:take(CD)); taken()""")
     assert found(lua)["character"] == 'Anna "la" \\ B'
 
 
-def test_a_trial_in_single_player_or_debug_is_marked_test():
-    lua = unique_game(server=False)
-    lua.execute("DEBUG = true; Z = kill('sprint2', P)")                # -debug: the first runner has it
-    assert lua.eval("RANDS[1]") == 1 and lua.eval("state().state") == "dropped"
-    lua.execute("P.inventory.items:add(Z.inventory:take(CD)); minute()")
-    assert found(lua)["test"] is True
+def test_the_mod_tells_the_server_once_when_it_moves_the_cd():
+    lua = unique_game(server=False, client=True)                      # single player: the same Lua, no network
+    lua.execute("""
+        LOCAL = P
+        DEBUG = true; Z = kill('sprint2', P); BODY = newCorpse(SQ, Z.inventory)
+        OTHER = BODY.container:AddItem("JukeboxMoon.CD_1")
+        ISInventoryTransferAction.new(P, { OTHER }, BODY.container, P.inventory):perform()
+    """)
+    assert lua.eval("RANDS[1]") == 1                                  # -debug: the first runner has it
+    assert lua.eval("#TO_SERVER") == 0 and lua.eval("state().state") == "dropped"   # another CD: nothing said
+    lua.execute("CDITEM = BODY.container:take(CD); BODY.container.items:add(CDITEM)")
+    lua.execute("ISInventoryTransferAction.new(P, { CDITEM }, BODY.container, P.inventory):perform()")
+    sent = [c.command for c in lua.eval("TO_SERVER").values()]
+    assert sent == ["taken"] and lua.eval("state().state") == "found" and found(lua)["test"] is True
+    lua.execute("ISInventoryTransferAction.new(P, { CDITEM }, P.inventory, P.inventory):perform()")
+    assert lua.eval("#TO_SERVER") == 1                                # the same CD again soon: not said twice
+
+
+def test_the_mod_tells_it_from_the_floor_too():
+    lua = unique_game(server=False, client=True)
+    lua.execute("""
+        LOCAL = P
+        DEBUG = true; Z = kill('sprint2', P)
+        CDITEM = Z.inventory:take(CD); FLOOR = { getItem = function() return CDITEM end }
+        ISGrabItemAction.new(P, { FLOOR }, nil, P.inventory):perform()
+    """)
+    assert lua.eval("state().state") == "found"
 
 
 # ------------------------------------------------------------------------------------------------ the client

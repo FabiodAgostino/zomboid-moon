@@ -169,7 +169,9 @@ Un album con `"unique": {"from": "runner", "oneIn": 300}` in `album.json` è un 
 (decisione dell'utente, `DECISIONI.md` 18; oggi «Love storii...»). Non è nel bottino e gli admin non lo creano
 (`Catalog.activeAlbums` lo lascia fuori): un secondo esemplare non sarebbe unico. Il builder scrive nel catalogo
 `unique = { from, oneIn, jsonName, jsonArtist }`, con nome del CD e artista già pronti per il JSON (ASCII, `\uXXXX`).
-Tutto il lavoro è in `server/JukeboxMoon/Unique.lua`, solo sul server; verificato nel jar della 42.21:
+Il lavoro è in `server/JukeboxMoon/Unique.lua` e, per dire al server chi lo prende, in `client/JukeboxMoon/Finder.lua`.
+Il server non fa niente da solo: nessun controllo periodico (scelta dell'utente, `DECISIONI.md` 18). Verificato nel jar
+e nel Lua della 42.21:
 
 - **La caduta.** `IsoZombie.onKilled` gira sul server: riempie l'inventario dello zombie, lancia `OnZombieDead`, poi
   fa il cadavere da quell'inventario (`DoDeath`). Un CD aggiunto durante l'evento è sul cadavere. Chi l'ha ucciso è
@@ -177,15 +179,26 @@ Tutto il lavoro è in `server/JukeboxMoon/Unique.lua`, solo sul server; verifica
   per `sprint` (il valore del server, che lo manda ai client in `ZombiePacket`). Solo per un corridore ucciso da un
   giocatore, non in fiamme (il cadavere brucerebbe il CD), una volta per zombie (le morti nel fuoco lanciano l'evento
   due volte), e solo finché il CD aspetta: `ZombRand(oneIn) == 0`.
-- **Trovato.** Prendere un oggetto è un'azione del client (`media/lua/client/TimedActions/ISInventoryTransferAction.lua`):
-  il server lo sposta in Java, senza un evento Lua. Così, mentre il CD è fuori, a ogni minuto di gioco il server
-  guarda: un giocatore che lo porta (`containsTypeRecurse`, anche nelle borse) l'ha trovato; ancora sul cadavere (due
-  caselle intorno a dove è caduto), aspetta; spostato lì vicino o sparito con un giocatore entro 20 caselle, l'ha
-  trovato il giocatore più vicino (un bagagliaio, il cadavere portato via); sparito senza nessuno vicino per due
-  sguardi di fila, il cadavere se n'è andato con lui e il CD torna ad aspettare un corridore. Se la casella non è
-  caricata sul server non decide niente. Senza un CD fuori non fa niente.
+- **Trovato: lo dice la mod di chi lo prende.** Prendere un oggetto è un'azione del client
+  (`media/lua/client/TimedActions/ISInventoryTransferAction.lua`): in multiplayer il client chiama
+  `createItemTransaction`, il server sposta l'oggetto in Java senza un evento Lua, e quando arriva
+  `ItemTransactionPacket` il client esegue `perform()` (`transferItem` lì gira solo senza rete). `Finder.lua` avvolge
+  `perform()` di `ISInventoryTransferAction` e di `ISGrabItemAction` (da terra), guarda gli oggetti del lotto
+  (`queueList[1].items`) e, per un CD unico, manda al server `taken {album, item}`, una volta (di nuovo solo dopo 5 s).
+  La mod è obbligatoria: ce l'ha ogni client. Il server controlla **una volta, a quel messaggio**, solo se il CD è
+  «caduto»: il giocatore lo porta (`containsTypeRecurse`, anche nelle borse), oppure è entro 5 caselle da dove è caduto
+  e il CD non è più su un cadavere lì (due caselle intorno): l'ha messo in una cassa, in un'auto, per terra. Allora è
+  trovato da lui. I messaggi hanno il limite degli altri comandi (8 ogni 4 s).
+- **Il cadavere che nessuno saccheggia**, senza sorveglianza: il CD resta «caduto», con il posto e l'ora del mondo
+  (`getGameTime():getWorldAgeHours()`). Può ricadere solo se un corridore lo tira di nuovo (1 su `oneIn`) **e** dalla
+  caduta è passato il tempo di rimozione dei cadaveri del server (`SandboxVars.HoursForCorpseRemoval`, ore di gioco,
+  216 di base) senza che nessuno l'abbia segnalato: il cadavere a quel punto non c'è più. Con 0 o meno (i cadaveri
+  restano) non ricade mai. Il controllo si fa solo in quel momento.
+- **Il rischio**: uno spostamento che passasse da una strada che la mod non vede (un'altra azione, un'altra mod), seguito
+  da quel tempo e da un nuovo tiro fortunato, farebbe una seconda copia. Le strade del gioco per prendere un oggetto
+  da un cadavere o da terra sono quelle due.
 - **Salvato** nel mondo (ModData globale `JukeboxMoon.unique`, per numero dell'album): `state` (`waiting`, `dropped`,
-  `found`), dove e quando è caduto, chi l'ha trovato.
+  `found`), dove, quando (secondi e ore del mondo) è caduto, chi l'ha trovato.
 - **Per ZomBOT**, `Zomboid/Lua/jukeboxmoon_unique.json`, riscritto intero all'avvio (`OnInitGlobalModData`) e a ogni
   cambiamento. Il contratto è di ZomBOT (zomboid-discord, `zombot.jukebox`): non cambiarlo da una parte sola.
 

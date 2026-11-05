@@ -1,20 +1,24 @@
 -- JukeboxMoon: the unique CDs (album.json "unique", docs/jukebox/TECHNICAL_DESIGN.md "Il CD unico"). One copy in the
 -- server's whole story: never in the loot, never made by admins (Catalog.activeAlbums leaves it out). It is on a
--- running zombie that a player kills: every such kill rolls 1 in `oneIn`, only while the CD is waiting.
+-- running zombie that a player kills: every such kill rolls 1 in `oneIn` while the CD is waiting.
 --
 -- What the server sees (42.21, read in projectzomboid.jar):
 --   - IsoZombie.onKilled runs on the server: it fills the zombie's inventory, fires OnZombieDead, then makes the corpse
 --     from that inventory (DoDeath): a CD added during the event lies on the corpse. getAttackedBy() is the killer.
 --   - a runner: IsoZombie.getWalkType() starts with "sprint" (sprint1-5; the server's value, sent to the clients in
 --     ZombiePacket).
---   - taking an item is a client action (media/lua/client/TimedActions/ISInventoryTransferAction.lua): the server moves
---     it in Java, with no Lua event. So while the CD is out, once a game minute, the server looks: a player carrying it
---     (containsTypeRecurse) found it; still on its corpse, it waits; moved next to the corpse, or gone with a player
---     near, the nearest player found it; gone with nobody near, twice in a row, the corpse went with it and the CD waits
---     for another runner. Nothing at all while no unique CD is out.
+--   - taking an item is a client action (media/lua/client/TimedActions/ISInventoryTransferAction.lua, ISGrabItemAction):
+--     the server moves it in Java, with no Lua event. So the mod of whoever moves the CD tells the server ("taken",
+--     client/JukeboxMoon/Finder.lua; the mod is required, every player has it), and the server checks once, then: the
+--     player carries it (containsTypeRecurse, bags too), or is near where it fell and it is no longer on a corpse
+--     there (put in a crate, a car, on the floor). The server does nothing on its own: no look every minute.
+--   - a corpse nobody loots: the CD stays "dropped". It can drop again only when a runner rolls it again and the
+--     server's corpse removal time (SandboxVars.HoursForCorpseRemoval, game hours) has passed since it fell without
+--     anybody telling the server. The risk, written in the docs: a move the mod does not see, then that time, then a
+--     new roll, would make a second copy.
 --
 -- Saved in the world (global ModData "JukeboxMoon".unique, by album key):
---   { state = "waiting" | "dropped" | "found", x, y, z, at, missing, found = { user, character, at, from, test } }
+--   { state = "waiting" | "dropped" | "found", x, y, z, at, hours, found = { user, character, at, from, test } }
 -- Zomboid/Lua/jukeboxmoon_unique.json, rewritten whole at the start and at every change, is what ZomBOT reads (the
 -- contract is ZomBOT's, zomboid-discord: do not change it on one side only):
 --   {"v":1,"unique":[{"key":"62","name":"CD: Love storii...","artist":"Prince","found":null}]}
@@ -25,11 +29,13 @@ if isClient() then return end
 
 require "JukeboxMoon/Core"
 require "JukeboxMoon/Catalog"
+require "JukeboxMoon/Server"
 
 if JukeboxMoon.Unique then return JukeboxMoon.Unique end
 
 local Core = JukeboxMoon.Core
 local Catalog = JukeboxMoon.Catalog
+local Server = JukeboxMoon.Server
 
 local Unique = {}
 JukeboxMoon.Unique = Unique
@@ -37,9 +43,8 @@ JukeboxMoon.Unique = Unique
 Unique.FILE = "jukeboxmoon_unique.json"
 Unique.MODDATA = "JukeboxMoon"
 Unique.SAME_ZOMBIE_MS = 10000   -- the fire paths fire OnZombieDead twice for one zombie
-Unique.AROUND = 2               -- squares around where it dropped: the corpse, and where a hand can move it
-Unique.NEAR_TILES = 20          -- a player this close to the corpse when the CD leaves it is who took it
-Unique.MISSING_LOOKS = 2        -- looks in a row without the CD before it waits again (a square still loading)
+Unique.NEAR_TILES = 5           -- a player this close to where it fell can have put it in a crate or a car there
+Unique.AROUND = 2               -- squares around where it fell: its corpse
 Unique.recent = {}              -- zombie -> when it was rolled
 
 local function try(f, default)
@@ -50,6 +55,10 @@ end
 
 local function seconds()
 	return math.floor(getTimestampMs() / 1000)
+end
+
+local function worldHours()
+	return try(function() return getGameTime():getWorldAgeHours() end, 0)
 end
 
 -- Single player and -debug are trials: the bot announces nothing.
@@ -133,31 +142,54 @@ function Unique.oneIn(album)
 	return math.max(1, math.floor(tonumber(album.unique.oneIn) or 1))
 end
 
+-- A CD that fell and nobody reported: it can fall again once the server's corpses are removed (its corpse with it).
+-- HoursForCorpseRemoval of 0 or less: corpses stay, so it stays on its corpse.
+function Unique.expired(e)
+	local hours = tonumber(SandboxVars and SandboxVars.HoursForCorpseRemoval) or -1
+	if hours <= 0 then return false end
+	return worldHours() - (tonumber(e.hours) or 0) >= hours
+end
+
+-- Can this album's CD fall now?
+function Unique.open(album)
+	if album.unique.from ~= "runner" then return false end
+	local e = Unique.entry(album)
+	return e.state == "waiting" or (e.state == "dropped" and Unique.expired(e))
+end
+
 function Unique.onZombieDead(zombie)
 	if not zombie then return end
-	local waiting = {}
+	local open = {}
 	for _, album in ipairs(Catalog.uniqueAlbums()) do
-		if album.unique.from == "runner" and Unique.entry(album).state == "waiting" then waiting[#waiting + 1] = album end
+		if Unique.open(album) then open[#open + 1] = album end
 	end
-	if #waiting == 0 then return end
+	if #open == 0 then return end
 	-- a burning zombie leaves a burning corpse: it would take the CD with it
 	if try(function() return zombie:isOnFire() end, false) then return end
 	local killer = try(function() return zombie:getAttackedBy() end)
 	if not killer or not instanceof(killer, "IsoPlayer") or instanceof(killer, "IsoAnimal") then return end
 	if not Unique.isRunner(zombie) then return end
 	local t = getTimestampMs()
-	local last = Unique.recent[zombie]
-	if last and t - last < Unique.SAME_ZOMBIE_MS then return end
+	local old = {}
+	for z, at in pairs(Unique.recent) do
+		if t - at >= Unique.SAME_ZOMBIE_MS then old[#old + 1] = z end
+	end
+	for _, z in ipairs(old) do Unique.recent[z] = nil end
+	if Unique.recent[zombie] then return end
 	Unique.recent[zombie] = t
-	for _, album in ipairs(waiting) do
+	for _, album in ipairs(open) do
 		if ZombRand(Unique.oneIn(album)) == 0 then
 			local item = zombie:getInventory():AddItem(album.item)
 			if item then
 				local e = Unique.entry(album)
+				if e.state == "dropped" then
+					Core.warn("the unique CD of album " .. tostring(album.key) .. " fell at " .. tostring(e.x) .. ","
+						.. tostring(e.y) .. "," .. tostring(e.z) .. " and nobody took it before the corpses' removal time")
+				end
 				e.state = "dropped"
 				e.x, e.y, e.z = math.floor(zombie:getX()), math.floor(zombie:getY()), math.floor(zombie:getZ())
 				e.at = seconds()
-				e.missing = 0
+				e.hours = worldHours()
 				Core.warn("the unique CD of album " .. tostring(album.key) .. " dropped from a runner at " .. e.x .. ","
 					.. e.y .. "," .. e.z .. " killed by " .. tostring(try(function() return killer:getUsername() end, "?")))
 				Unique.write()
@@ -167,82 +199,38 @@ function Unique.onZombieDead(zombie)
 	end
 end
 
-------------------------------------------------------------------------------------------------- found, or gone
-
--- The players of this game: every one connected on a server, the local ones in single player.
-function Unique.players()
-	local out = {}
-	if isServer() then
-		local list = getOnlinePlayers()
-		for i = 0, list:size() - 1 do out[#out + 1] = list:get(i) end
-	else
-		for i = 0, getNumActivePlayers() - 1 do
-			local player = getSpecificPlayer(i)
-			if player then out[#out + 1] = player end
-		end
-	end
-	return out
-end
+------------------------------------------------------------------------------------------------- taken
 
 local function holds(container, fullType)
 	return container ~= nil and try(function() return container:containsTypeRecurse(fullType) end, false) == true
 end
 
--- Where the CD is around the square it dropped on: "corpse" (still on a dead body), "moved" (in another container or
--- on the floor there), nil (not there). Only squares the server has loaded; `loaded` says whether the centre is.
-function Unique.around(e, fullType)
+-- Still on a corpse where it fell (asked once, when a player says it was taken).
+function Unique.onCorpse(e, fullType)
 	local cell = getCell()
-	if not cell or not cell:getGridSquare(e.x, e.y, e.z) then return nil, false end
-	local moved = false
+	if not cell then return false end
 	for dx = -Unique.AROUND, Unique.AROUND do
 		for dy = -Unique.AROUND, Unique.AROUND do
 			local square = cell:getGridSquare(e.x + dx, e.y + dy, e.z)
-			if square then
-				local bodies = try(function() return square:getDeadBodys() end)
-				if bodies then
-					for i = 0, bodies:size() - 1 do
-						if holds(try(function() return bodies:get(i):getContainer() end), fullType) then return "corpse", true end
-					end
-				end
-				local objects = square:getObjects()
-				for i = 0, objects:size() - 1 do
-					local object = objects:get(i)
-					local count = try(function() return object:getContainerCount() end, 0)
-					for c = 0, count - 1 do
-						if holds(try(function() return object:getContainerByIndex(c) end), fullType) then moved = true end
-					end
-				end
-				local floor = try(function() return square:getWorldObjects() end)
-				if floor then
-					for i = 0, floor:size() - 1 do
-						local item = try(function() return floor:get(i):getItem() end)
-						if item and (try(function() return item:getFullType() end) == fullType
-								or holds(try(function() return item:getInventory() end), fullType)) then
-							moved = true
-						end
-					end
+			local bodies = square and try(function() return square:getDeadBodys() end)
+			if bodies then
+				for i = 0, bodies:size() - 1 do
+					if holds(try(function() return bodies:get(i):getContainer() end), fullType) then return true end
 				end
 			end
 		end
 	end
-	return moved and "moved" or nil, true
+	return false
 end
 
-function Unique.nearest(e)
-	local best, bestD = nil, Unique.NEAR_TILES * Unique.NEAR_TILES
-	for _, player in ipairs(Unique.players()) do
-		if not player:isDead() and math.floor(player:getZ()) == e.z then
-			local dx, dy = player:getX() - (e.x + 0.5), player:getY() - (e.y + 0.5)
-			local d = dx * dx + dy * dy
-			if d <= bestD then best, bestD = player, d end
-		end
-	end
-	return best
+function Unique.near(player, e)
+	if math.floor(player:getZ()) ~= tonumber(e.z) then return false end
+	local dx, dy = player:getX() - (e.x + 0.5), player:getY() - (e.y + 0.5)
+	return dx * dx + dy * dy <= Unique.NEAR_TILES * Unique.NEAR_TILES
 end
 
 function Unique.found(album, e, player)
 	e.state = "found"
-	e.missing = nil
 	e.found = {
 		user = try(function() return player:getUsername() end, "?"),
 		character = try(function() return player:getFullName() end, ""),
@@ -254,49 +242,25 @@ function Unique.found(album, e, player)
 	Unique.write()
 end
 
-function Unique.look(album, e)
-	for _, player in ipairs(Unique.players()) do
-		if not player:isDead() and holds(try(function() return player:getInventory() end), album.item) then
-			return Unique.found(album, e, player)
-		end
+-- "taken {album, item}" from the mod of a player who moved the CD (client/JukeboxMoon/Finder.lua): checked once.
+function Unique.taken(player, args)
+	if type(args) ~= "table" or player:isDead() then return end
+	local album = Catalog.albumByKey(tonumber(args.album))
+	if not Catalog.isUnique(album) then return end
+	local e = Unique.entry(album)
+	if e.state ~= "dropped" then return end
+	if not holds(try(function() return player:getInventory() end), album.item) then
+		-- not on the player: put somewhere where it fell (a crate, a car, the floor), and no longer on its corpse
+		if not Unique.near(player, e) or Unique.onCorpse(e, album.item) then return end
 	end
-	local where, loaded = Unique.around(e, album.item)
-	if not loaded then return end                              -- nobody near it: it waits as it is
-	if where == "corpse" then
-		e.missing = 0
-		return
-	end
-	local who = Unique.nearest(e)
-	if who then return Unique.found(album, e, who) end        -- moved, or taken away (a car, the corpse carried)
-	if where == "moved" then return end                         -- moved, and nobody near now: whoever picks it up
-	e.missing = (tonumber(e.missing) or 0) + 1
-	if e.missing < Unique.MISSING_LOOKS then return end
-	Core.warn("the unique CD of album " .. tostring(album.key) .. " went with its corpse: it waits for another runner")
-	e.state, e.x, e.y, e.z, e.at, e.missing = "waiting", nil, nil, nil, nil, nil
-	Unique.write()
+	Unique.found(album, e, player)
 end
 
-function Unique.everyMinute()
-	local t = getTimestampMs()
-	local old = {}
-	for zombie, at in pairs(Unique.recent) do
-		if t - at >= Unique.SAME_ZOMBIE_MS then old[#old + 1] = zombie end
-	end
-	for _, zombie in ipairs(old) do Unique.recent[zombie] = nil end
-	for _, album in ipairs(Catalog.uniqueAlbums()) do
-		local e = Unique.entry(album)
-		if e.state == "dropped" then
-			local ok, err = pcall(Unique.look, album, e)
-			if not ok then Core.warn("unique CD: " .. tostring(err)) end
-		end
-	end
-end
-
+Server.Commands.taken = Unique.taken
 Events.OnZombieDead.Add(function(zombie)
 	local ok, err = pcall(Unique.onZombieDead, zombie)
 	if not ok then Core.warn("unique CD: " .. tostring(err)) end
 end)
-Events.EveryOneMinute.Add(Unique.everyMinute)
 Events.OnInitGlobalModData.Add(function() Unique.write() end)
 
 return Unique

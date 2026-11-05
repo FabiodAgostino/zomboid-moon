@@ -17,7 +17,9 @@
 - Il launcher 1.0.3 scarica il catalogo pubblico e, con la chiave che il gioco dà a chi entra su Moon, la musica cifrata.
 - Il CD unico: un album con `"unique"` in `album.json` esiste in una sola copia in tutta la storia del server. Lo
   porta un corridore ucciso da un giocatore (uno su `oneIn`, per «Love storii...» 300), mai il bottino né gli admin;
-  trovato non esce più, e il server lo scrive in `jukeboxmoon_unique.json` perché ZomBOT lo annunci.
+  trovato (lo dice al server la mod di chi lo prende, nessun controllo periodico) non esce più, e il server lo scrive
+  in `jukeboxmoon_unique.json` perché ZomBOT lo annunci. Se nessuno lo prende, ricade solo dopo il tempo di
+  rimozione dei cadaveri del server.
 - Revisione completa (stesso giorno), verificata nel jar della 42.21:
   - mod: ogni client suona il pezzo solo per sé (`playSound` lo rimandava agli altri, che lo avrebbero sentito due
     volte); funziona in single player; la regola «solo CD» torna quando la casella si ricarica; il suono d'ambiente

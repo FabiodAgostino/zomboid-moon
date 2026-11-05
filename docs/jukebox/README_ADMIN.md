@@ -49,8 +49,9 @@ musica/
 - `archived: true` toglie l'album dal bottino e dalla finestra degli admin, ma i CD già trovati continuano a suonare.
 - `"unique": {"from": "runner", "oneIn": 300}` ne fa un **CD unico**: uno solo in tutta la storia del server, mai nel
   bottino né dalla finestra degli admin. Lo porta un corridore ucciso da un giocatore, uno ogni `oneIn` (finché non
-  esce); trovato, non esce più, e ZomBOT lo annuncia in #zombot. Se il cadavere sparisce prima che qualcuno lo prenda,
-  torna da trovare. `lootWeight` non serve. Non vale per i CD del gioco (`vanillaMedia`).
+  esce); trovato (lo dice al server la mod di chi lo prende), non esce più, e ZomBOT lo annuncia in #zombot. Se
+  nessuno lo prende, può ricadere da un altro corridore solo dopo il tempo di rimozione dei cadaveri del server
+  (`HoursForCorpseRemoval`). `lootWeight` non serve. Non vale per i CD del gioco (`vanillaMedia`).
 - Un brano dura da 5 secondi a 30 minuti.
 
 ## 2. Controlla
