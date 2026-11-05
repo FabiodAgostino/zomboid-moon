@@ -1,0 +1,84 @@
+module Base
+{
+	/* The suppressor models on each supported firearm (Simple Suppressors alignments). A second body of an existing
+	   item only adds what it names (Item has no reset), so these bodies add the parts and change nothing else.
+
+	   The parts hang on each weapon model's own "muzzle" point (ModelWeaponPart = part model self parent). No weapon
+	   model is written here: a second body of a model resets it before loading (ScriptType Model has ResetExisting,
+	   ModelScript.reset clears mesh, texture and scale), and the game reads its own scripts before the mods', so the
+	   guns would lose their mesh. In 42.21 "muzzle" turns the frame (-90 0 0 on the pistols, -90 0 +-180 on the long
+	   guns); each part's own "canon" point turns it back (SilencerMoon_models.txt), so a part sits exactly where Simple
+	   Suppressors put it (the muzzle offset, unturned). The game composes parent point x part point, never inverted. */
+	item Pistol
+	{
+		ModelWeaponPart = SilencerMoon.Suppressor_Pistol_Copper SilencerMoon.Part_9mm_Pistol_Copper canon muzzle,
+		ModelWeaponPart = SilencerMoon.Suppressor_Pistol_Ballistic SilencerMoon.Part_9mm_Pistol_Ballistic canon muzzle,
+		ModelWeaponPart = SilencerMoon.Suppressor_OilFilter SilencerMoon.Part_OilFilter_9mm_Pistol canon muzzle,
+	}
+	item Pistol2
+	{
+		ModelWeaponPart = SilencerMoon.Suppressor_Pistol_Copper SilencerMoon.Part_45ACP_Pistol_Copper canon muzzle,
+		ModelWeaponPart = SilencerMoon.Suppressor_Pistol_Ballistic SilencerMoon.Part_45ACP_Pistol_Ballistic canon muzzle,
+		ModelWeaponPart = SilencerMoon.Suppressor_OilFilter SilencerMoon.Part_OilFilter_45ACP_Pistol canon muzzle,
+	}
+	item Pistol3
+	{
+		ModelWeaponPart = SilencerMoon.Suppressor_Pistol_Copper SilencerMoon.Part_44_Copper canon muzzle,
+		ModelWeaponPart = SilencerMoon.Suppressor_Pistol_Ballistic SilencerMoon.Part_44_Ballistic canon muzzle,
+		ModelWeaponPart = SilencerMoon.Suppressor_OilFilter SilencerMoon.Part_OilFilter_44 canon muzzle,
+	}
+	item TrapperCarbine
+	{
+		ModelWeaponPart = SilencerMoon.Suppressor_Rifle_Copper SilencerMoon.Part_45ACP_Copper canon muzzle,
+		ModelWeaponPart = SilencerMoon.Suppressor_Rifle_Ballistic SilencerMoon.Part_45ACP_Ballistic canon muzzle,
+		ModelWeaponPart = SilencerMoon.Suppressor_OilFilter SilencerMoon.Part_OilFilter canon muzzle,
+	}
+	item L92_Carbine
+	{
+		ModelWeaponPart = SilencerMoon.Suppressor_Rifle_Copper SilencerMoon.Part_357_Copper canon muzzle,
+		ModelWeaponPart = SilencerMoon.Suppressor_Rifle_Ballistic SilencerMoon.Part_357_Ballistic canon muzzle,
+		ModelWeaponPart = SilencerMoon.Suppressor_OilFilter SilencerMoon.Part_OilFilter canon muzzle,
+	}
+	item AssaultRifle
+	{
+		ModelWeaponPart = SilencerMoon.Suppressor_Rifle_Copper SilencerMoon.Part_556_Copper canon muzzle,
+		ModelWeaponPart = SilencerMoon.Suppressor_Rifle_Ballistic SilencerMoon.Part_556_Ballistic canon muzzle,
+		ModelWeaponPart = SilencerMoon.Suppressor_OilFilter SilencerMoon.Part_OilFilter canon muzzle,
+	}
+	item VarmintRifle
+	{
+		ModelWeaponPart = SilencerMoon.Suppressor_Rifle_Copper SilencerMoon.Part_556_Copper canon muzzle,
+		ModelWeaponPart = SilencerMoon.Suppressor_Rifle_Ballistic SilencerMoon.Part_556_Ballistic canon muzzle,
+		ModelWeaponPart = SilencerMoon.Suppressor_OilFilter SilencerMoon.Part_OilFilter canon muzzle,
+	}
+	item JS14_Rifle
+	{
+		ModelWeaponPart = SilencerMoon.Suppressor_Rifle_Copper SilencerMoon.Part_556_Copper canon muzzle,
+		ModelWeaponPart = SilencerMoon.Suppressor_Rifle_Ballistic SilencerMoon.Part_556_Ballistic canon muzzle,
+		ModelWeaponPart = SilencerMoon.Suppressor_OilFilter SilencerMoon.Part_OilFilter canon muzzle,
+	}
+	item AssaultRifle2
+	{
+		ModelWeaponPart = SilencerMoon.Suppressor_Rifle_Copper SilencerMoon.Part_308_Copper canon muzzle,
+		ModelWeaponPart = SilencerMoon.Suppressor_Rifle_Ballistic SilencerMoon.Part_308_Ballistic canon muzzle,
+		ModelWeaponPart = SilencerMoon.Suppressor_OilFilter SilencerMoon.Part_OilFilter canon muzzle,
+	}
+	item HuntingRifle
+	{
+		ModelWeaponPart = SilencerMoon.Suppressor_Rifle_Copper SilencerMoon.Part_308_Copper canon muzzle,
+		ModelWeaponPart = SilencerMoon.Suppressor_Rifle_Ballistic SilencerMoon.Part_308_Ballistic canon muzzle,
+		ModelWeaponPart = SilencerMoon.Suppressor_OilFilter SilencerMoon.Part_OilFilter canon muzzle,
+	}
+	item MSR7T_Rifle
+	{
+		ModelWeaponPart = SilencerMoon.Suppressor_Rifle_Copper SilencerMoon.Part_308_Copper canon muzzle,
+		ModelWeaponPart = SilencerMoon.Suppressor_Rifle_Ballistic SilencerMoon.Part_308_Ballistic canon muzzle,
+		ModelWeaponPart = SilencerMoon.Suppressor_OilFilter SilencerMoon.Part_OilFilter canon muzzle,
+	}
+	item L94_Rifle
+	{
+		ModelWeaponPart = SilencerMoon.Suppressor_Rifle_Copper SilencerMoon.Part_308_Copper canon muzzle,
+		ModelWeaponPart = SilencerMoon.Suppressor_Rifle_Ballistic SilencerMoon.Part_308_Ballistic canon muzzle,
+		ModelWeaponPart = SilencerMoon.Suppressor_OilFilter SilencerMoon.Part_OilFilter canon muzzle,
+	}
+}

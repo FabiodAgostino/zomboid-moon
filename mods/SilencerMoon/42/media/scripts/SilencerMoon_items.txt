@@ -1,0 +1,183 @@
+module SilencerMoon
+{
+	/* Two alloys from a smelted pump shotgun. Same weight and models as the game's ingots; the icon is the game's
+	   steel ingot tinted from here, like Base.GoldSheet. No base:ingot tag: the game's recipes must not take them. */
+	item CopperSteelIngot
+	{
+		DisplayCategory = Material,
+		ItemType = base:normal,
+		Weight = 6.0,
+		Icon = Ingot_Steel,
+		ColorRed = 184,
+		ColorGreen = 115,
+		ColorBlue = 51,
+		StaticModel = SteelIngot,
+		WorldStaticModel = SteelIngot,
+		Tags = base:hasmetal,
+		Tooltip = Tooltip_SilencerMoon_CopperSteelIngot,
+	}
+
+	item BallisticAlloyIngot
+	{
+		DisplayCategory = Material,
+		ItemType = base:normal,
+		Weight = 6.0,
+		Icon = Ingot_Steel,
+		ColorRed = 90,
+		ColorGreen = 100,
+		ColorBlue = 115,
+		StaticModel = SteelIngot,
+		WorldStaticModel = SteelIngot,
+		Tags = base:hasmetal,
+		Tooltip = Tooltip_SilencerMoon_BallisticAlloyIngot,
+	}
+
+	/* Taken from a vehicle with the mod's own action (Mechanics 8, a wrench), once per vehicle. Never in the loot. */
+	item ScavengedOilFilter
+	{
+		DisplayCategory = VehicleMaintenance,
+		ItemType = base:normal,
+		Weight = 0.5,
+		Icon = SilencerMoon_OilFilter,
+		StaticModel = ScavengedOilFilter,
+		WorldStaticModel = WorldScavengedOilFilter,
+		Tags = base:hasmetal,
+		Tooltip = Tooltip_SilencerMoon_ScavengedOilFilter,
+	}
+
+	/* The suppressors. Every stat modifier stays 0: the game adds them as fixed numbers (and shows them in its
+	   tooltip), while the mod's percentages are applied by SilencerMoon.Stats on the server. CanAttach is the game's
+	   screwdriver check, refused while the restore is on (SilencerMoon.Restore). OnAttach and OnDetach
+	   run wherever the game attaches the part (the server in multiplayer), for the game's own menu too. */
+	item Suppressor_Pistol_Copper
+	{
+		DisplayCategory = WeaponPart,
+		ItemType = base:weaponpart,
+		primaryAnimMask = HoldingTorchRight,
+		secondaryAnimMask = HoldingTorchLeft,
+		Icon = SilencerMoon_PistolCopper,
+		StaticModel = Suppressor_Pistol_Copper,
+		WorldStaticModel = WorldSuppressor_Pistol_Copper,
+		Weight = 0.6,
+		WeightModifier = 0.6,
+		ConditionMax = 10,
+		Tags = base:hasmetal;base:showcondition,
+		MountOn = Base.Pistol;Base.Pistol2;Base.Pistol3,
+		PartType = Suppressor,
+		Tooltip = Tooltip_SilencerMoon_Suppressor,
+		MetalValue = 18.0,
+		CanAttach = SilencerMoon.canAttach,
+		CanDetach = ItemCodeOnTest.hasScrewdriver,
+		OnAttach = SilencerMoon.onAttach,
+		OnDetach = SilencerMoon.onDetach,
+	}
+
+	item Suppressor_Rifle_Copper
+	{
+		DisplayCategory = WeaponPart,
+		ItemType = base:weaponpart,
+		primaryAnimMask = HoldingTorchRight,
+		secondaryAnimMask = HoldingTorchLeft,
+		Icon = SilencerMoon_RifleCopper,
+		StaticModel = Suppressor_Rifle_Copper,
+		WorldStaticModel = WorldSuppressor_Rifle_Copper,
+		Weight = 0.9,
+		WeightModifier = 0.9,
+		ConditionMax = 10,
+		Tags = base:hasmetal;base:showcondition,
+		MountOn = Base.AssaultRifle;Base.VarmintRifle;Base.JS14_Rifle;Base.AssaultRifle2;Base.HuntingRifle;Base.MSR7T_Rifle;Base.L94_Rifle;Base.TrapperCarbine;Base.L92_Carbine,
+		PartType = Suppressor,
+		Tooltip = Tooltip_SilencerMoon_Suppressor,
+		MetalValue = 24.0,
+		CanAttach = SilencerMoon.canAttach,
+		CanDetach = ItemCodeOnTest.hasScrewdriver,
+		OnAttach = SilencerMoon.onAttach,
+		OnDetach = SilencerMoon.onDetach,
+	}
+
+	item Suppressor_Pistol_Ballistic
+	{
+		DisplayCategory = WeaponPart,
+		ItemType = base:weaponpart,
+		primaryAnimMask = HoldingTorchRight,
+		secondaryAnimMask = HoldingTorchLeft,
+		Icon = SilencerMoon_PistolBallistic,
+		StaticModel = Suppressor_Pistol_Ballistic,
+		WorldStaticModel = WorldSuppressor_Pistol_Ballistic,
+		Weight = 0.6,
+		WeightModifier = 0.6,
+		ConditionMax = 10,
+		Tags = base:hasmetal;base:showcondition,
+		MountOn = Base.Pistol;Base.Pistol2;Base.Pistol3,
+		PartType = Suppressor,
+		Tooltip = Tooltip_SilencerMoon_Suppressor,
+		MetalValue = 18.0,
+		CanAttach = SilencerMoon.canAttach,
+		CanDetach = ItemCodeOnTest.hasScrewdriver,
+		OnAttach = SilencerMoon.onAttach,
+		OnDetach = SilencerMoon.onDetach,
+	}
+
+	item Suppressor_Rifle_Ballistic
+	{
+		DisplayCategory = WeaponPart,
+		ItemType = base:weaponpart,
+		primaryAnimMask = HoldingTorchRight,
+		secondaryAnimMask = HoldingTorchLeft,
+		Icon = SilencerMoon_RifleBallistic,
+		StaticModel = Suppressor_Rifle_Ballistic,
+		WorldStaticModel = WorldSuppressor_Rifle_Ballistic,
+		Weight = 0.9,
+		WeightModifier = 0.9,
+		ConditionMax = 10,
+		Tags = base:hasmetal;base:showcondition,
+		MountOn = Base.AssaultRifle;Base.VarmintRifle;Base.JS14_Rifle;Base.AssaultRifle2;Base.HuntingRifle;Base.MSR7T_Rifle;Base.L94_Rifle;Base.TrapperCarbine;Base.L92_Carbine,
+		PartType = Suppressor,
+		Tooltip = Tooltip_SilencerMoon_Suppressor,
+		MetalValue = 24.0,
+		CanAttach = SilencerMoon.canAttach,
+		CanDetach = ItemCodeOnTest.hasScrewdriver,
+		OnAttach = SilencerMoon.onAttach,
+		OnDetach = SilencerMoon.onDetach,
+	}
+
+	/* One oil-filter suppressor for every supported firearm. */
+	item Suppressor_OilFilter
+	{
+		DisplayCategory = WeaponPart,
+		ItemType = base:weaponpart,
+		primaryAnimMask = HoldingTorchRight,
+		secondaryAnimMask = HoldingTorchLeft,
+		Icon = SilencerMoon_OilFilter,
+		StaticModel = OilFilterSuppressor,
+		WorldStaticModel = WorldOilFilterSuppressor,
+		Weight = 0.6,
+		WeightModifier = 0.6,
+		ConditionMax = 5,
+		Tags = base:hasmetal;base:showcondition,
+		MountOn = Base.Pistol;Base.Pistol2;Base.Pistol3;Base.AssaultRifle;Base.VarmintRifle;Base.JS14_Rifle;Base.AssaultRifle2;Base.HuntingRifle;Base.MSR7T_Rifle;Base.L94_Rifle;Base.TrapperCarbine;Base.L92_Carbine,
+		PartType = Suppressor,
+		Tooltip = Tooltip_SilencerMoon_Suppressor,
+		MetalValue = 8.0,
+		CanAttach = SilencerMoon.canAttach,
+		CanDetach = ItemCodeOnTest.hasScrewdriver,
+		OnAttach = SilencerMoon.onAttach,
+		OnDetach = SilencerMoon.onDetach,
+	}
+
+	/* One magazine teaches every suppressor recipe (the alloys need none). */
+	item SuppressorMagazine
+	{
+		DisplayCategory = RecipeResource,
+		ItemType = base:literature,
+		Weight = 0.5,
+		Icon = Magazine_War3,
+		BoredomChange = -20,
+		StressChange = -15,
+		LearnedRecipes = SilencerMoon_MakePistolCopper;SilencerMoon_MakeRifleCopper;SilencerMoon_MakePistolBallistic;SilencerMoon_MakeRifleBallistic;SilencerMoon_MakeOilFilter,
+		StaticModel = Magazine,
+		WorldStaticModel = WeaponMag1,
+		Tags = base:magazine,
+		OnCreate = ItemCodeOnCreate.onCreateRecipeMagazine,
+	}
+}

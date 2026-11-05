@@ -1,0 +1,38 @@
+SilencerMoon - suppressed gunshot sounds
+=========================================
+
+Seven sounds, one per calibre, played by the two alloy suppressors (the oil-filter one keeps the game's own shot):
+
+  suppressed-9mm.wav     Base.Pistol
+  suppressed-45acp.wav   Base.Pistol2, Base.TrapperCarbine
+  suppressed-44.wav      Base.Pistol3
+  suppressed-357.wav     Base.L92_Carbine
+  suppressed-556.wav     Base.AssaultRifle, Base.VarmintRifle, Base.JS14_Rifle
+  suppressed-308.wav     Base.AssaultRifle2, Base.HuntingRifle, Base.MSR7T_Rifle
+  suppressed-3030.wav    Base.L94_Rifle
+
+They are the files of Simple Suppressors 1.5.31 by Kiidxatlas, unchanged; the notes below are a summary of that mod's
+own record of where they come from. Every recording used is CC0 1.0 Universal (public domain dedication,
+https://creativecommons.org/publicdomain/zero/1.0/). No audio from other Project Zomboid mods is included.
+
+9mm and 45ACP: real suppressed recordings, trimmed to one shot and level-normalised
+  9mm:   "Suppressed SIG Sauer P226" by areniporgen - https://freesound.org/people/areniporgen/sounds/828790/
+  45ACP: "Springfield Armory 1911 Operator (Suppressed)" by areniporgen
+         - https://freesound.org/people/areniporgen/sounds/827945/
+  Pack "Real Gun Sounds" by areniporgen - https://freesound.org/people/areniporgen/packs/38798/
+  (taken from Freesound's "-hq" preview transcodes)
+
+44 and 357: the 45ACP crack above with a deeper, louder low-frequency body underneath (no openly licensed suppressed
+recording of either magnum calibre was found).
+
+556, 308 and 3030: a real suppressed rifle-class crack
+  "Heckler & Koch MP7 Suppressed (Semi & Full Auto)" by areniporgen (the semi-auto shot)
+  - https://freesound.org/people/areniporgen/sounds/732250/
+  with a low-frequency body scaled to the calibre.
+
+The low-frequency body (44, 357, 556, 308, 3030) is a lowpassed slice of an unsuppressed AR-15 recording:
+  The Free Firearm Sound Library - Ben Jaszczak, Brian Nelson, Kevin Heras, Matthew Nanney
+  https://opengameart.org/content/the-free-firearm-sound-library (recording AR-15/D_32P.wav, onset 0.70 s)
+
+All files were then trimmed of their near-silent tail and gently compressed so that up to four overlapping copies (the
+sound scripts' maxInstancesPerEmitter) stay below 0 dBFS at the calibre's fastest fire rate.

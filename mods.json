@@ -77,6 +77,23 @@
       "install": [
         { "from": "mods/Silenziatori", "to": "{zomboid}/mods/Silenziatori", "mirror": true }
       ]
+    },
+    {
+      "id": "silencermoon",
+      "name": "SilencerMoon",
+      "versionFile": "mods/SilencerMoon/42/mod.info",
+      "versionKey": "modversion",
+      "state": "disattivata",
+      "stateNote": "In prova: non si installa ancora.",
+      "audience": "Per tutti",
+      "summary": "I silenziatori artigianali: fondi un fucile a pompa in una lega, saldane un silenziatore per pistole o per fucili, o arrangiane uno con un filtro dell'olio.",
+      "note": "Prenderà il posto di Silenziatori. Modelli e suoni da Simple Suppressors di Kiidxatlas.",
+      "afterInstall": "Le ricette dei silenziatori si imparano da una rivista che si trova nelle armerie e nelle librerie; le leghe si fondono alla fornace.",
+      "image": "mods/SilencerMoon/42/poster.png",
+      "installedVersion": { "file": "{zomboid}/mods/SilencerMoon/42/mod.info", "key": "modversion" },
+      "install": [
+        { "from": "mods/SilencerMoon", "to": "{zomboid}/mods/SilencerMoon", "mirror": true }
+      ]
     }
   ]
 }

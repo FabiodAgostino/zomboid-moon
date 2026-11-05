@@ -1,0 +1,277 @@
+module SilencerMoon
+{
+	/* Meshes and their sizes from Simple Suppressors 1.5.31 (Kiidxatlas). Ballistic = the original gunmetal texture,
+	   Copper = the same meshes with a copper texture. Part_* hang on the weapon's own "muzzle" point
+	   (SilencerMoon_weapons.txt): their "canon" point turns back the muzzle's turn, 90 0 0 on the pistols' parts and
+	   -90 0 180 on the long guns' (the game composes parent point x part point, so the part sits at the muzzle offset,
+	   unturned, as Simple Suppressors aligned it). The others are the item in hand and on the ground. */
+
+	/* Ballistic */
+	model Suppressor_Pistol_Ballistic
+	{
+		mesh = silencermoon/Suppressor_9mm,
+		texture = SilencerMoonGunmetal,
+		cullFace = None,
+		scale = 0.01,
+		attachment canon { offset = 0 0 0, rotate = 0 0 0, scale = 1.0, }
+		attachment world { offset = 0 0.0579 0, rotate = 0 0 0, }
+	}
+	model Suppressor_Rifle_Ballistic
+	{
+		mesh = silencermoon/Suppressor_308,
+		texture = SilencerMoonGunmetal,
+		cullFace = None,
+		scale = 0.01,
+		attachment canon { offset = 0 0 0, rotate = 0 0 0, scale = 1.0, }
+		attachment world { offset = 0 0.0813 0, rotate = 0 0 0, }
+	}
+	model WorldSuppressor_Pistol_Ballistic
+	{
+		mesh = silencermoon/Suppressor_9mm_Ground,
+		texture = SilencerMoonGunmetal,
+		cullFace = None,
+		scale = 0.01,
+		static = true,
+	}
+	model WorldSuppressor_Rifle_Ballistic
+	{
+		mesh = silencermoon/Suppressor_308_Ground,
+		texture = SilencerMoonGunmetal,
+		cullFace = None,
+		scale = 0.01,
+		static = true,
+	}
+	model Part_9mm_Pistol_Ballistic
+	{
+		mesh = silencermoon/Suppressor_9mm,
+		texture = SilencerMoonGunmetal,
+		cullFace = None,
+		scale = 0.01,
+		attachment canon { offset = 0 0 0, rotate = 90 0 0, scale = 0.8, }
+		attachment world { offset = 0 0.0579 0, rotate = 0 0 0, }
+	}
+	model Part_45ACP_Pistol_Ballistic
+	{
+		mesh = silencermoon/Suppressor_45ACP,
+		texture = SilencerMoonGunmetal,
+		cullFace = None,
+		scale = 0.01,
+		attachment canon { offset = 0 0 0, rotate = 90 0 0, scale = 0.6, }
+		attachment world { offset = 0 0.1092 0, rotate = 0 0 0, }
+	}
+	model Part_44_Ballistic
+	{
+		mesh = silencermoon/Suppressor_44,
+		texture = SilencerMoonGunmetal,
+		cullFace = None,
+		scale = 0.0066,
+		attachment canon { offset = 0 0 0, rotate = 90 0 0, scale = 1.0, }
+		attachment world { offset = 0 0.1092 0, rotate = 0 0 0, }
+	}
+	model Part_45ACP_Ballistic
+	{
+		mesh = silencermoon/Suppressor_45ACP,
+		texture = SilencerMoonGunmetal,
+		cullFace = None,
+		scale = 0.01,
+		attachment canon { offset = 0 0 0, rotate = -90 0 180, scale = 1.0, }
+		attachment world { offset = 0 0.1092 0, rotate = 0 0 0, }
+	}
+	model Part_357_Ballistic
+	{
+		mesh = silencermoon/Suppressor_357,
+		texture = SilencerMoonGunmetal,
+		cullFace = None,
+		scale = 0.01,
+		attachment canon { offset = 0 0 0, rotate = -90 0 180, scale = 1.0, }
+		attachment world { offset = 0 0.1 0, rotate = 0 0 0, }
+	}
+	model Part_556_Ballistic
+	{
+		mesh = silencermoon/Suppressor_556,
+		texture = SilencerMoonGunmetal,
+		cullFace = None,
+		scale = 0.01,
+		attachment canon { offset = 0 0 0, rotate = -90 0 180, scale = 1.0, }
+		attachment world { offset = 0 0.0813 0, rotate = 0 0 0, }
+	}
+	model Part_308_Ballistic
+	{
+		mesh = silencermoon/Suppressor_308,
+		texture = SilencerMoonGunmetal,
+		cullFace = None,
+		scale = 0.01,
+		attachment canon { offset = 0 0 0, rotate = -90 0 180, scale = 1.0, }
+		attachment world { offset = 0 0.0813 0, rotate = 0 0 0, }
+	}
+
+	/* Copper */
+	model Suppressor_Pistol_Copper
+	{
+		mesh = silencermoon/Suppressor_9mm,
+		texture = SilencerMoonCopper,
+		cullFace = None,
+		scale = 0.01,
+		attachment canon { offset = 0 0 0, rotate = 0 0 0, scale = 1.0, }
+		attachment world { offset = 0 0.0579 0, rotate = 0 0 0, }
+	}
+	model Suppressor_Rifle_Copper
+	{
+		mesh = silencermoon/Suppressor_308,
+		texture = SilencerMoonCopper,
+		cullFace = None,
+		scale = 0.01,
+		attachment canon { offset = 0 0 0, rotate = 0 0 0, scale = 1.0, }
+		attachment world { offset = 0 0.0813 0, rotate = 0 0 0, }
+	}
+	model WorldSuppressor_Pistol_Copper
+	{
+		mesh = silencermoon/Suppressor_9mm_Ground,
+		texture = SilencerMoonCopper,
+		cullFace = None,
+		scale = 0.01,
+		static = true,
+	}
+	model WorldSuppressor_Rifle_Copper
+	{
+		mesh = silencermoon/Suppressor_308_Ground,
+		texture = SilencerMoonCopper,
+		cullFace = None,
+		scale = 0.01,
+		static = true,
+	}
+	model Part_9mm_Pistol_Copper
+	{
+		mesh = silencermoon/Suppressor_9mm,
+		texture = SilencerMoonCopper,
+		cullFace = None,
+		scale = 0.01,
+		attachment canon { offset = 0 0 0, rotate = 90 0 0, scale = 0.8, }
+		attachment world { offset = 0 0.0579 0, rotate = 0 0 0, }
+	}
+	model Part_45ACP_Pistol_Copper
+	{
+		mesh = silencermoon/Suppressor_45ACP,
+		texture = SilencerMoonCopper,
+		cullFace = None,
+		scale = 0.01,
+		attachment canon { offset = 0 0 0, rotate = 90 0 0, scale = 0.6, }
+		attachment world { offset = 0 0.1092 0, rotate = 0 0 0, }
+	}
+	model Part_44_Copper
+	{
+		mesh = silencermoon/Suppressor_44,
+		texture = SilencerMoonCopper,
+		cullFace = None,
+		scale = 0.0066,
+		attachment canon { offset = 0 0 0, rotate = 90 0 0, scale = 1.0, }
+		attachment world { offset = 0 0.1092 0, rotate = 0 0 0, }
+	}
+	model Part_45ACP_Copper
+	{
+		mesh = silencermoon/Suppressor_45ACP,
+		texture = SilencerMoonCopper,
+		cullFace = None,
+		scale = 0.01,
+		attachment canon { offset = 0 0 0, rotate = -90 0 180, scale = 1.0, }
+		attachment world { offset = 0 0.1092 0, rotate = 0 0 0, }
+	}
+	model Part_357_Copper
+	{
+		mesh = silencermoon/Suppressor_357,
+		texture = SilencerMoonCopper,
+		cullFace = None,
+		scale = 0.01,
+		attachment canon { offset = 0 0 0, rotate = -90 0 180, scale = 1.0, }
+		attachment world { offset = 0 0.1 0, rotate = 0 0 0, }
+	}
+	model Part_556_Copper
+	{
+		mesh = silencermoon/Suppressor_556,
+		texture = SilencerMoonCopper,
+		cullFace = None,
+		scale = 0.01,
+		attachment canon { offset = 0 0 0, rotate = -90 0 180, scale = 1.0, }
+		attachment world { offset = 0 0.0813 0, rotate = 0 0 0, }
+	}
+	model Part_308_Copper
+	{
+		mesh = silencermoon/Suppressor_308,
+		texture = SilencerMoonCopper,
+		cullFace = None,
+		scale = 0.01,
+		attachment canon { offset = 0 0 0, rotate = -90 0 180, scale = 1.0, }
+		attachment world { offset = 0 0.0813 0, rotate = 0 0 0, }
+	}
+
+	/* Oil filter */
+	model ScavengedOilFilter
+	{
+		mesh = silencermoon/ScavengedOilFilter,
+		texture = SilencerMoonOilFilter,
+		cullFace = None,
+		scale = 0.01,
+		attachment world { offset = 0 0 0, rotate = 0 0 0, }
+	}
+	model WorldScavengedOilFilter
+	{
+		mesh = silencermoon/ScavengedOilFilter_Ground,
+		texture = SilencerMoonOilFilter,
+		cullFace = None,
+		scale = 0.01,
+		static = true,
+	}
+	model WorldOilFilterSuppressor
+	{
+		mesh = silencermoon/ScavengedOilFilter_Ground,
+		texture = SilencerMoonOilFilter,
+		cullFace = None,
+		scale = 0.01,
+		static = true,
+	}
+	model OilFilterSuppressor
+	{
+		mesh = silencermoon/ScavengedOilFilter,
+		texture = SilencerMoonOilFilter,
+		cullFace = None,
+		scale = 0.01,
+		attachment canon { offset = 0 0 0, rotate = 0 0 0, scale = 1.0, }
+		attachment world { offset = 0 0.0324 0, rotate = 0 0 0, }
+	}
+	model Part_OilFilter
+	{
+		mesh = silencermoon/ScavengedOilFilter,
+		texture = SilencerMoonOilFilter,
+		cullFace = None,
+		scale = 0.01,
+		attachment canon { offset = 0 0 0, rotate = -90 0 180, scale = 1.0, }
+		attachment world { offset = 0 0.0324 0, rotate = 0 0 0, }
+	}
+	model Part_OilFilter_44
+	{
+		mesh = silencermoon/ScavengedOilFilter,
+		texture = SilencerMoonOilFilter,
+		cullFace = None,
+		scale = 0.01,
+		attachment canon { offset = 0 0 0, rotate = 90 0 0, scale = 1.0, }
+		attachment world { offset = 0 0.0324 0, rotate = 0 0 0, }
+	}
+	model Part_OilFilter_9mm_Pistol
+	{
+		mesh = silencermoon/ScavengedOilFilter,
+		texture = SilencerMoonOilFilter,
+		cullFace = None,
+		scale = 0.01,
+		attachment canon { offset = 0 0 0, rotate = 90 0 0, scale = 0.8, }
+		attachment world { offset = 0 0.0324 0, rotate = 0 0 0, }
+	}
+	model Part_OilFilter_45ACP_Pistol
+	{
+		mesh = silencermoon/ScavengedOilFilter,
+		texture = SilencerMoonOilFilter,
+		cullFace = None,
+		scale = 0.01,
+		attachment canon { offset = 0 0 0, rotate = 90 0 0, scale = 0.6, }
+		attachment world { offset = 0 0.0324 0, rotate = 0 0 0, }
+	}
+}

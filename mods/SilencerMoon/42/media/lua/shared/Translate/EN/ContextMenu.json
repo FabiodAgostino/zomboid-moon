@@ -1,0 +1,7 @@
+{
+  "ContextMenu_SilencerMoon_TakeOilFilter": "Take Out the Oil Filter",
+  "ContextMenu_SilencerMoon_NeedMechanics": "Needs Mechanics %1.",
+  "ContextMenu_SilencerMoon_NeedWrench": "Needs a wrench.",
+  "ContextMenu_SilencerMoon_EngineRunning": "Turn the engine off first.",
+  "ContextMenu_SilencerMoon_FilterTaken": "This vehicle's oil filter has already been taken out."
+}
