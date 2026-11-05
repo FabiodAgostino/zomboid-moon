@@ -17,7 +17,8 @@ PRELUDE = r"""
 EVENTS = {}
 Events = {}
 for _, name in ipairs({ "OnClientCommand", "OnServerCommand", "OnTick", "EveryOneMinute", "OnGameStart",
-        "OnPreDistributionMerge", "OnFillWorldObjectContextMenu", "OnFillInventoryObjectContextMenu" }) do
+        "OnPreDistributionMerge", "OnFillWorldObjectContextMenu", "OnFillInventoryObjectContextMenu", "OnZombieDead",
+        "OnInitGlobalModData" }) do
     local e = { list = {} }
     function e.Add(f) table.insert(e.list, f) end
     Events[name] = e
@@ -41,7 +42,14 @@ function loadSquare(sq)
     end
 end
 
-CLIENT, SERVER, NOW = false, false, 100000
+CLIENT, SERVER, NOW, DEBUG = false, false, 100000, false
+function isDebugEnabled() return DEBUG end
+-- the game's random numbers: RANDS keeps every n asked; NEXT_RAND (once) is the answer, else n - 1 (never 0 unless n = 1)
+RANDS = {}
+function ZombRand(n) table.insert(RANDS, n) local r = NEXT_RAND NEXT_RAND = nil if r then return r % n end return n - 1 end
+-- the world's global ModData (saved with the world)
+MODDATA = {}
+ModData = { getOrCreate = function(key) MODDATA[key] = MODDATA[key] or {} return MODDATA[key] end }
 function isClient() return CLIENT end
 function isServer() return SERVER end
 function getTimestampMs() return NOW end
@@ -126,6 +134,16 @@ function newContainer(kind)
     function c:setExplored(b) self.explored = b end
     function c:getItems() return self.items end
     function c:AddItem(fullType) local item = newItem(fullType) self.items:add(item) return item end
+    function c:containsTypeRecurse(fullType)
+        for _, item in ipairs(self.items.t) do
+            if item:getFullType() == fullType then return true end
+            if item.inventory and item.inventory:containsTypeRecurse(fullType) then return true end
+        end
+        return false
+    end
+    function c:take(fullType)   -- (tests) the item out of this container
+        for i, item in ipairs(self.items.t) do if item:getFullType() == fullType then table.remove(self.items.t, i) return item end end
+    end
     return c
 end
 
@@ -138,8 +156,10 @@ CHUNK = { ambient = {} }
 function CHUNK:hasObjectAmbientEmitter(o) return self.ambient[o] == true end
 function CHUNK:removeObjectAmbientEmitter(o) self.ambient[o] = nil end
 function newSquare(x, y, z)
-    local sq = { x = x, y = y, z = z, objects = jlist() }
+    local sq = { x = x, y = y, z = z, objects = jlist(), bodies = jlist(), floor = jlist() }
     function sq:getChunk() return CHUNK end
+    function sq:getDeadBodys() return self.bodies end
+    function sq:getWorldObjects() return self.floor end
     function sq:getObjects() return self.objects end
     function sq:transmitRemoveItemFromSquare(o) table.insert(REMOVED, o) self.objects:remove(o) return 1 end
     function sq:AddSpecialObject(o, index)
@@ -165,6 +185,8 @@ function newObject(sq, spriteName, customName)
         return s
     end
     function o:getContainer() return self.container end
+    function o:getContainerCount() return self.container and 1 or 0 end
+    function o:getContainerByIndex(i) if i == 0 then return self.container end return nil end
     function o:getSquare() return self.square end
     function o:getX() return self.square.x + 0.0 end
     function o:getY() return self.square.y + 0.0 end
@@ -195,14 +217,36 @@ function getCell() return CELL end
 
 -- players
 PLAYERS = {}
+-- a corpse on a square, with the container of the zombie that died there
+function newCorpse(sq, container)
+    local body = { container = container or newContainer("inventorymale") }
+    function body:getContainer() return self.container end
+    sq.bodies:add(body)
+    return body
+end
+-- a zombie: walk type (sprint1-5 for a runner), who hit it last, burning or not
+function newZombie(x, y, z, walk, killer, burning)
+    local zed = { x = x, y = y, z = z or 0, walk = walk, killer = killer, burning = burning or false,
+        inventory = newContainer("inventorymale"), classes = { IsoZombie = true, IsoGameCharacter = true } }
+    function zed:getWalkType() return self.walk end
+    function zed:getAttackedBy() return self.killer end
+    function zed:isOnFire() return self.burning end
+    function zed:getInventory() return self.inventory end
+    function zed:getX() return self.x end
+    function zed:getY() return self.y end
+    function zed:getZ() return self.z end
+    return zed
+end
 function newPlayer(name, x, y, z, admin)
     local p = { name = name, x = x, y = y, z = z or 0, dead = false, admin = admin or false, traits = {},
+        classes = { IsoPlayer = true, IsoGameCharacter = true }, fullName = "Nome " .. name,
         stats = { BOREDOM = 50, STRESS = 0.5 }, inventory = newContainer("inventory") }
     function p:getX() return self.x end
     function p:getY() return self.y end
     function p:getZ() return self.z end
     function p:isDead() return self.dead end
     function p:getUsername() return self.name end
+    function p:getFullName() return self.fullName end
     function p:getRole() local admin = self.admin return { hasAdminPower = function() return admin end, hasCapability = function() return false end } end
     function p:hasTrait(t) return self.traits[t] == true end
     function p:getInventory() return self.inventory end

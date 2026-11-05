@@ -7,13 +7,15 @@ python -m pytest -q tests/jukebox/test_lua.py        # Python con pytest, lupa e
 python -m pytest -q tests/jukebox/test_builder.py    # Python con pytest, Pillow, numpy e cryptography, più ffmpeg
 ```
 
-- **Lua** (77, `lupa`, un Lua vero con il gioco imitato: solo i metodi che la mod usa, con i nomi della 42.21, solo
+- **Lua** (88, `lupa`, un Lua vero con il gioco imitato: solo i metodi che la mod usa, con i nomi della 42.21, solo
   gli eventi del gioco che usa, `sendServerCommand` muto in single player come nel gioco, l'emettitore senza
   `playSound`; dalla revisione del 5 novembre anche: la regola «solo CD» rimessa quando la casella si ricarica, sul
   server e sul client; la mod che funziona in single player senza rete; il suono d'ambiente del gioco tolto mentre
   suona la nostra musica; un ordine casuale nuovo a ogni accensione; `hello` e `ping` al massimo uno al secondo; il
   volume scritto su file solo quando il cursore si ferma; gli avvisi giusti in ogni finestra; la voce del menu con il
-  controller):
+  controller; il CD unico: solo un corridore ucciso da un giocatore lo fa cadere, una volta; trovato da chi lo porta o
+  da chi è vicino quando lascia il cadavere; di nuovo da trovare se il cadavere sparisce senza nessuno vicino; il file
+  per ZomBOT con i nomi ripuliti; `test` in single player e con `-debug`; mai nel bottino né dagli admin):
   conversione del jukebox una sola volta e solo vicino; solo i CD del catalogo e al massimo `MaxCDsPerJukebox`; la
   funzione di accettazione che sopravvive a `AcceptItemFunction = {}`; play dopo `LEAD_MS` e passaggio da solo al
   brano dopo e al primo; aprire non suona; scelta, avanti, indietro, stop; traccia inventata dal client ignorata;
@@ -27,7 +29,7 @@ python -m pytest -q tests/jukebox/test_builder.py    # Python con pytest, Pillow
   riga di stato; voce del tasto destro e pulsante admin; ogni file compila, ASCII, niente `next`/`xpcall`/
   `table.pack`/`table.unpack`/`os.clock`/`//`; testi IT ed EN; opzioni e predefiniti; `ZomBotMenu.lua` identico; i CD del gioco accettati solo con una registrazione del catalogo, suonati, creati
   dagli admin con la loro registrazione.
-- **Builder** (32; dalla revisione anche: pezzi mono, chiave nuova con file nuovi e la vecchia tenuta, cartella che ha
+- **Builder** (38; il campo `unique` controllato e scritto nel catalogo con i nomi pronti per il JSON; dalla revisione anche: pezzi mono, chiave nuova con file nuovi e la vecchia tenuta, cartella che ha
   perso numeri o chiave fermata, `publish` che rifiuta un numero dato a un altro album e riconosce un file caricato a
   metà, pacchetto che non scrive fuori dalla mod, cache ripulita, copertine girate, trasparenti, a 16 bit e rotte,
   importatore che lascia stare gli album dell'admin e conta le righe diverse, copia di riserva fuori da `mods`): errori della cartella della musica (id, anno, titolo lungo, campi sconosciuti, `../`, file
@@ -79,6 +81,8 @@ Single player con la musica demo (`README_ADMIN.md`, passo 4), poi il server con
 | -- | Dopo un riavvio del server | trascinare nel jukebox un'ascia o uno zaino dalla finestra del bottino: rifiutati; il titolo della finestra è «Jukebox» |
 | -- | Suono del gioco | con la nostra musica accesa non si sente sotto il suono d'ambiente del jukebox del gioco |
 | -- | Memoria | un'ora di musica diversa: la memoria del gioco cresce di circa 300 MB e non oltre riascoltando gli stessi brani; torna giù chiudendo il gioco |
+| -- | Il CD unico, in single player | gioco avviato con `-debug`: il primo corridore ucciso ha «CD: Love storii...» addosso; preso, `Zomboid/Lua/jukeboxmoon_unique.json` dice chi l'ha trovato (`"test":true`) e dal corridore dopo non esce più; nella finestra «Jukebox» degli admin non c'è |
+| -- | Il CD unico, sul server | `jukeboxmoon_unique.json` scritto all'avvio con `"found":null`; nessun errore nel log nei minuti di gioco |
 
 **Da guardare per primo**: se fra un pezzo e l'altro si sente un buco o un raddoppio. I pezzi si sovrappongono di
 250 ms con una dissolvenza; se non basta si cambia `OVERLAP_MS` in `tools/jukebox/audio.py` (e si rifà il catalogo),

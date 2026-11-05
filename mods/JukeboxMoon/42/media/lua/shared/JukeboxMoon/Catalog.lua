@@ -9,6 +9,8 @@
 --
 -- An album with `media` instead of `item` is a CD of the game: the game's disc (Base.Disc_Retail) whose recording
 -- (item:getMediaData():getId()) is that id plays it. No new item for it, and never in the loot: the game has it.
+-- An album with `unique = { from = "runner", oneIn = 300, jsonName, jsonArtist }` is one CD in the server's whole
+-- story: never in the loot nor made by admins, it drops from a running zombie (server/JukeboxMoon/Unique.lua).
 
 require "JukeboxMoon/Core"
 
@@ -73,12 +75,28 @@ function Catalog.albums()
 	return albums
 end
 
--- The albums an admin can make and the loot can hold.
+-- The albums an admin can make and the loot can hold: not archived, and not unique (one CD in the server's whole
+-- story: only server/JukeboxMoon/Unique.lua makes it, a second one would not be unique).
 function Catalog.activeAlbums()
 	index()
 	local out = {}
 	for _, album in ipairs(albums) do
-		if not album.archived then out[#out + 1] = album end
+		if not album.archived and not Catalog.isUnique(album) then out[#out + 1] = album end
+	end
+	return out
+end
+
+-- An album with `unique = { from, oneIn, jsonName, jsonArtist }` (album.json "unique", written by tools/jukebox).
+function Catalog.isUnique(album)
+	return type(album) == "table" and type(album.unique) == "table" and type(album.item) == "string"
+		and tonumber(album.unique.oneIn) ~= nil
+end
+
+function Catalog.uniqueAlbums()
+	index()
+	local out = {}
+	for _, album in ipairs(albums) do
+		if Catalog.isUnique(album) then out[#out + 1] = album end
 	end
 	return out
 end

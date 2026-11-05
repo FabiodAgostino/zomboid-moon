@@ -30,6 +30,7 @@ MAX_TITLE = 80
 MAX_TRACKS = 60
 MAX_AUDIO_BYTES = 300 * 1024 * 1024
 MAX_COVER_BYTES = 20 * 1024 * 1024
+UNIQUE_FROM = {"runner"}       # where a unique CD can come from: the running zombies (server/JukeboxMoon/Unique.lua)
 
 
 class SourceError(Exception):
@@ -56,6 +57,7 @@ class Album:
     folder: Path
     cover: Path | None
     media: str | None = None      # a CD of the game (its recording's id): no new item, the game's disc plays it
+    unique: dict | None = None    # {"from": "runner", "oneIn": n}: one CD in the server's whole story, never loot
     tracks: list[Track] = field(default_factory=list)
 
 
@@ -101,7 +103,8 @@ def load_album(folder: Path) -> Album:
         raise SourceError(f"{where}: non è un JSON valido in UTF-8 ({e}).") from e
     if not isinstance(data, dict):
         raise SourceError(f"{where}: deve essere un oggetto JSON.")
-    unknown = set(data) - {"id", "title", "artist", "year", "cover", "lootWeight", "archived", "tracks", "vanillaMedia"}
+    unknown = set(data) - {"id", "title", "artist", "year", "cover", "lootWeight", "archived", "tracks", "vanillaMedia",
+                           "unique"}
     if unknown:
         raise SourceError(f"{where}: campi che non conosco: {', '.join(sorted(unknown))}.")
     album_id = data.get("id")
@@ -120,6 +123,17 @@ def load_album(folder: Path) -> Album:
     if media is not None and (not isinstance(media, str) or not MEDIA.match(media)):
         raise SourceError(f"{where}: «vanillaMedia» deve essere l'id di una registrazione del gioco "
                           f"(come 89108e07-fc70-4eec-a267-790d6f4b9831).")
+    unique = data.get("unique")
+    if unique is not None:
+        one_in = unique.get("oneIn") if isinstance(unique, dict) else None
+        if (not isinstance(unique, dict) or set(unique) != {"from", "oneIn"} or unique.get("from") not in UNIQUE_FROM
+                or isinstance(one_in, bool) or not isinstance(one_in, int) or not 1 <= one_in <= 1_000_000):
+            raise SourceError(f"{where}: «unique» deve essere {{\"from\": \"runner\", \"oneIn\": 300}} "
+                              f"(da dove viene, e uno ogni quanti: da 1 a 1000000).")
+        if media:
+            raise SourceError(f"{where}: un CD del gioco («vanillaMedia») non può essere unico: il gioco ne mette "
+                              f"già nel mondo.")
+        unique = {"from": unique["from"], "oneIn": one_in}
     cover = None
     if data.get("cover") is not None:
         cover = _inside(folder, data["cover"], "cover", where, COVER, MAX_COVER_BYTES)
@@ -133,6 +147,7 @@ def load_album(folder: Path) -> Album:
         folder=folder,
         cover=cover,
         media=media,
+        unique=unique,
     )
     tracks = data.get("tracks")
     if not isinstance(tracks, list) or not 1 <= len(tracks) <= MAX_TRACKS:

@@ -435,6 +435,33 @@ def test_the_games_cds_from_radio_voices(tmp_path):
     assert (music / "albums" / "cd-89108e07" / "album.json").exists() and not (music / ".radiovoices-import").exists()
 
 
+@pytest.mark.parametrize("unique, message", [
+    ({"from": "runner", "oneIn": 0}, "«unique»"),
+    ({"from": "chest", "oneIn": 300}, "«unique»"),
+    ({"from": "runner"}, "«unique»"),
+    ({"from": "runner", "oneIn": 300, "extra": 1}, "«unique»"),
+    ("runner", "«unique»"),
+])
+def test_a_bad_unique_cd_is_refused(tmp_path, unique, message):
+    album(tmp_path, "uno", [("a", 6)], unique=unique)
+    with pytest.raises(SourceError, match=message):
+        source.load(tmp_path)
+
+
+def test_a_unique_cd_reaches_the_catalogue_with_its_names_ready_for_json(tmp_path):
+    album(tmp_path, "uno", [("a", 6)], unique={"from": "runner", "oneIn": 300})
+    assert source.load(tmp_path)[0].unique == {"from": "runner", "oneIn": 300}
+    album(tmp_path, "cd-uno", [("b", 6)], vanillaMedia=MEDIA, unique={"from": "runner", "oneIn": 3})
+    with pytest.raises(SourceError, match="non può essere unico"):
+        source.load(tmp_path)
+    out = generate.AlbumOut(key=7, id="uno", title="Più bello", artist='La "banda"', year=None, loot=1.0,
+                            archived=False, tracks=[], cover=None, unique={"from": "runner", "oneIn": 300})
+    lua = generate.catalog_lua("v", [out])
+    assert ('unique = { from = "runner", oneIn = 300, jsonName = "CD: Pi\\\\u00f9 bello", '
+            'jsonArtist = "La \\\\\\"banda\\\\\\"" },') in lua
+    assert lua.isascii()
+
+
 def test_a_song_counts_its_different_lines_not_the_repeated_ones():
     from tools.jukebox import radiovoices as rv
     lines = ["One line", "Two line", "Three line", "Four line"] + ["[img=music] Beats [img=music]"] * 4

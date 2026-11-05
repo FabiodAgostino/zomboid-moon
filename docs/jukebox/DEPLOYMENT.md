@@ -23,6 +23,12 @@ Niente di questo è stato fatto: ogni passo sul server, su GitHub e nel launcher
    conosce. **Un launcher 1.0.2 non conosce `pack`**: installerebbe solo il motore, senza l'elenco dei CD, e il server
    non lo farebbe entrare (controllo dei file). Il launcher vecchio propone l'aggiornamento ma non lo impone: avvisa
    i giocatori di aggiornarlo prima di questo passo. Dopo l'aggiornamento si sistema da solo.
+6. **ZomBOT annuncia l'uscita del jukebox**, nello stesso momento: nel repo zomboid-discord la nuova `Release` in cima a
+   `RELEASES` (`src/zombot/releases.py`) **deve avere la riga del CD unico** («Love storii...»: uno solo in tutta la
+   storia del server, sui corridori, molto raro). Il testo lo tiene ZomBOT (`zombot.jukebox.ANNOUNCEMENT`). Il bot
+   legge anche `Zomboid/Lua/jukeboxmoon_unique.json`, scritto da questa mod, e annuncia in #zombot chi trova il CD:
+   deve essere in produzione prima che il server parta con la mod, o un ritrovamento dei primi minuti arriverebbe in
+   ritardo (lo annuncia comunque, una volta).
 
 Chi usa `mod-moon-server.bat`, un Mac o Linux non ha il launcher: deve copiare a mano `mods/JukeboxMoon` del repo e
 il catalogo pubblico (lo zip `catalog-*.zip` della pre-release `jukebox`, scompattato nella stessa cartella). Senza
@@ -84,6 +90,7 @@ motore sul server) e riavvio. Il catalogo dice per quale motore è stato fatto (
 | GitHub, pre-release `jukebox` | `manifest.json`, `manifest-<versione>.json`, `catalog-*.zip`, `a*-*.jbm` (cifrati) |
 | cirene, `~/server/zomboid/live/Zomboid/mods/JukeboxMoon` | Motore + elenco dei CD, senza audio |
 | cirene, `~/server/zomboid/live/Zomboid/JukeboxMoon-publish/old` | La copia di prima dell'ultimo `publish` |
+| cirene, `~/server/zomboid/live/Zomboid/Lua/jukeboxmoon_unique.json` | I CD unici: trovati o no, e da chi (per ZomBOT) |
 | cirene, `~/server/zomboid/live/Zomboid/Lua/JukeboxMoon_server_key.txt` | La chiave (solo il proprietario la legge) |
 | PC di un giocatore, `%UserProfile%\Zomboid\mods\JukeboxMoon` | Motore, elenco dei CD e audio, dal launcher |
 | PC di un giocatore, `%UserProfile%\Zomboid\Lua\JukeboxMoon_key.txt` | La chiave, scritta dal gioco |

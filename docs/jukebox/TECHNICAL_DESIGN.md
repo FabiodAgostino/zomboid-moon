@@ -160,7 +160,42 @@ fatto lui (hanno il file `.import-radiovoices`): un errore a metà non tocca nie
   `MovieRentalShelves`, `LivingRoomShelf*`, `RecRoomShelf`, `BedroomSidetable*`, `BedroomDresser*`), con un peso per
   lista diviso fra gli album secondo `lootWeight`. Mai una lista sostituita.
 - Spawn admin: il pulsante «Jukebox» della finestra ZomBOT (`ZomBotMenu`, `extra`); il server ricontrolla il ruolo
-  (`getRole():hasAdminPower()` o `CanSetupNonPVPZone`), al massimo 20 CD per volta, solo album non archiviati.
+  (`getRole():hasAdminPower()` o `CanSetupNonPVPZone`), al massimo 20 CD per volta, solo album non archiviati e non
+  unici.
+
+### Il CD unico
+
+Un album con `"unique": {"from": "runner", "oneIn": 300}` in `album.json` è un CD solo in tutta la storia del server
+(decisione dell'utente, `DECISIONI.md` 18; oggi «Love storii...»). Non è nel bottino e gli admin non lo creano
+(`Catalog.activeAlbums` lo lascia fuori): un secondo esemplare non sarebbe unico. Il builder scrive nel catalogo
+`unique = { from, oneIn, jsonName, jsonArtist }`, con nome del CD e artista già pronti per il JSON (ASCII, `\uXXXX`).
+Tutto il lavoro è in `server/JukeboxMoon/Unique.lua`, solo sul server; verificato nel jar della 42.21:
+
+- **La caduta.** `IsoZombie.onKilled` gira sul server: riempie l'inventario dello zombie, lancia `OnZombieDead`, poi
+  fa il cadavere da quell'inventario (`DoDeath`). Un CD aggiunto durante l'evento è sul cadavere. Chi l'ha ucciso è
+  `getAttackedBy()` (come conta le uccisioni ZomBOT, `ZomBotKills.lua`); un corridore ha `getWalkType()` che comincia
+  per `sprint` (il valore del server, che lo manda ai client in `ZombiePacket`). Solo per un corridore ucciso da un
+  giocatore, non in fiamme (il cadavere brucerebbe il CD), una volta per zombie (le morti nel fuoco lanciano l'evento
+  due volte), e solo finché il CD aspetta: `ZombRand(oneIn) == 0`.
+- **Trovato.** Prendere un oggetto è un'azione del client (`media/lua/client/TimedActions/ISInventoryTransferAction.lua`):
+  il server lo sposta in Java, senza un evento Lua. Così, mentre il CD è fuori, a ogni minuto di gioco il server
+  guarda: un giocatore che lo porta (`containsTypeRecurse`, anche nelle borse) l'ha trovato; ancora sul cadavere (due
+  caselle intorno a dove è caduto), aspetta; spostato lì vicino o sparito con un giocatore entro 20 caselle, l'ha
+  trovato il giocatore più vicino (un bagagliaio, il cadavere portato via); sparito senza nessuno vicino per due
+  sguardi di fila, il cadavere se n'è andato con lui e il CD torna ad aspettare un corridore. Se la casella non è
+  caricata sul server non decide niente. Senza un CD fuori non fa niente.
+- **Salvato** nel mondo (ModData globale `JukeboxMoon.unique`, per numero dell'album): `state` (`waiting`, `dropped`,
+  `found`), dove e quando è caduto, chi l'ha trovato.
+- **Per ZomBOT**, `Zomboid/Lua/jukeboxmoon_unique.json`, riscritto intero all'avvio (`OnInitGlobalModData`) e a ogni
+  cambiamento. Il contratto è di ZomBOT (zomboid-discord, `zombot.jukebox`): non cambiarlo da una parte sola.
+
+  ```json
+  {"v":1,"unique":[{"key":"62","name":"CD: Love storii...","artist":"Prince","found":null}]}
+  ```
+
+  Da trovato, `found` è `{"user":"<account>","character":"<nome e cognome>","at":<secondi unix>,"from":"runner","test":false}`.
+  ZomBOT annuncia in #zombot una volta per `key` («è stato trovato un CD unico…»), mai con `test: true`: in single
+  player e in un gioco avviato con `-debug`, dove per provarlo il CD cade dal primo corridore.
 
 ### Opzioni (sandbox, pagina «Jukebox (Moon)»)
 

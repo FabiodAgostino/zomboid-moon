@@ -47,6 +47,10 @@ musica/
   facoltativo: senza, si usa quello dell'album.
 - `lootWeight` da 0 a 10: quanto spesso si trova rispetto agli altri album (0: mai nel bottino, solo dagli admin).
 - `archived: true` toglie l'album dal bottino e dalla finestra degli admin, ma i CD già trovati continuano a suonare.
+- `"unique": {"from": "runner", "oneIn": 300}` ne fa un **CD unico**: uno solo in tutta la storia del server, mai nel
+  bottino né dalla finestra degli admin. Lo porta un corridore ucciso da un giocatore, uno ogni `oneIn` (finché non
+  esce); trovato, non esce più, e ZomBOT lo annuncia in #zombot. Se il cadavere sparisce prima che qualcuno lo prenda,
+  torna da trovare. `lootWeight` non serve. Non vale per i CD del gioco (`vanillaMedia`).
 - Un brano dura da 5 secondi a 30 minuti.
 
 ## 2. Controlla

@@ -51,10 +51,17 @@ class AlbumOut:
     tracks: list[TrackOut]
     cover: bytes | None      # the source image, or None for a drawn one
     media: str | None = None  # a CD of the game: the game's disc (Base.Disc_Retail) with this recording plays it
+    unique: dict | None = None  # {"from": "runner", "oneIn": n}: one CD in the server's story (server/Unique.lua)
 
     @property
     def item(self) -> str | None:
         return None if self.media else f"{MODULE}.CD_{self.key}"
+
+
+def json_text(text: str) -> str:
+    """The inside of a JSON string, ASCII only (\\uXXXX for the rest): the server's Lua writes it as it is into
+    jukeboxmoon_unique.json, whatever the encoding of the game's file writer."""
+    return json.dumps(str(text), ensure_ascii=True)[1:-1]
 
 
 def lua_string(text: str) -> str:
@@ -92,6 +99,10 @@ def catalog_lua(version: str, albums: list[AlbumOut]) -> str:
         lines.append(f"\t\t\tyear = {a.year if a.year is not None else 'nil'}, loot = {_number(a.loot)}, "
                      f"archived = {'true' if a.archived else 'false'},")
         lines.append(f"\t\t\tcover = {lua_string(f'media/textures/JukeboxMoon/Cover_{a.key}.png')},")
+        if a.unique:
+            # name and artist already as JSON (the bot reads them in jukeboxmoon_unique.json)
+            lines.append(f"\t\t\tunique = {{ from = {lua_string(a.unique['from'])}, oneIn = {int(a.unique['oneIn'])}, "
+                         f"jsonName = {lua_string(json_text(item_name(a)))}, jsonArtist = {lua_string(json_text(a.artist))} }},")
         lines.append("\t\t\ttracks = {")
         for t in a.tracks:
             lines.append(f"\t\t\t\t{{ key = {t.key}, id = {lua_string(t.id)}, n = {t.n}, title = {lua_string(t.title)}, "
@@ -147,8 +158,13 @@ def sounds_script(albums: list[AlbumOut]) -> str:
     return "\n".join(lines)
 
 
+def item_name(album: AlbumOut) -> str:
+    """The CD's name in the game (Translate/IT|EN/ItemName.json)."""
+    return f"CD: {album.title}"
+
+
 def item_names(albums: list[AlbumOut]) -> str:
-    names = {a.item: f"CD: {a.title}" for a in albums if not a.media}
+    names = {a.item: item_name(a) for a in albums if not a.media}
     return json.dumps(names, ensure_ascii=False, indent=4, sort_keys=True) + "\n"
 
 

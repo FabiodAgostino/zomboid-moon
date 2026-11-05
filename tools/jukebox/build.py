@@ -112,11 +112,12 @@ def build(music: Path, dist: Path, replace: set[str] = frozenset(), forget: set[
             staging.add_album(entry["key"], album.id, files)
             outs.append(generate.AlbumOut(key=entry["key"], id=album.id, title=album.title, artist=album.artist,
                                           year=album.year, loot=album.loot, archived=album.archived, tracks=track_outs,
-                                          cover=album.cover.read_bytes() if album.cover else None, media=album.media))
+                                          cover=album.cover.read_bytes() if album.cover else None, media=album.media,
+                                          unique=album.unique))
         outs.sort(key=lambda a: a.key)
 
         metadata = [{"key": a.key, "id": a.id, "title": a.title, "artist": a.artist, "year": a.year, "loot": a.loot,
-                     "archived": a.archived, "media": a.media,
+                     "archived": a.archived, "media": a.media, "unique": a.unique,
                      "tracks": [vars(t) for t in a.tracks]} for a in outs]
         public = generate.public_files("", outs)
         version = package.version_of(public, staging.audio,

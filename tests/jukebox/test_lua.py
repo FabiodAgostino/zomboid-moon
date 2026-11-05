@@ -453,6 +453,126 @@ def test_cds_join_the_loot_lists_without_replacing_them():
     assert len(lua.eval("LISTS.CrateCompactDiscs.items")) == 2
 
 
+# ------------------------------------------------------------------------------------------------ the unique CD
+
+UNIQUE_FILE = 'FILES["jukeboxmoon_unique.json"]'
+
+
+def unique_catalog() -> str:
+    albums = [
+        AlbumOut(key=1, id="estate", title="Estate", artist="Vari", year=1993, loot=1.0, archived=False,
+                 tracks=[TrackOut(1, "a", 1, "Primo", "A", 25000, 3)], cover=None),
+        AlbumOut(key=5, id="love-storii", title="Love storii...", artist="Prince", year=2023, loot=1.0,
+                 archived=False, tracks=[TrackOut(9, "alpha", 1, "Alpha", "Prince, Ervie", 20000, 2)], cover=None,
+                 unique={"from": "runner", "oneIn": 300}),
+    ]
+    return generate.catalog_lua("v1test", albums)
+
+
+UNIQUE_WORLD = r"""
+CD = "JukeboxMoon.CD_5"
+function kill(walk, killer, burning, x, y)
+    local z = newZombie(x or 10, y or 20, 0, walk, killer, burning)
+    fire("OnZombieDead", z)
+    return z
+end
+function state() return ((MODDATA.JukeboxMoon or {}).unique or {})["5"] or {} end
+function minute() fire("EveryOneMinute") end
+"""
+
+
+def unique_game(server=True):
+    lua = runtime("JukeboxMoon/Server", "JukeboxMoon/Unique", server=server, catalog=unique_catalog())
+    lua.execute(WORLD + UNIQUE_WORLD)
+    return lua
+
+
+def found(lua):
+    return json.loads(lua.eval(UNIQUE_FILE))["unique"][0]["found"]
+
+
+def test_the_unique_cd_is_never_loot_nor_made_by_admins():
+    lua = unique_game()
+    assert [a.key for a in lua.eval("JukeboxMoon.Catalog.activeAlbums()").values()] == [1]
+    lua.execute("P.admin = true; cmd('spawn', { album = 5, count = 1 })")
+    assert lua.eval("lastOne().args.what") == "noalbum" and lua.eval("P.inventory.items:size()") == 0
+
+
+def test_the_file_for_zombot_says_the_cd_is_waiting():
+    lua = unique_game()
+    lua.execute('fire("OnInitGlobalModData", false)')
+    assert lua.eval(UNIQUE_FILE) == ('{"v":1,"unique":[{"key":"5","name":"CD: Love storii...","artist":"Prince",'
+                                     '"found":null}]}\n')
+
+
+def test_only_a_runner_killed_by_a_player_rolls_and_the_cd_drops_once():
+    lua = unique_game()
+    lua.execute("kill('slow2', P); kill('sprint3', nil); kill('sprint3', P, true)")
+    assert lua.eval("#RANDS") == 0                                  # a shambler, no killer, burning: no roll
+    lua.execute("Z1 = kill('sprint3', P)")
+    assert lua.eval("RANDS[1]") == 300 and lua.eval("Z1.inventory.items:size()") == 0
+    lua.execute("fire('OnZombieDead', Z1)")                          # the fire path: the same zombie again
+    assert lua.eval("#RANDS") == 1 and lua.eval("state().state") == "waiting"
+    lua.execute("NEXT_RAND = 0; Z2 = kill('sprint1', P)")
+    assert lua.eval("Z2.inventory:containsTypeRecurse(CD)") is True   # on the zombie: the game makes the corpse of it
+    s = lua.eval("state()")
+    assert s.state == "dropped" and (s.x, s.y, s.z) == (10, 20, 0) and found(lua) is None
+    lua.execute("NEXT_RAND = 0; Z3 = kill('sprint1', P)")
+    assert lua.eval("Z3.inventory.items:size()") == 0 and lua.eval("#RANDS") == 2   # out already: no more rolls
+
+
+def test_found_by_the_player_who_carries_it_and_never_again():
+    lua = unique_game()
+    lua.execute("NEXT_RAND = 0; Z = kill('sprint2', P); newCorpse(SQ, Z.inventory); minute()")
+    assert lua.eval("state().state") == "dropped"                    # still on its corpse: it waits
+    lua.execute("P.inventory.items:add(Z.inventory:take(CD)); NOW = NOW + 60000; minute()")
+    assert lua.eval("state().state") == "found"
+    assert found(lua) == {"user": "anna", "character": "Nome anna", "at": 160, "from": "runner", "test": False}
+    lua.execute("NEXT_RAND = 0; Z4 = kill('sprint1', P); minute()")
+    assert lua.eval("Z4.inventory.items:size()") == 0 and lua.eval("state().state") == "found"
+
+
+def test_moved_next_to_the_corpse_it_is_found_by_the_player_near():
+    lua = unique_game()
+    lua.execute("""
+        NEXT_RAND = 0; Z = kill('sprint2', P); newCorpse(SQ, Z.inventory)
+        CRATE = newObject(newSquare(11, 21, 0), 'crate', nil); CRATE.container = newContainer('crate')
+        CRATE.container.items:add(Z.inventory:take(CD)); minute()
+    """)
+    assert lua.eval("state().state") == "found" and found(lua)["user"] == "anna"
+
+
+def test_a_corpse_gone_with_nobody_near_lets_it_drop_again():
+    lua = unique_game()
+    lua.execute("NEXT_RAND = 0; Z = kill('sprint2', P); P.x = 500; minute()")   # no corpse there, nobody near
+    assert lua.eval("state().state") == "dropped"                    # once may be a square still loading
+    lua.execute("minute()")
+    assert lua.eval("state().state") == "waiting" and found(lua) is None
+    lua.execute("NEXT_RAND = 0; Z2 = kill('sprint2', P)")
+    assert lua.eval("Z2.inventory:containsTypeRecurse(CD)") is True
+
+
+def test_where_the_server_has_no_square_it_just_waits():
+    lua = unique_game()
+    lua.execute("NEXT_RAND = 0; kill('sprint2', P, false, 300, 300); minute(); minute(); minute()")
+    assert lua.eval("state().state") == "dropped"
+
+
+def test_names_are_escaped_for_json():
+    lua = unique_game()
+    lua.execute("""P.fullName = 'Anna "la" \\\\ B'
+        NEXT_RAND = 0; Z = kill('sprint2', P); P.inventory.items:add(Z.inventory:take(CD)); minute()""")
+    assert found(lua)["character"] == 'Anna "la" \\ B'
+
+
+def test_a_trial_in_single_player_or_debug_is_marked_test():
+    lua = unique_game(server=False)
+    lua.execute("DEBUG = true; Z = kill('sprint2', P)")                # -debug: the first runner has it
+    assert lua.eval("RANDS[1]") == 1 and lua.eval("state().state") == "dropped"
+    lua.execute("P.inventory.items:add(Z.inventory:take(CD)); minute()")
+    assert found(lua)["test"] is True
+
+
 # ------------------------------------------------------------------------------------------------ the client
 
 
