@@ -52,8 +52,23 @@ end
 
 ------------------------------------------------------------------------------------------------- talking to clients
 
+-- On a server, over the network. In single player there is no network and sendServerCommand does nothing (it sends
+-- only when GameServer.server, 42.21; the game's own server files do "if isServer() then ... else ..."): the local
+-- game's handlers get the message directly.
+local function deliver(player, command, args)
+	if isServer() then
+		if player then
+			sendServerCommand(player, MODULE, command, args)
+		else
+			sendServerCommand(MODULE, command, args)
+		end
+	else
+		triggerEvent("OnServerCommand", MODULE, command, args)
+	end
+end
+
 local function reply(player, command, args)
-	sendServerCommand(player, MODULE, command, args or {})
+	deliver(player, command, args or {})
 end
 
 local function notice(player, what, key)
@@ -77,7 +92,7 @@ function Server.list()
 end
 
 local function broadcast(state)
-	sendServerCommand(MODULE, "state", Server.public(state))
+	deliver(nil, "state", Server.public(state))
 end
 
 ------------------------------------------------------------------------------------------------- the jukebox itself
@@ -172,10 +187,12 @@ local function stateFor(object)
 		if state then return state end
 	end
 	local settings = Box.settings(object)
+	local x, y, z = math.floor(object:getX()), math.floor(object:getY()), math.floor(object:getZ())
 	return {
-		key = key, x = math.floor(object:getX()), y = math.floor(object:getY()), z = math.floor(object:getZ()),
+		key = key, x = x, y = y, z = z,
 		on = false, power = true, entries = Playlist.build(Box.cds(object)), index = nil, seq = 0,
-		shuffle = settings.shuffle and Core.option("ShuffleAllowed"), rand = settings.rand,
+		-- a new random order every time it is switched on, different for every jukebox
+		shuffle = settings.shuffle and Core.option("ShuffleAllowed"), rand = Playlist.seed(now() + x * 7919 + y * 104729),
 	}
 end
 
@@ -503,11 +520,28 @@ function Commands.spawn(player, args)
 	reply(player, "notice", { what = "spawned", count = made })
 end
 
+-- hello and ping have their own limit: one a second each (the game asks one every 2 s at most), so a modified client
+-- cannot make the server send the whole list and the key as fast as it likes.
+Server.QUIET_MS = 1000
+Server.asked = {}       -- "username command" -> last time
+
+function Server.quiet(player, command)
+	local name = (player:getUsername() or "?") .. " " .. command
+	local t = now()
+	if t - (Server.asked[name] or -Server.QUIET_MS) < Server.QUIET_MS then return false end
+	Server.asked[name] = t
+	return true
+end
+
 function Server.onClientCommand(module, command, player, args)
 	if module ~= MODULE or not player then return end
 	local handler = Commands[command]
 	if not handler then return end
-	if command ~= "hello" and command ~= "ping" and not Server.allowed(player) then return end
+	if command == "hello" or command == "ping" then
+		if not Server.quiet(player, command) then return end
+	elseif not Server.allowed(player) then
+		return
+	end
 	local ok, err = pcall(handler, player, args)
 	if not ok then Core.warn("command " .. tostring(command) .. ": " .. tostring(err)) end
 end

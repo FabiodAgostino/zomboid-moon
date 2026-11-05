@@ -35,6 +35,11 @@ function Playlist.indexOf(entries, cd, track)
 	return nil
 end
 
+-- A starting value for lcg from any number (a time, a position): between 1 and MODULUS - 1.
+function Playlist.seed(n)
+	return (math.floor(math.abs(tonumber(n) or 0)) % (Playlist.MODULUS - 1)) + 1
+end
+
 -- Park-Miller: every value stays below 2^46, exact in the game's doubles.
 function Playlist.lcg(rand)
 	local r = math.floor(tonumber(rand) or Playlist.SEED)

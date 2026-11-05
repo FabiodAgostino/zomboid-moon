@@ -144,7 +144,7 @@ public sealed class Installer(IReadOnlyList<ModPlan> plans, Roots roots, Store s
 
         // what the new version does not have any more
         var targets = plan.Targets;
-        foreach (var mirror in plan.Mirrors)
+        foreach (var mirror in plan.KeepExtras ? Array.Empty<string>() : plan.Mirrors)
         {
             foreach (var extra in Extras(mirror, targets).ToList())
                 Guard(mirror, () => DeleteFile(extra));
@@ -234,7 +234,8 @@ public sealed class Installer(IReadOnlyList<ModPlan> plans, Roots roots, Store s
             else if (!Same(path, f)) changed++;
         }
         var targets = plan.Targets;
-        foreach (var mirror in plan.Mirrors) extra += Extras(mirror, targets).Count();
+        if (!plan.KeepExtras)
+            foreach (var mirror in plan.Mirrors) extra += Extras(mirror, targets).Count();
         if (store.State.Mods.TryGetValue(plan.Def.Id, out var old))
             extra += old.Files.Count(t => !targets.Contains(t) && !UnderMirror(t, plan.Mirrors)
                                           && ClaimedByOthers(t, plan) is null && Exists(t));

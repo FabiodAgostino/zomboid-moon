@@ -14,12 +14,14 @@ import io
 import json
 from dataclasses import dataclass
 
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageOps
 
 from .audio import OVERLAP_MS, SEGMENT_MS
 
 MODULE = "JukeboxMoon"
-VERSION = 2          # of these files: part of the catalogue's version, so a change here makes a new one
+VERSION = 3          # of these files: part of the catalogue's version, so a change here makes a new one
+CATALOG_DATA = "42/media/lua/shared/JukeboxMoon/CatalogData.lua"
+COVER_BACKGROUND = (255, 255, 255)   # under the transparent parts of a cover
 DISTANCE_MIN = 3
 DISTANCE_MAX = 40
 ICON = 32
@@ -161,10 +163,24 @@ def _colour(seed: str) -> tuple[int, int, int]:
     return 60 + h[0] % 150, 60 + h[1] % 150, 60 + h[2] % 150
 
 
+def open_cover(data: bytes) -> Image.Image:
+    """An admin's cover in RGB: turned as the camera says (EXIF), the transparent parts on COVER_BACKGROUND, a 16-bit
+    image brought to 8 bits (convert would make it all white). Raises when the file is not an image Pillow reads."""
+    image = Image.open(io.BytesIO(data))
+    image.load()
+    image = ImageOps.exif_transpose(image)
+    if image.mode.startswith("I"):
+        image = image.convert("I").point(lambda v: v * (1 / 256)).convert("L")
+    if image.mode in ("RGBA", "LA", "PA") or (image.mode == "P" and "transparency" in image.info):
+        rgba = image.convert("RGBA")
+        image = Image.alpha_composite(Image.new("RGBA", rgba.size, COVER_BACKGROUND + (255,)), rgba)
+    return image.convert("RGB")
+
+
 def cover_image(album: AlbumOut) -> Image.Image:
     """The album's cover as a square, or a drawn one (a disc in the album's colour) when it has none."""
     if album.cover:
-        image = Image.open(io.BytesIO(album.cover)).convert("RGB")
+        image = open_cover(album.cover)
         side = min(image.size)
         left, top = (image.width - side) // 2, (image.height - side) // 2
         return image.crop((left, top, left + side, top + side)).resize((COVER, COVER), Image.LANCZOS)
@@ -194,7 +210,7 @@ def icon_image(cover: Image.Image) -> Image.Image:
 def public_files(version: str, albums: list[AlbumOut]) -> dict[str, bytes]:
     """Every file of the public catalogue, by its path in the mod (from the mod's folder: 42/media/...)."""
     files: dict[str, bytes] = {
-        "42/media/lua/shared/JukeboxMoon/CatalogData.lua": catalog_lua(version, albums).encode("ascii"),
+        CATALOG_DATA: catalog_lua(version, albums).encode("ascii"),
         "42/media/scripts/JukeboxMoon_catalog.txt": items_script(albums).encode("ascii"),
         "42/media/scripts/JukeboxMoon_sounds.txt": sounds_script(albums).encode("ascii"),
         "42/media/lua/shared/Translate/IT/ItemName.json": item_names(albums).encode("utf-8"),

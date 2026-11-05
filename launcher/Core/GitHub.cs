@@ -111,26 +111,41 @@ public sealed class GitHub : IDisposable
         : $"{api}/releases/download/{Uri.EscapeDataString(tag)}/{Uri.EscapeDataString(name)}";
 
     /// <summary>Downloads into a .part file and renames it at the end; checks size and SHA-256 when GitHub gives them.</summary>
+    /// <param name="stall">When set, a server that sends nothing for this long ends the download with an IOException,
+    /// instead of keeping the launcher waiting for ever.</param>
     public async Task DownloadAsync(string url, string dest, IProgress<double>? progress, CancellationToken ct,
-        long? expectedSize = null, string? digest = null)
+        long? expectedSize = null, string? digest = null, TimeSpan? stall = null)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
         var part = dest + ".part";
-        using (var res = await http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct))
+        using var idle = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        void Wait()
         {
+            if (stall is { } s) idle.CancelAfter(s);
+        }
+        try
+        {
+            Wait();
+            using var res = await http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, idle.Token);
             res.EnsureSuccessStatusCode();
             var total = res.Content.Headers.ContentLength ?? expectedSize ?? 0;
-            await using var input = await res.Content.ReadAsStreamAsync(ct);
+            await using var input = await res.Content.ReadAsStreamAsync(idle.Token);
             await using var output = File.Create(part);
             var buffer = new byte[81920];
             long done = 0;
             int n;
-            while ((n = await input.ReadAsync(buffer, ct)) > 0)
+            Wait();
+            while ((n = await input.ReadAsync(buffer, idle.Token)) > 0)
             {
                 await output.WriteAsync(buffer.AsMemory(0, n), ct);
                 done += n;
                 if (total > 0) progress?.Report(Math.Min(1, done / (double)total));
+                Wait();
             }
+        }
+        catch (OperationCanceledException e) when (idle.IsCancellationRequested && !ct.IsCancellationRequested)
+        {
+            throw new IOException("GitHub ha smesso di rispondere: riprova.", e);
         }
         if (expectedSize is > 0 && new FileInfo(part).Length != expectedSize)
             throw new IOException("Il file scaricato è incompleto: riprova.");

@@ -4,7 +4,14 @@ the next one, with a fade out at its end and a fade in at the start of the next 
 next one.
 
 The pieces of a track are kept in the music folder (.jukebox-cache/<impronta>): the same audio with the same settings
-is never cut again, and the same file comes out every time (-fflags +bitexact, no metadata).
+is never cut again, and the same file comes out every time (-fflags +bitexact, no metadata). After a build the
+pieces no track uses any more go (prune_cache).
+
+The pieces are mono. The game plays a sound file decoded whole into memory and never frees it until it closes
+(fmod.fmod.FMODManager.loadSound: FMOD_System_CreateSound with FMOD_3D only, kept in fileToSoundMap; verified in the
+42.21 jar): every minute of different music a player hears stays there, about 5 MB in mono, 10 in stereo. And the
+jukebox is a sound in the world: from 2 tiles away the game plays it fully in 3D (FileSound, FMOD_Channel_Set3DLevel),
+where a stereo sound comes from one point anyway.
 """
 
 from __future__ import annotations
@@ -25,12 +32,13 @@ from .source import SourceError
 SEGMENT_MS = 10000
 OVERLAP_MS = 250
 RATE = 44100
-QUALITY = "5"          # libvorbis -q:a 5, about 160 kbit/s
+CHANNELS = 1           # mono: see above
+QUALITY = "5"          # libvorbis -q:a 5 (variable bit rate, good quality)
 LOUDNESS = "loudnorm=I=-16:TP=-1.5:LRA=11"
 MIN_MS = 5000
 MAX_MS = 30 * 60 * 1000
 CACHE = ".jukebox-cache"
-SETTINGS = f"v1 seg={SEGMENT_MS} overlap={OVERLAP_MS} rate={RATE} q={QUALITY} {LOUDNESS}"
+SETTINGS = f"v1 seg={SEGMENT_MS} overlap={OVERLAP_MS} rate={RATE} ch={CHANNELS} q={QUALITY} {LOUDNESS}"
 
 
 @dataclass
@@ -124,7 +132,7 @@ def cut(source: Path, source_sha: str, music: Path, workers: int = 4) -> Cut:
     shutil.rmtree(tmp, ignore_errors=True)
     tmp.mkdir(parents=True)
     wav = tmp / "track.wav"
-    run([ffmpeg, "-v", "error", "-y", "-i", str(source), "-vn", "-af", LOUDNESS, "-ar", str(RATE), "-ac", "2",
+    run([ffmpeg, "-v", "error", "-y", "-i", str(source), "-vn", "-af", LOUDNESS, "-ar", str(RATE), "-ac", str(CHANNELS),
          "-c:a", "pcm_s16le", "-map_metadata", "-1", "-fflags", "+bitexact", str(wav)])
     with wave.open(str(wav), "rb") as w:
         ms = int(w.getnframes() * 1000 // w.getframerate())
@@ -140,3 +148,17 @@ def cut(source: Path, source_sha: str, music: Path, workers: int = 4) -> Cut:
     shutil.rmtree(folder, ignore_errors=True)
     rename(tmp, folder)
     return Cut(ms=ms, pieces=[folder / f"s{k:03d}.ogg" for k in range(count)])
+
+
+def prune_cache(music: Path, used: set[str]) -> int:
+    """Removes the cache's folders that no track of the last build uses (cache_key), and the leftovers of a cut that
+    stopped halfway. Returns how many."""
+    cache = Path(music) / CACHE
+    if not cache.is_dir():
+        return 0
+    removed = 0
+    for folder in cache.iterdir():
+        if folder.is_dir() and folder.name not in used:
+            shutil.rmtree(folder, ignore_errors=True)
+            removed += 1
+    return removed

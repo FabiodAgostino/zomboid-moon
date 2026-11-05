@@ -293,7 +293,8 @@ public sealed class MainViewModel : Observable, IDisposable
     {
         News.Clear();
         LatestNews.Clear();
-        foreach (var r in releases.Where(r => !r.Draft)) News.Add(NewsItem.From(r));
+        // not the pre-releases: «jukebox» holds Jukebox (Moon)'s music, it is not news
+        foreach (var r in releases.Where(r => !r.Draft && !r.Prerelease)) News.Add(NewsItem.From(r));
         if (News.Count == 0)
             News.Add(new NewsItem
             {
@@ -562,8 +563,13 @@ public sealed class MainViewModel : Observable, IDisposable
     {
         var current = new Installer(plans, new Roots(options.ZomboidFolder, gameFolder), store);
         installer = current;
-        var states = await Task.Run(() => current.Plans.ToDictionary(p => p.Def.Id, p => (Status: current.Status(p), Where: current.Where(p)),
-            StringComparer.OrdinalIgnoreCase));
+        var states = await Task.Run(() =>
+        {
+            var read = current.Plans.ToDictionary(p => p.Def.Id, p => (Status: current.Status(p), Where: current.Where(p)),
+                StringComparer.OrdinalIgnoreCase);
+            HashCache.Save();       // the files just read are not read again at the next start
+            return read;
+        });
         foreach (var card in Mods)
         {
             if (!states.TryGetValue(card.Def.Id, out var state)) continue;
@@ -638,7 +644,8 @@ public sealed class MainViewModel : Observable, IDisposable
     /// <summary>The plan of an older version of a mod, from the release that published it (downloaded if needed).</summary>
     async Task<ModPlan> PlanForAsync(ModCard card, string version, Reporter reporter)
     {
-        if (version == card.Def.Version) return card.Plan;
+        // a package is read again: what was installed or downloaded when the launcher opened may be gone
+        if (version == card.Def.Version) return card.Plan.Base is { } repo ? await AttachPackAsync(repo) : card.Plan;
         var release = card.FindVersion(version)?.Release
                       ?? throw new InvalidOperationException($"Non so da quale release prendere {card.Name} {version}.");
         var root = await sources.RootAsync(release, Offline, reporter, CancellationToken.None)
@@ -650,10 +657,18 @@ public sealed class MainViewModel : Observable, IDisposable
                       ?? throw new InvalidDataException($"Nella release {release.Tag} non c'è {card.Name}.");
             return ModPlan.Build(def, root);
         });
-        return plan.Def.Pack is null
-            ? plan
-            : await Packs.AttachAsync(plan, github, store.CacheFolder, new Roots(options.ZomboidFolder, gameFolder),
-                options.PackFolder, Offline, CancellationToken.None);
+        return plan.Def.Pack is null ? plan : await AttachPackAsync(plan);
+    }
+
+    /// <summary>A mod's package on top of its repo files, away from the UI thread: it hashes the installed files.</summary>
+    Task<ModPlan> AttachPackAsync(ModPlan plan) => Task.Run(() => Packs.AttachAsync(plan, github, store.CacheFolder,
+        new Roots(options.ZomboidFolder, gameFolder), options.PackFolder, Offline, CancellationToken.None));
+
+    /// <summary>The plan read at install time takes the place of the one from when the launcher opened.</summary>
+    void Replace(ModCard card, ModPlan plan)
+    {
+        card.Plan = plan;
+        plans = plans.Select(p => p.Def.Id.Equals(plan.Def.Id, StringComparison.OrdinalIgnoreCase) ? plan : p).ToList();
     }
 
     /// <summary>Installs the cards: their latest version, or the one chosen in their menu.</summary>
@@ -682,6 +697,7 @@ public sealed class MainViewModel : Observable, IDisposable
                     var version = latest ? card.Def.Version : card.SelectedVersion;
                     var plan = await PlanForAsync(card, version, reporter);
                     await installer.InstallAsync(plan, pinned: version != card.Def.Version, reporter, CancellationToken.None);
+                    if (version == card.Def.Version && plan.Base is not null) Replace(card, plan);
                     card.SelectedVersion = version;
                 }
                 finally

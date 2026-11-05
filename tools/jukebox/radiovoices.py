@@ -25,14 +25,16 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from . import audio
-from .build import REPO
+from .build import outside_repo
 from .source import SourceError
 
 STEAM_GAME = Path(r"C:\Program Files (x86)\Steam\steamapps\common\ProjectZomboid")
 PAUSE = 0.6          # seconds between two read lines
-MIN_SONG_LINES = 3   # a song is on a CD when it sings at least this many of its lines
+MIN_SONG_LINES = 3   # a song is on a CD when it sings at least this many of its different lines
 MIN_READ = 0.7       # a read CD needs a clip for at least this share of its lines
 MANAGED = "cd-"      # the albums this command writes, and rewrites
+MARKER = ".import-radiovoices"   # in every album folder this command made: only those it rewrites
+MARKER_TEXT = "Fatta da python -m tools.jukebox import-radiovoices, che la riscrive: non metterci niente di tuo.\n"
 
 
 def normalize(text: str) -> str:
@@ -139,10 +141,17 @@ def plan(cd: GameCD, clips: dict[str, tuple[str, float]], songs: dict[str, Song]
     covers = {sid: [i for i, n in enumerate(lines) if n in s.keys] for sid, s in songs.items()}
     left = {i for c in covers.values() for i in c}
     chosen = []
+    # different lines count, not repeated ones: «Electronic beats» is six lines of two CDs, and a song that sings only
+    # that one must not join another CD; a CD of fewer different lines (Eurodance '92 has two) needs all of them
+    need = min(MIN_SONG_LINES, len(set(lines)))
+
+    def different(positions: list[int]) -> int:
+        return len({lines[i] for i in positions})
+
     while left:
         sid, best = max(((sid, [i for i in c if i in left]) for sid, c in covers.items()),
-                        key=lambda kv: (len(kv[1]), kv[0]))
-        if len(best) < MIN_SONG_LINES:
+                        key=lambda kv: (different(kv[1]), len(kv[1]), kv[0]))
+        if different(best) < need:
             break
         chosen.append((min(best), sid))
         left -= set(covers[sid])
@@ -161,10 +170,28 @@ def _slug(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")[:40] or "brano"
 
 
+def _ours(folder: Path) -> bool:
+    """A folder this command made: it has MARKER, or (made before MARKER existed, 5 November 2026) its album.json is
+    the game CD whose recording starts with the folder's name."""
+    if (folder / MARKER).is_file():
+        return True
+    try:
+        meta = json.loads((folder / "album.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    media = meta.get("vanillaMedia") if isinstance(meta, dict) else None
+    return isinstance(media, str) and folder.name == MANAGED + media[:8] and meta.get("id") == folder.name
+
+
+def _sound(files: dict[str, Path], name: str) -> Path:
+    path = files.get(name)
+    if path is None or not path.is_file():
+        raise SourceError(f"Radio Voices: manca il file del suono {name} (la mod è completa?).")
+    return path
+
+
 def import_cds(radiovoices: Path, out: Path, game: Path = STEAM_GAME, log=print) -> list[Plan]:
-    out = Path(out).resolve()
-    if out == REPO or REPO in out.parents:
-        raise SourceError("La musica non va mai nel repo: scegli una cartella fuori da zomboid-moon.")
+    out = outside_repo(out)
     radiovoices = Path(radiovoices)
     mod = next((p for p in [radiovoices, radiovoices / "42", radiovoices / "mods" / "RadioVoices" / "42"]
                 if (p / "media" / "lua" / "shared" / "RadioVoices").is_dir()), None)
@@ -175,27 +202,45 @@ def import_cds(radiovoices: Path, out: Path, game: Path = STEAM_GAME, log=print)
     plans = [plan(cd, clips, songs) for cd in game_cds(game)]
     albums_dir = out / "albums"
     albums_dir.mkdir(parents=True, exist_ok=True)
-    for old in albums_dir.glob(MANAGED + "*"):
-        shutil.rmtree(old)
-    for p in plans:
-        cd = p.cd
-        if not p.songs and not p.read:
-            log(f"  senza audio in Radio Voices: {cd.author} - {cd.title}")
-            continue
-        folder = albums_dir / (MANAGED + cd.media[:8])
-        folder.mkdir()
-        tracks = []
-        for sid, title in p.songs:
-            shutil.copyfile(files[songs[sid].sound], folder / f"{sid}.ogg")
-            tracks.append({"id": sid.replace("_", "-"), "title": title, "file": f"{sid}.ogg"})
-        if p.read:
-            _read_track(ffmpeg, [files[s] for s in p.read], folder / "lettura.wav")
-            tracks.append({"id": "lettura", "title": cd.title, "file": "lettura.wav"})
-        meta = {"id": MANAGED + cd.media[:8], "title": cd.title[:80] or "CD", "artist": cd.author[:80],
-                "vanillaMedia": cd.media, "lootWeight": 0.0, "tracks": tracks}
-        if cd.year:
-            meta["year"] = cd.year
-        (folder / "album.json").write_text(json.dumps(meta, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    # every album first in a folder of its own, outside albums: a failure halfway leaves albums as it was
+    staging = out / ".radiovoices-import"
+    shutil.rmtree(staging, ignore_errors=True)
+    staging.mkdir()
+    try:
+        made = []
+        for p in plans:
+            cd = p.cd
+            if not p.songs and not p.read:
+                log(f"  senza audio in Radio Voices: {cd.author} - {cd.title}")
+                continue
+            name = MANAGED + cd.media[:8]
+            folder = staging / name
+            folder.mkdir()
+            tracks = []
+            for sid, title in p.songs:
+                shutil.copyfile(_sound(files, songs[sid].sound), folder / f"{sid}.ogg")
+                tracks.append({"id": sid.replace("_", "-"), "title": title, "file": f"{sid}.ogg"})
+            if p.read:
+                _read_track(ffmpeg, [_sound(files, s) for s in p.read], folder / "lettura.wav")
+                tracks.append({"id": "lettura", "title": cd.title, "file": "lettura.wav"})
+            meta = {"id": name, "title": cd.title[:80] or "CD", "artist": cd.author[:80],
+                    "vanillaMedia": cd.media, "lootWeight": 0.0, "tracks": tracks}
+            if cd.year:
+                meta["year"] = cd.year
+            (folder / "album.json").write_text(json.dumps(meta, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+            (folder / MARKER).write_text(MARKER_TEXT, encoding="utf-8")
+            made.append(name)
+        # then the swap: out go only the folders this command made, never an admin's own
+        for name in made:
+            if (albums_dir / name).exists() and not _ours(albums_dir / name):
+                raise SourceError(f"albums/{name} non l'ha fatta import-radiovoices: spostala o rinominala e riprova.")
+        for old in albums_dir.glob(MANAGED + "*"):
+            if _ours(old):
+                shutil.rmtree(old)
+        for name in made:
+            audio.rename(staging / name, albums_dir / name)
+    finally:
+        shutil.rmtree(staging, ignore_errors=True)
     (out / "LEGGIMI-radio-voices.txt").write_text(
         "Le cartelle albums/cd-* sono i CD del gioco con l'audio di Radio Voices (Steam Workshop 3828360540, di "
         "Espaidi): le riscrive python -m tools.jukebox import-radiovoices. Musica e voci sono dei loro autori; il "

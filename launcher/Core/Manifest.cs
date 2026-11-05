@@ -245,6 +245,12 @@ public sealed class ModPlan
     public Action? Cleanup { get; init; }
     /// <summary>A word for the mod's card (the music that will come).</summary>
     public string? Notice { get; init; }
+    /// <summary>The plan with only the repo's files, before its package: the package is read again at every install,
+    /// because this plan's sources (the installed files, the downloads) do not last.</summary>
+    public ModPlan? Base { get; init; }
+    /// <summary>The package could not be read: the files of the mirror that this plan does not know are the package's
+    /// (the catalogue, the music) and stay where they are.</summary>
+    public bool KeepExtras { get; init; }
 
     HashSet<string>? targets;
     public HashSet<string> Targets => targets ??= new HashSet<string>(Files.Select(f => f.Target), Target.Comparer);

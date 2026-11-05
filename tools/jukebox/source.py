@@ -96,7 +96,7 @@ def load_album(folder: Path) -> Album:
     if not meta.is_file():
         raise SourceError(f"{where}: manca.")
     try:
-        data = json.loads(meta.read_text(encoding="utf-8"))
+        data = json.loads(meta.read_text(encoding="utf-8-sig"))     # Notepad may save it with a BOM
     except (UnicodeDecodeError, json.JSONDecodeError) as e:
         raise SourceError(f"{where}: non è un JSON valido in UTF-8 ({e}).") from e
     if not isinstance(data, dict):

@@ -117,7 +117,9 @@ function Player.startPiece(box, audio, segment)
 	local emitter = world and world:getFreeEmitter(box.x + 0.5, box.y + 0.5, box.z)
 	if not emitter then return false end
 	emitter:setPos(box.x + 0.5, box.y + 0.5, box.z)
-	local id = emitter:playSound(Catalog.soundName(box.track, segment))
+	-- playSoundImpl: only here. playSound on a client also sends the sound to every other client near (PlayWorldSound,
+	-- 42.21), and each of them already plays its own piece: they would hear it twice, late.
+	local id = emitter:playSoundImpl(Catalog.soundName(box.track, segment), false, nil)
 	if not id or id == 0 then return false end
 	emitter:set3D(id, true)
 	emitter:setVolume(id, Player.volume)

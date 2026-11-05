@@ -15,7 +15,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import subprocess
 import sys
+import zipfile
 from pathlib import Path
 
 from . import build, demo, package, publish, radiovoices
@@ -129,6 +131,10 @@ def main(argv: list[str] | None = None) -> int:
             _log(f"Musica di prova in {out}.")
     except (SourceError, ValueError) as e:
         _log(f"Errore: {e}")
+        return 1
+    except (OSError, KeyError, zipfile.BadZipFile, subprocess.CalledProcessError) as e:
+        # a file that cannot be read or written, a package that is not one: said plainly, without a traceback
+        _log(f"Errore: {type(e).__name__}: {e}")
         return 1
     return 0
 

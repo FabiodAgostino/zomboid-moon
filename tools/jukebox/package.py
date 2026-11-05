@@ -7,8 +7,10 @@
 
 A .jbm is b"JBM1" + 12-byte nonce + ciphertext + 16-byte tag, associated data b"JukeboxMoon". The nonce is the HMAC of
 the key over the zip's SHA-256: the same album always gives the same file, two different ones never the same nonce.
-Zips have fixed dates and sorted entries, stored (the OGG pieces are already compressed): the same input gives the
-same bytes. The package is written in a temporary folder and renamed at the end.
+A .jbm is named by its own bytes: with another key it is another file, and publish uploads it (a name already on
+GitHub is always the same content). Zips have fixed dates and sorted entries, stored (the OGG pieces are already
+compressed): the same input gives the same bytes. The package is written in a temporary folder, album by album (the
+audio of the whole catalogue is never in memory at once), checked, and renamed at the end.
 """
 
 from __future__ import annotations
@@ -66,7 +68,14 @@ def write_key(music: Path, key: bytes) -> None:
     path = Path(music) / KEY_FILE
     tmp = path.with_suffix(".tmp")
     tmp.write_text(key.hex() + "\n", encoding="ascii")
-    tmp.replace(path)
+    rename(tmp, path)
+
+
+def keep_old_key(music: Path, key: bytes) -> Path:
+    """A key that --new-key replaces stays next to it, as jukebox.key.<id>: the packages made with it need it."""
+    path = Path(music) / f"{KEY_FILE}.{key_id(key)}"
+    path.write_text(key.hex() + "\n", encoding="ascii")
+    return path
 
 
 def encrypt(key: bytes, plain: bytes) -> bytes:
@@ -107,55 +116,78 @@ def file_list(files: dict[str, bytes]) -> list[dict]:
 # ------------------------------------------------------------------------------------------------ the package
 
 
-def version_of(public: dict[str, bytes], audio: dict[str, bytes], metadata: dict) -> str:
-    """16 hex characters from every file but CatalogData.lua (which contains the version) and the metadata."""
+def version_of(public: dict[str, bytes], audio: dict[str, str], metadata: dict) -> str:
+    """16 hex characters from every file but CatalogData.lua (which contains the version) and the metadata.
+    ``audio``: the SHA-256 of every audio file, by path (Staging.audio)."""
+    hashes = {p: sha256(d) for p, d in public.items() if not p.endswith("/CatalogData.lua")}
+    hashes.update({p: h for p, h in audio.items() if p not in hashes})
     h = hashlib.sha256()
-    for path in sorted(set(public) | set(audio)):
-        if path.endswith("/CatalogData.lua"):
-            continue
-        data = public.get(path, audio.get(path))
-        h.update(f"{path}\0{sha256(data)}\n".encode())
+    for path in sorted(hashes):
+        h.update(f"{path}\0{hashes[path]}\n".encode())
     h.update(json.dumps(metadata, sort_keys=True, ensure_ascii=False).encode())
     return h.hexdigest()[:16]
 
 
-def write_package(dist: Path, version: str, package_version: str, key: bytes, public: dict[str, bytes],
-                  albums: list[tuple[int, str, dict[str, bytes]]]) -> Path:
-    """albums: (key, id, {path: bytes}) of every album. Returns the package's folder."""
+class Staging:
+    """A package being written in dist/.staging: the albums one at a time (add_album, then their audio can go), then
+    the catalogue and the manifest (finish). place() gives it its name; discard() takes it away after a failure."""
+
+    def __init__(self, dist: Path, key: bytes):
+        self.dist = Path(dist)
+        self.key = key
+        self.folder = self.dist / ".staging"
+        shutil.rmtree(self.folder, ignore_errors=True)
+        self.folder.mkdir(parents=True)
+        self.albums: list[dict] = []
+        self.audio: dict[str, str] = {}
+
+    def add_album(self, album_key: int, album_id: str, files: dict[str, bytes]) -> None:
+        blob = encrypt(self.key, make_zip(files))
+        name = f"a{album_key}-{sha256(blob)[:16]}.jbm"
+        (self.folder / name).write_bytes(blob)
+        listed = file_list(files)
+        self.albums.append({"key": album_key, "id": album_id, "asset": name, "size": len(blob),
+                            "sha256": sha256(blob), "files": listed})
+        self.audio.update({f["path"]: f["sha256"] for f in listed})
+
+    def finish(self, version: str, package_version: str, public: dict[str, bytes]) -> Path:
+        catalog_zip = make_zip(public)
+        catalog_name = f"catalog-{sha256(catalog_zip)[:16]}.zip"
+        (self.folder / catalog_name).write_bytes(catalog_zip)
+        manifest = {
+            "format": 1,
+            "mod": "JukeboxMoon",
+            "catalogVersion": version,
+            "packageVersion": package_version,
+            "keyId": key_id(self.key),
+            "catalog": {"asset": catalog_name, "size": len(catalog_zip), "sha256": sha256(catalog_zip),
+                        "files": file_list(public)},
+            "albums": sorted(self.albums, key=lambda a: a["key"]),
+        }
+        (self.folder / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
+                                                   encoding="utf-8")
+        return self.folder
+
+    def discard(self) -> None:
+        shutil.rmtree(self.folder, ignore_errors=True)
+
+
+def place(dist: Path, version: str, staged: Path) -> Path:
+    """The staged package becomes dist/<version>; one already there is replaced only once the new one is in place."""
     dist = Path(dist)
     final = dist / version
-    tmp = dist / f".{version}.tmp"
-    shutil.rmtree(tmp, ignore_errors=True)
-    tmp.mkdir(parents=True)
-    catalog_zip = make_zip(public)
-    catalog_name = f"catalog-{sha256(catalog_zip)[:16]}.zip"
-    (tmp / catalog_name).write_bytes(catalog_zip)
-    manifest = {
-        "format": 1,
-        "mod": "JukeboxMoon",
-        "catalogVersion": version,
-        "packageVersion": package_version,
-        "keyId": key_id(key),
-        "catalog": {"asset": catalog_name, "size": len(catalog_zip), "sha256": sha256(catalog_zip),
-                    "files": file_list(public)},
-        "albums": [],
-    }
-    for album_key, album_id, files in albums:
-        plain = make_zip(files)
-        blob = encrypt(key, plain)
-        name = f"a{album_key}-{sha256(plain)[:16]}.jbm"
-        (tmp / name).write_bytes(blob)
-        manifest["albums"].append({"key": album_key, "id": album_id, "asset": name, "size": len(blob),
-                                   "sha256": sha256(blob), "files": file_list(files)})
-    (tmp / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    if final.exists():
-        old = dist / f".{version}.old"
-        shutil.rmtree(old, ignore_errors=True)
-        rename(final, old)
-        rename(tmp, final)
-        shutil.rmtree(old, ignore_errors=True)
-    else:
-        rename(tmp, final)
+    if not final.exists():
+        rename(staged, final)
+        return final
+    old = dist / f".{version}.old"
+    shutil.rmtree(old, ignore_errors=True)
+    rename(final, old)
+    try:
+        rename(staged, final)
+    except OSError:
+        rename(old, final)
+        raise
+    shutil.rmtree(old, ignore_errors=True)
     return final
 
 

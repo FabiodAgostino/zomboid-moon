@@ -15,6 +15,7 @@ import json
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from .audio import rename
 from .source import Album, SourceError
 
 LOCK = "jukebox.lock.json"
@@ -52,7 +53,7 @@ def write(source: Path, lock: dict) -> None:
     path = Path(source) / LOCK
     tmp = path.with_suffix(".tmp")
     tmp.write_text(json.dumps(lock, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    tmp.replace(path)
+    rename(tmp, path)
 
 
 def update(lock: dict, albums: list[Album], replace: set[str], forget: set[str],

@@ -46,7 +46,24 @@ public static partial class Packs
         return result;
     }
 
+    /// <summary>The plan with its package's files. Never throws for the package: when it cannot be read the plan has
+    /// only the repo's files, a notice, and keeps what is already installed (ModPlan.KeepExtras).</summary>
     public static async Task<ModPlan> AttachAsync(ModPlan plan, GitHub github, string cache, Roots roots, string? localFolder,
+        bool offline, CancellationToken ct)
+    {
+        var repo = plan.Base ?? plan;
+        try
+        {
+            return await AttachCoreAsync(repo, github, cache, roots, localFolder, offline, ct);
+        }
+        catch (Exception) when (!ct.IsCancellationRequested)
+        {
+            // a folder that cannot be written, an antivirus holding a file: the other mods go on, this one waits
+            return Unresolved(repo, "Non riesco a preparare la musica: riprova più tardi.");
+        }
+    }
+
+    static async Task<ModPlan> AttachCoreAsync(ModPlan plan, GitHub github, string cache, Roots roots, string? localFolder,
         bool offline, CancellationToken ct)
     {
         var def = plan.Def.Pack!;
@@ -57,9 +74,16 @@ public static partial class Packs
         try
         {
             if (localFolder is not null)
+            {
                 File.Copy(Path.Combine(localFolder, "manifest.json"), manifestPath, overwrite: true);
+            }
             else if (!offline)
-                await github.DownloadAsync(github.ReleaseFileUrl(def.Release, "manifest.json"), manifestPath, null, ct);
+            {
+                // a GitHub that connects and then says nothing must not keep the launcher on «Controllo le mod»
+                using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                timeout.CancelAfter(TimeSpan.FromSeconds(15));
+                await github.DownloadAsync(github.ReleaseFileUrl(def.Release, "manifest.json"), manifestPath, null, timeout.Token);
+            }
         }
         catch (HttpRequestException e) when (e.StatusCode == HttpStatusCode.NotFound)
         {
@@ -69,7 +93,7 @@ public static partial class Packs
         {
             trouble = "Non riesco a scaricare l'elenco dei CD: uso quello dell'ultima volta.";
         }
-        if (!File.Exists(manifestPath)) return With(plan, plan.Files, null, null, trouble ?? "La musica non è ancora pubblicata.");
+        if (!File.Exists(manifestPath)) return Unresolved(plan, trouble ?? "La musica non è ancora pubblicata.");
 
         PackManifest m;
         try
@@ -79,7 +103,7 @@ public static partial class Packs
         catch (Exception e) when (e is JsonException or InvalidDataException or KeyNotFoundException or InvalidOperationException
                                        or FormatException)
         {
-            return With(plan, plan.Files, null, null, "L'elenco dei CD non si legge: riprova più tardi.");
+            return Unresolved(plan, "L'elenco dei CD non si legge: riprova più tardi.");
         }
 
         var keyPath = roots.Resolve(def.KeyFile);
@@ -140,7 +164,7 @@ public static partial class Packs
         }
         catch (InvalidDataException e)
         {
-            return With(plan, plan.Files, null, null, e.Message);
+            return Unresolved(plan, e.Message);
         }
 
         var notice = missingAudio == 0
@@ -167,17 +191,18 @@ public static partial class Packs
                     {
                         Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
                         File.Copy(Path.Combine(localFolder, asset.Asset), dest, overwrite: true);
+                        if (new FileInfo(dest).Length != asset.Size || FileSha(dest) != asset.Sha256)
+                            throw new InvalidDataException($"{asset.Asset} non è quello dell'elenco: riprova.");
                     }
                     else
                     {
+                        // DownloadAsync checks size and SHA-256 before the file takes its name
                         var start = i * share;
                         await github.DownloadAsync(github.ReleaseFileUrl(def.Release, asset.Asset), dest,
                             new Progress<double>(f => progress.Report(new(start + f * share, title, $"{i + 1} di {assets.Count}"))),
-                            token, asset.Size, "sha256:" + asset.Sha256);
+                            token, asset.Size, "sha256:" + asset.Sha256, stall: TimeSpan.FromSeconds(30));
                     }
                 }
-                if (new FileInfo(dest).Length != asset.Size || FileSha(dest) != asset.Sha256)
-                    throw new InvalidDataException($"{asset.Asset} non è quello dell'elenco: riprova.");
                 var data = await File.ReadAllBytesAsync(dest, token);
                 if (encrypted) data = Decrypt(key!, data);
                 Extract(data, asset, blobs);
@@ -209,7 +234,16 @@ public static partial class Packs
         new()
         {
             Def = plan.Def, Files = files, Mirrors = plan.Mirrors, ImagePath = plan.ImagePath, Fetch = fetch, Cleanup = cleanup,
-            Notice = notice,
+            Notice = notice, Base = plan,
+        };
+
+    /// <summary>The package could not be read: only the repo's files, and the package's files already installed stay
+    /// (without this the mirror would delete the catalogue and the music as files it does not know).</summary>
+    static ModPlan Unresolved(ModPlan plan, string notice) =>
+        new()
+        {
+            Def = plan.Def, Files = plan.Files, Mirrors = plan.Mirrors, ImagePath = plan.ImagePath, Notice = notice, Base = plan,
+            KeepExtras = true,
         };
 
     // -----------------------------------------------------------------------------------------------------------------

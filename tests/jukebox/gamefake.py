@@ -53,7 +53,9 @@ end
 
 -- server -> client and client -> server
 TO_ALL, TO_ONE, TO_SERVER = {}, {}, {}
+function triggerEvent(name, ...) fire(name, ...) end
 function sendServerCommand(a, b, c, d)
+    if not SERVER then return end                                  -- as in the game: nothing in single player
     if type(a) == "string" then table.insert(TO_ALL, { module = a, command = b, args = c })
     else table.insert(TO_ONE, { player = a, module = b, command = c, args = d }) end
 end
@@ -202,7 +204,8 @@ NEXT_SOUND = 0
 function newEmitter()
     local e = { volumes = {} }
     function e:setPos(x, y, z) self.x, self.y, self.z = x, y, z end
-    function e:playSound(name) NEXT_SOUND = NEXT_SOUND + 1 table.insert(PLAYED, { name = name, id = NEXT_SOUND, at = NOW, emitter = self }) return NEXT_SOUND end
+    -- only playSoundImpl: playSound would also go to the other clients
+    function e:playSoundImpl(name, b, obj) NEXT_SOUND = NEXT_SOUND + 1 table.insert(PLAYED, { name = name, id = NEXT_SOUND, at = NOW, emitter = self }) return NEXT_SOUND end
     function e:set3D(id, b) end
     function e:setVolume(id, v) self.volumes[id] = v end
     function e:stopSound(id) table.insert(STOPPED, id) return 0 end

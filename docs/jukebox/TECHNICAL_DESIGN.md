@@ -69,6 +69,14 @@ Ogni pezzo è uno script `sound JukeboxMoon_T<traccia>_S<pezzo>` con
 `clip { file = media/sound/jukeboxmoon/t<traccia>/s<pezzo>.ogg, distanceMin, distanceMax }`, `master = Ambient` (il
 cursore «Ambiente» del gioco: il volume della musica del gioco resta libero).
 
+I pezzi sono **mono**, 44,1 kHz. Il gioco suona un file decodificandolo tutto in memoria e non lo libera più fino
+alla chiusura (`FMODManager.loadSound`: `FMOD_System_CreateSound` con il solo `FMOD_3D`, tenuto in `fileToSoundMap`;
+verificato nel jar della 42.21, nessuno chiama `FMOD_Sound_Release`). Ogni minuto di musica diversa che un giocatore
+sente resta lì, circa 5 MB in mono (10 in stereo): ascoltare in una sessione tutti i CD di Radio Voices (89 minuti) ne
+tiene circa mezzo GB, che torna libero chiudendo il gioco. Riascoltare un brano non costa niente. E il jukebox è un
+suono nel mondo: da 2 caselle in su il gioco lo suona tutto in 3D (`FileSound`, `FMOD_Channel_Set3DLevel`), dove uno
+stereo arriva comunque da un punto solo. Decodificare un pezzo da 10 s richiede una decina di millisecondi.
+
 Il client (`client/JukeboxMoon/Player.lua`), a ogni tick, per ogni jukebox acceso entro `HEAR_TILES` (40 caselle):
 calcola l'ora del server (`getTimestampMs() + offset`), il pezzo del momento e lo fa partire
 (`getWorld():getFreeEmitter(x, y, z)`, `playSound`, `set3D`, `setVolume`). Se arriva a metà di un pezzo aspetta il
@@ -101,6 +109,10 @@ albums = { { key, id, item, title, artist, year, loot, archived, tracks = { { ke
 } } } } }`. Le lettere accentate sono scritte come byte (`\195\160`): Kahlua altrimenti le rompe. `Catalog.lua` lo
 legge la prima volta che serve. Senza catalogo, o con una versione diversa da quella del server (che la manda in
 `hello`), il client non suona niente e la finestra dice «Musica non disponibile: aggiorna il launcher» (fail closed).
+In MP con il controllo dei file acceso (`DoLuaChecksum`, di base sì) il gioco non fa nemmeno entrare chi ha un
+catalogo diverso: confronta i file Lua e gli script (`ChecksumPacket`, `ScriptManager.getChecksum`), e
+`CatalogData.lua` e gli script dei CD sono fra questi. Per questo il catalogo pubblico è obbligatorio nel launcher e
+va aggiornato prima di entrare; l'audio non entra nel controllo.
 
 Gli id numerici (`key`) di album e tracce li assegna il builder e li ricorda in `jukebox.lock.json`, nella cartella
 della musica: non cambiano mai, e un album tolto diventa «archiviato» (resta l'oggetto, niente bottino né spawn).
@@ -116,9 +128,13 @@ album il builder non scrive oggetti, icone né nomi; non entrano nel bottino (ci
 L'audio viene da Radio Voices (`tools/jukebox/radiovoices.py`): ogni riga del gioco ha la sua chiave (il testo
 inglese normalizzato come fa `RadioVoices.normalize`); le canzoni (`RadioVoices.songs`) elencano le righe che cantano
 e hanno la canzone intera in un suono (`starts[1]`, `RV_s_<id>_0`). Le tracce di un CD sono le canzoni che coprono
-almeno tre delle sue righe, la più ampia per prima (due versioni di una canzone hanno le prime righe in comune), in
-ordine di inizio; un CD senza canzoni ma con le righe lette (audiolibri, Bibbia, storia) è una traccia sola, le frasi
-una dopo l'altra con 0,6 s di pausa.
+almeno tre delle sue righe **diverse** (tutte, se il CD ne ha meno: Eurodance '92 ne ha due), la più ampia per prima
+(due versioni di una canzone hanno le prime righe in comune), in ordine di inizio. Le righe ripetute contano una volta:
+«Electronic beats» è sei righe di due CD, e una canzone che canta solo quella non deve finire nell'altro. Un CD senza
+canzoni ma con le righe lette (audiolibri, Bibbia, storia) è una traccia sola, le frasi una dopo l'altra con 0,6 s di
+pausa. L'importatore prepara tutto in una cartella a parte e poi sostituisce solo le cartelle `albums/cd-*` che ha
+fatto lui (hanno il file `.import-radiovoices`): un errore a metà non tocca niente, e un album dell'admin che si chiama
+`cd-…` resta dov'è.
 
 ### Bottino e spawn
 
@@ -151,16 +167,21 @@ account e la password del server: è il server del gioco a dare la chiave della 
   conosce i CD e non sente niente.
 - `a<album>-<hash>.jbm`, **cifrato**, uno per album: lo zip dei pezzi `42/media/sound/jukeboxmoon/t<traccia>/s<pezzo>.ogg`,
   cifrato con AES-256-GCM (`JBM1` + nonce di 12 byte + testo cifrato + tag). Il nonce viene dall'HMAC della chiave
-  sull'impronta dello zip: lo stesso album dà lo stesso file, due album diversi mai lo stesso nonce. Un album per file
+  sull'impronta dello zip: lo stesso album dà lo stesso file, due album diversi mai lo stesso nonce. Il nome viene
+  dall'impronta del file cifrato: con un'altra chiave è un altro nome, e GitHub riceve il file nuovo. Un album per file
   perché una release di GitHub tiene al massimo mille allegati, e i pezzi sono migliaia.
-- `manifest.json`, pubblico: `catalogVersion` (i primi 16 caratteri dello SHA-256 della lista di tutti i file),
-  `packageVersion` (versione del motore), `keyId` (i primi 16 caratteri dello SHA-256 della chiave), il catalogo
-  pubblico e gli album, ognuno con nome dell'allegato, byte, SHA-256 dell'allegato e, per ogni file dentro, percorso,
-  byte e SHA-256.
+- `manifest.json`, pubblico: `catalogVersion` (i primi 16 caratteri dello SHA-256 della lista di tutti i file, dei
+  dati degli album, del motore e della chiave), `packageVersion` (versione del motore), `keyId` (i primi 16 caratteri
+  dello SHA-256 della chiave), il catalogo pubblico e gli album, ognuno con numero, id, nome dell'allegato, byte,
+  SHA-256 dell'allegato e, per ogni file dentro, percorso, byte e SHA-256.
 
 La stessa sorgente con gli stessi strumenti dà gli stessi file (`-fflags +bitexact`, zip con date fisse, nonce
-derivato), e i pezzi già fatti si riusano se brano e parametri non cambiano. Si costruisce in una cartella temporanea
-e si rinomina alla fine: un errore non lascia mai un pacchetto a metà.
+derivato), e i pezzi già fatti si riusano se brano e parametri non cambiano (quelli che nessun brano usa più si
+tolgono dopo ogni build). Si costruisce in `dist/.staging`, un album alla volta (l'audio di tutto il catalogo non è
+mai in memoria insieme), si verifica, poi si scrivono la chiave e `jukebox.lock.json` e solo alla fine il pacchetto
+prende il suo nome: un errore non lascia mai un pacchetto a metà, né un pacchetto senza i numeri che ha usato. Una
+cartella della musica che ha la chiave e non i numeri, o i numeri e non la chiave, è stata costruita e ha perso un file:
+il builder si ferma invece di dare numeri nuovi (i CD nei salvataggi suonerebbero un altro album) o una chiave nuova.
 
 ### La chiave
 
@@ -171,23 +192,28 @@ e si rinomina alla fine: un errore non lascia mai un pacchetto a metà.
 - La mod del giocatore la scrive in `Zomboid/Lua/JukeboxMoon_key.txt` (solo se è una chiave e se è cambiata); il
   launcher la legge da lì e controlla che sia quella del catalogo (`keyId`). La prima sessione su Moon di un
   giocatore nuovo è senza musica; dalla seconda c'è.
-- Una chiave che gira fuori dal gruppo apre la musica a chi la ha: `build --new-key` ne fa una nuova e ricifra tutto.
-  L'audio installato sul PC è in chiaro (il gioco deve leggerlo): la cifratura protegge la musica pubblicata, non i
-  file di chi gioca.
+- Una chiave che gira fuori dal gruppo apre la musica a chi la ha: `build --new-key` ne fa una nuova e ricifra tutto;
+  la vecchia resta accanto come `jukebox.key.<id>`. L'audio installato sul PC è in chiaro (il gioco deve leggerlo):
+  la cifratura protegge la musica pubblicata, non i file di chi gioca.
 
 ### GitHub
 
 - Release `jukebox` del repo, **pre-release**: il launcher prende per sue solo le release normali
-  (`Sources.cs`: `!Draft && !Prerelease`). Allegati: `manifest.json` (sostituito a ogni pubblicazione, per ultimo),
-  `catalog-<hash>.zip` e `a<album>-<hash>.jbm` (per contenuto: un file già caricato non si ricarica). `publish
-  --prune` toglie gli allegati che nessuno degli ultimi tre manifest usa.
+  (`Sources.cs`: `!Draft && !Prerelease`) e non la mostra fra le novità. Allegati: `manifest.json` (sostituito a ogni
+  pubblicazione, per ultimo, riprovato se il caricamento non riesce), `catalog-<hash>.zip` e `a<album>-<hash>.jbm`
+  (per contenuto: un file già caricato per intero, con gli stessi byte e lo stesso SHA-256 che GitHub dice, non si
+  ricarica). Prima di caricare, `publish` confronta i numeri degli album con il `manifest.json` pubblicato e rifiuta
+  un pacchetto che dà a un album il numero di un altro. `publish --prune` toglie gli allegati che né il pacchetto né
+  gli ultimi tre manifest usano (con `--dry-run` dice quali).
 - Il launcher li scarica da `https://github.com/<repo>/releases/download/jukebox/<nome>`, senza API.
 
 ### Il server
 
 `publish` copia, via ssh su cirene, il motore (`mods/JukeboxMoon` del repo) e il catalogo pubblico in
-`~/server/zomboid/live/Zomboid/mods/JukeboxMoon` (prima in una cartella accanto, poi lo scambio) e la chiave. Il server
-li carica al riavvio. L'audio sul server non serve.
+`~/server/zomboid/live/Zomboid/mods/JukeboxMoon` e la chiave. La copia nuova viaggia in `Zomboid/JukeboxMoon-publish/new`
+e quella di prima resta in `Zomboid/JukeboxMoon-publish/old`: **mai dentro `mods`**, perché il gioco segna id →
+cartella per ogni `mod.info` che trova (`ZomboidFileSystem`, `modIdToDir.put`, 42.21) e con due cartelle della stessa
+mod potrebbe caricare la vecchia. Il server li carica al riavvio. L'audio sul server non serve.
 
 ### Launcher
 
@@ -198,7 +224,13 @@ li carica al riavvio. L'audio sul server non serve.
   chiave la scheda dice «La musica arriva dopo la prima volta su Moon».
 - Si scaricano solo gli album che mancano o sono cambiati, si verifica l'impronta dell'allegato, si decifra (la chiave
   sbagliata non passa il tag di GCM) e si verifica ogni file prima di installarlo (`Core/Pack.cs`, launcher 1.0.3).
-  Le impronte dei file installati si ricordano per percorso, dimensione e data (`Core/HashCache.cs`): centinaia di MB
-  non si rileggono a ogni avvio.
+  Le impronte dei file installati si ricordano per percorso, dimensione e data (`Core/HashCache.cs`, salvate dopo
+  ogni controllo): centinaia di MB non si rileggono a ogni avvio.
+- Il pacchetto si rilegge a ogni installazione (`ModPlan.Base`): togliere e rimettere la mod, o riprovare dopo un
+  errore, nella stessa sessione funziona, e gli album già scaricati non si riscaricano.
+- Se il pacchetto non si legge (GitHub irraggiungibile la prima volta, elenco rovinato, un file bloccato), la mod resta
+  con i file del repo e un avviso, e i file del catalogo e della musica già installati **restano** (`KeepExtras`: il
+  `mirror` non li toglie). L'elenco ha 15 secondi per arrivare, un album si ferma dopo 30 secondi senza dati: il
+  launcher non resta mai appeso. Le altre mod vanno avanti comunque.
 - Per provare un pacchetto prima di pubblicarlo: `MoonLauncher.exe --pacchetto <dist>\<versione>` (con `--sorgente`
   su una copia del repo dove la mod è «installabile»).

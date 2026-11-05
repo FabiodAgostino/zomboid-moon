@@ -198,6 +198,11 @@ def test_a_real_build_is_complete_reproducible_and_never_half_written(tmp_path):
     assert pieces == {"42/media/sound/jukeboxmoon/t1/s000.ogg", "42/media/sound/jukeboxmoon/t1/s001.ogg",
                       "42/media/sound/jukeboxmoon/t1/s002.ogg", "42/media/sound/jukeboxmoon/t2/s000.ogg",
                       "42/media/sound/jukeboxmoon/t2/s001.ogg", "42/media/sound/jukeboxmoon/t3/s000.ogg"}
+    piece = next((music / audio.CACHE).glob("*/s000.ogg"))
+    probe = audio.run([shutil.which("ffprobe"), "-v", "error", "-show_entries", "stream=channels,sample_rate",
+                       "-of", "json", str(piece)]).stdout
+    assert json.loads(probe)["streams"][0] == {"sample_rate": "44100", "channels": 1}   # mono: half the game's memory
+    assert not (tmp_path / "dist" / ".staging").exists()
     catalog = package.read_zip((first.folder / manifest["catalog"]["asset"]).read_bytes())
     lua = catalog["42/media/lua/shared/JukeboxMoon/CatalogData.lua"].decode("ascii")
     assert f'version = "{first.version}"' in lua and "ms = 12500, segments = 2" in lua
@@ -238,6 +243,9 @@ def test_install_puts_engine_catalogue_audio_and_key_on_this_computer(tmp_path):
     assert (mod / "42" / "media" / "sound" / "jukeboxmoon" / "t1" / "s000.ogg").exists()
     key = package.read_key(music, False)
     assert (zomboid / "Lua" / "JukeboxMoon_server_key.txt").read_text() == f"{key.hex()}\n{package.key_id(key)}\n"
+    publish.install(report.folder, music, zomboid, lambda s: None)          # again, over the one there
+    assert [p.name for p in (zomboid / "mods").iterdir()] == ["JukeboxMoon"]
+    assert not (zomboid / publish.ASIDE).exists()
 
 
 @pytest.mark.skipif(not FFMPEG, reason="ffmpeg is not installed")
@@ -246,8 +254,11 @@ def test_publish_to_the_server_without_audio(tmp_path):
     album(music, "uno", [("a", 6)])
     report = build.build(music, tmp_path / "dist")
     lines = []
-    publish.server(report.folder, music, "cirene", "mods dir", "lua", True, lines.append)
-    assert any(line.startswith("(prova) scp -r -q") and "cirene:mods dir/JukeboxMoon.new" in line for line in lines)
+    publish.server(report.folder, music, "cirene", "srv/Zomboid/mods dir", "lua", True, lines.append)
+    # the new copy and the one before stay out of mods: the game would find two mods with the same id
+    assert any(line.startswith("(prova) scp -r -q") and "cirene:srv/Zomboid/JukeboxMoon-publish/new" in line
+               for line in lines)
+    assert not any("JukeboxMoon.new" in line or "JukeboxMoon.old" in line for line in lines)
     staged = tmp_path / "staged"
     publish.stage_mod(report.folder, staged, None)
     assert not (staged / "42" / "media" / "sound").exists()
@@ -389,9 +400,14 @@ def test_the_games_cds_from_radio_voices(tmp_path):
     game = fake_game(tmp_path / "game")
     rv = fake_radio_voices(tmp_path / "rv")
     music = tmp_path / "music"
-    album(music, "nostro", [("b", 6)])                              # the admin's own albums are never touched
+    album(music, "nostro", [("b", 6)])                              # the admin's own albums are never touched,
+    album(music, "cd-natale", [("n", 6)])                           # even when their folder starts with cd-
     (music / "albums" / "cd-old").mkdir()                            # an old import: rewritten
+    (music / "albums" / "cd-old" / radiovoices.MARKER).write_text("x")
     plans = radiovoices.import_cds(rv, music, game, lambda s: None)
+    assert (music / "albums" / "cd-natale" / "album.json").exists()
+    assert (music / "albums" / "cd-89108e07" / radiovoices.MARKER).exists()
+    assert not (music / ".radiovoices-import").exists()
     assert [len(p.songs) for p in plans] == [1, 0, 0] and [bool(p.read) for p in plans] == [False, True, False]
     sung = json.loads((music / "albums" / "cd-89108e07" / "album.json").read_text(encoding="utf-8"))
     assert sung["vanillaMedia"] == MEDIA and sung["artist"] == "Every Reason" and sung["year"] == 1993
@@ -402,6 +418,140 @@ def test_the_games_cds_from_radio_voices(tmp_path):
     assert not (music / "albums" / "cd-99999999").exists() and not (music / "albums" / "cd-old").exists()
     assert (music / "albums" / "nostro" / "album.json").exists()
     albums, _ = build.validate(music)
-    assert {a.id for a in albums} == {"cd-89108e07", "cd-11111111", "nostro"}
+    assert {a.id for a in albums} == {"cd-89108e07", "cd-11111111", "nostro", "cd-natale"}
     with pytest.raises(SourceError, match="mai nel repo"):
         radiovoices.import_cds(rv, ROOT / "dist-prova", game, lambda s: None)
+
+    # an import made before the marker existed is still recognised and rewritten
+    (music / "albums" / "cd-89108e07" / radiovoices.MARKER).unlink()
+    radiovoices.import_cds(rv, music, game, lambda s: None)
+    assert (music / "albums" / "cd-89108e07" / radiovoices.MARKER).exists()
+    # a folder of the admin's with the name the import wants: refused, nothing changed
+    shutil.rmtree(music / "albums" / "cd-11111111")
+    album(music, "cd-11111111", [("m", 6)])
+    with pytest.raises(SourceError, match="non l'ha fatta import-radiovoices"):
+        radiovoices.import_cds(rv, music, game, lambda s: None)
+    assert json.loads((music / "albums" / "cd-11111111" / "album.json").read_text(encoding="utf-8"))["tracks"][0]["id"] == "m"
+    assert (music / "albums" / "cd-89108e07" / "album.json").exists() and not (music / ".radiovoices-import").exists()
+
+
+def test_a_song_counts_its_different_lines_not_the_repeated_ones():
+    from tools.jukebox import radiovoices as rv
+    lines = ["One line", "Two line", "Three line", "Four line"] + ["[img=music] Beats [img=music]"] * 4
+    cd = rv.GameCD(media=MEDIA, title="CD", author="A", year=None, lines=lines)
+    keys = [rv.normalize(t) for t in lines]
+    own = rv.Song("RV_s_own_0", 60, set(keys[:4]))
+    other = rv.Song("RV_s_zz_0", 60, {keys[4]})                    # another CD's song: one line, four times here
+    assert rv.plan(cd, {}, {"s_aaaa": own, "s_zzzz": other}).songs == [("s_aaaa", "One line")]
+    two = rv.GameCD(media=MEDIA, title="Eurodance", author="A", year=None,
+                    lines=["Drei zwei eins"] + ["[img=music] Beats [img=music]"] * 5)
+    both = rv.Song("RV_s_e_0", 60, {rv.normalize(t) for t in two.lines})
+    assert rv.plan(two, {}, {"s_e": both}).songs == [("s_e", "Drei zwei eins")]   # two different lines: both needed
+
+
+# ------------------------------------------------------------------------------------------------ key, numbers, GitHub
+
+
+@pytest.mark.skipif(not FFMPEG, reason="ffmpeg is not installed")
+def test_a_new_key_makes_new_files_and_keeps_the_old_key(tmp_path):
+    music = tmp_path / "music"
+    album(music, "uno", [("a", 6)])
+    first = build.build(music, tmp_path / "dist")
+    old_key = package.read_key(music, False)
+    second = build.build(music, tmp_path / "dist", new_key=True)
+    new_key = package.read_key(music, False)
+    assert new_key != old_key and second.version != first.version
+    names = lambda r: {a["asset"] for a in json.loads((r.folder / "manifest.json").read_text())["albums"]}  # noqa: E731
+    assert names(first).isdisjoint(names(second))                  # GitHub gets the new files: other names
+    assert package.verify(second.folder, new_key) == []
+    assert (music / f"jukebox.key.{package.key_id(old_key)}").read_text().strip() == old_key.hex()
+
+
+@pytest.mark.skipif(not FFMPEG, reason="ffmpeg is not installed")
+def test_a_folder_that_lost_its_numbers_or_its_key_stops(tmp_path):
+    music = tmp_path / "music"
+    album(music, "uno", [("a", 6)])
+    build.build(music, tmp_path / "dist")
+    before = sorted(p.name for p in (tmp_path / "dist").iterdir())
+    lock_file = music / "jukebox.lock.json"
+    saved = lock_file.read_text(encoding="utf-8")
+    lock_file.unlink()
+    with pytest.raises(SourceError, match="Manca jukebox.lock.json"):
+        build.build(music, tmp_path / "dist")
+    lock_file.write_text(saved, encoding="utf-8")
+    (music / "jukebox.key").unlink()
+    with pytest.raises(SourceError, match="Manca jukebox.key"):
+        build.build(music, tmp_path / "dist")
+    assert sorted(p.name for p in (tmp_path / "dist").iterdir()) == before
+    assert build.build(music, tmp_path / "dist", new_key=True).version
+
+
+def test_publish_refuses_a_number_given_to_another_album():
+    published = {"albums": [{"key": 1, "id": "uno"}, {"key": 2, "id": "due"}]}
+    publish.check_numbers(published, {"albums": [{"key": 1, "id": "uno"}, {"key": 3, "id": "tre"}]})
+    publish.check_numbers(None, {"albums": [{"key": 1, "id": "altro"}]})
+    with pytest.raises(SourceError, match="numero 2"):
+        publish.check_numbers(published, {"albums": [{"key": 2, "id": "tre"}]})
+
+
+def test_an_asset_on_github_counts_only_when_it_is_really_that_file():
+    sha = "ab" * 32
+    good = {"name": "x", "size": 10, "state": "uploaded", "digest": f"sha256:{sha}"}
+    assert publish._uploaded(good, 10, sha)
+    assert publish._uploaded({**good, "digest": None}, 10, sha)      # an older GitHub without digest: the size
+    assert not publish._uploaded(None, 10, sha)
+    assert not publish._uploaded({**good, "state": "starter"}, 10, sha)
+    assert not publish._uploaded({**good, "size": 9}, 10, sha)
+    assert not publish._uploaded({**good, "digest": "sha256:" + "cd" * 32}, 10, sha)
+
+
+def test_a_package_cannot_write_outside_the_mod(tmp_path):
+    folder = tmp_path / "pkg"
+    folder.mkdir()
+    catalog = package.make_zip({"/fuori.txt": b"x"})
+    (folder / "catalog.zip").write_bytes(catalog)
+    (folder / "manifest.json").write_text(json.dumps({"catalog": {"asset": "catalog.zip"}, "albums": []}))
+    with pytest.raises(SourceError, match="Percorso non valido"):
+        publish.stage_mod(folder, tmp_path / "mod", None)
+
+
+def test_the_cache_keeps_only_what_the_last_build_used(tmp_path):
+    cache = tmp_path / audio.CACHE
+    for name in ("used", "old", "half.tmp"):
+        (cache / name).mkdir(parents=True)
+    assert audio.prune_cache(tmp_path, {"used"}) == 2
+    assert [p.name for p in cache.iterdir()] == ["used"]
+
+
+# ------------------------------------------------------------------------------------------------ covers
+
+
+def picture(mode: str, size=(200, 100), colour=None, exif_orientation=None, fmt="PNG") -> bytes:
+    from PIL import Image
+    image = Image.new(mode, size, colour if colour is not None else 0)
+    out = __import__("io").BytesIO()
+    if exif_orientation:
+        exif = Image.Exif()
+        exif[0x0112] = exif_orientation
+        image.save(out, format=fmt, exif=exif.tobytes())
+    else:
+        image.save(out, format=fmt)
+    return out.getvalue()
+
+
+def test_covers_are_turned_flattened_and_never_white_by_mistake():
+    turned = generate.open_cover(picture("RGB", (200, 100), (10, 20, 30), exif_orientation=6, fmt="JPEG"))
+    assert turned.size == (100, 200)                                  # the camera said: rotate
+    clear = generate.open_cover(picture("RGBA", (10, 10), (0, 0, 0, 0)))
+    assert clear.getpixel((5, 5)) == generate.COVER_BACKGROUND        # transparent on the background, not black
+    grey = generate.open_cover(picture("I;16", (10, 10), 32768))
+    assert grey.getpixel((5, 5))[0] in range(120, 136)                # 16-bit mid grey stays mid grey
+    assert generate.open_cover(picture("CMYK", (10, 10), (0, 0, 0, 0), fmt="JPEG")).mode == "RGB"
+
+
+@pytest.mark.skipif(not FFMPEG, reason="ffmpeg is not installed")
+def test_a_cover_that_does_not_open_stops_before_any_audio(tmp_path):
+    folder = album(tmp_path, "uno", [("a", 6)], cover="cover.png")
+    (folder / "cover.png").write_bytes(b"not a picture")
+    with pytest.raises(SourceError, match="copertina cover.png non si apre"):
+        build.validate(tmp_path)
