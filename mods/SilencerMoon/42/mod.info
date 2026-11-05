@@ -1,0 +1,9 @@
+name=SilencerMoon
+id=SilencerMoon
+poster=poster.png
+icon=icon.png
+description=Silenziatori artigianali per il server Moon. Fondi un fucile a pompa in un lingotto di Acciaio Ramato o di Lega Balistica di Recupero e saldane un silenziatore per pistole o per fucili; in emergenza ricavane uno da un filtro dell'olio smontato da un veicolo. Ogni silenziatore toglie rumore agli spari ma riduce gittata e danno, e si consuma sparando. Le ricette dei silenziatori si imparano da una rivista rara. Modelli e suoni da Simple Suppressors di Kiidxatlas. Non attivarla insieme a Simple Suppressors o a Silenziatori.
+author=Moon (modelli e icone di partenza: Kiidxatlas)
+modversion=0.1.0
+versionMin=42.21.0
+incompatible=SimpleSuppressors,Silenziatori,ShotgunSuppressorB42

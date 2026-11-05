@@ -1,0 +1,8 @@
+{
+  "Tooltip_SilencerMoon_CopperSteelIngot": "A homemade alloy of salvaged steel and copper. Good for suppressors that do not last long.",
+  "Tooltip_SilencerMoon_BallisticAlloyIngot": "A reinforced metal made from firearm parts and remelted metals. Good for suppressors that last.",
+  "Tooltip_SilencerMoon_ScavengedOilFilter": "An oil filter taken out of a vehicle. Makes an improvised suppressor.",
+  "Tooltip_SilencerMoon_Suppressor": "Attach it to a compatible firearm with 'Add Weapon Upgrade' and take it off with 'Remove Weapon Upgrade'; both need a screwdriver. It muffles the shot but costs range and damage, and wears out as you fire.",
+  "Tooltip_SilencerMoon_Smelt": "The pump shotgun may be broken, but it must be empty (nothing chambered, no spent shells) and have no parts attached.",
+  "Tooltip_SilencerMoon_MakeSuppressor": "Learned from the magazine on homemade suppressors."
+}

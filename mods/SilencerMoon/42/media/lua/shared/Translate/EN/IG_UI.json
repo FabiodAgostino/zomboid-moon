@@ -1,0 +1,12 @@
+{
+  "IGUI_SilencerMoon_Tier": "Suppressor: %1",
+  "IGUI_SilencerMoon_Tier_oilfilter": "oil filter",
+  "IGUI_SilencerMoon_Tier_copper": "Copper Steel",
+  "IGUI_SilencerMoon_Tier_ballistic": "Salvaged Ballistic Alloy",
+  "IGUI_SilencerMoon_Noise": "Noise reduction",
+  "IGUI_SilencerMoon_Range": "Range penalty",
+  "IGUI_SilencerMoon_Damage": "Damage penalty",
+  "IGUI_SilencerMoon_Condition": "Suppressor condition: %1/%2",
+  "IGUI_SilencerMoon_WornOut": "Suppressor worn out: it no longer muffles",
+  "IGUI_SilencerMoon_AverageLife": "Estimated average life: %1 shots (wear is random)"
+}

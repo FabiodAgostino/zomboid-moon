@@ -1,0 +1,177 @@
+module Base
+{
+	/* The suppressor models on each supported firearm (Simple Suppressors alignments). These bodies are added to the
+	   game's items: a second body of an existing script only adds what it names (ScriptBucket keeps every body). */
+	item Pistol
+	{
+		ModelWeaponPart = SilencerMoon.Suppressor_Pistol_Copper SilencerMoon.Part_9mm_Pistol_Copper canon canon,
+		ModelWeaponPart = SilencerMoon.Suppressor_Pistol_Ballistic SilencerMoon.Part_9mm_Pistol_Ballistic canon canon,
+		ModelWeaponPart = SilencerMoon.Suppressor_OilFilter SilencerMoon.Part_OilFilter_9mm_Pistol canon canon,
+	}
+	item Pistol2
+	{
+		ModelWeaponPart = SilencerMoon.Suppressor_Pistol_Copper SilencerMoon.Part_45ACP_Pistol_Copper canon canon,
+		ModelWeaponPart = SilencerMoon.Suppressor_Pistol_Ballistic SilencerMoon.Part_45ACP_Pistol_Ballistic canon canon,
+		ModelWeaponPart = SilencerMoon.Suppressor_OilFilter SilencerMoon.Part_OilFilter_45ACP_Pistol canon canon,
+	}
+	item Pistol3
+	{
+		ModelWeaponPart = SilencerMoon.Suppressor_Pistol_Copper SilencerMoon.Part_44_Copper canon canon,
+		ModelWeaponPart = SilencerMoon.Suppressor_Pistol_Ballistic SilencerMoon.Part_44_Ballistic canon canon,
+		ModelWeaponPart = SilencerMoon.Suppressor_OilFilter SilencerMoon.Part_OilFilter canon canon,
+	}
+	item TrapperCarbine
+	{
+		ModelWeaponPart = SilencerMoon.Suppressor_Rifle_Copper SilencerMoon.Part_45ACP_Copper canon canon,
+		ModelWeaponPart = SilencerMoon.Suppressor_Rifle_Ballistic SilencerMoon.Part_45ACP_Ballistic canon canon,
+		ModelWeaponPart = SilencerMoon.Suppressor_OilFilter SilencerMoon.Part_OilFilter canon canon,
+	}
+	item L92_Carbine
+	{
+		ModelWeaponPart = SilencerMoon.Suppressor_Rifle_Copper SilencerMoon.Part_357_Copper canon canon,
+		ModelWeaponPart = SilencerMoon.Suppressor_Rifle_Ballistic SilencerMoon.Part_357_Ballistic canon canon,
+		ModelWeaponPart = SilencerMoon.Suppressor_OilFilter SilencerMoon.Part_OilFilter canon canon,
+	}
+	item AssaultRifle
+	{
+		ModelWeaponPart = SilencerMoon.Suppressor_Rifle_Copper SilencerMoon.Part_556_Copper canon canon,
+		ModelWeaponPart = SilencerMoon.Suppressor_Rifle_Ballistic SilencerMoon.Part_556_Ballistic canon canon,
+		ModelWeaponPart = SilencerMoon.Suppressor_OilFilter SilencerMoon.Part_OilFilter canon canon,
+	}
+	item VarmintRifle
+	{
+		ModelWeaponPart = SilencerMoon.Suppressor_Rifle_Copper SilencerMoon.Part_556_Copper canon canon,
+		ModelWeaponPart = SilencerMoon.Suppressor_Rifle_Ballistic SilencerMoon.Part_556_Ballistic canon canon,
+		ModelWeaponPart = SilencerMoon.Suppressor_OilFilter SilencerMoon.Part_OilFilter canon canon,
+	}
+	item JS14_Rifle
+	{
+		ModelWeaponPart = SilencerMoon.Suppressor_Rifle_Copper SilencerMoon.Part_556_Copper canon canon,
+		ModelWeaponPart = SilencerMoon.Suppressor_Rifle_Ballistic SilencerMoon.Part_556_Ballistic canon canon,
+		ModelWeaponPart = SilencerMoon.Suppressor_OilFilter SilencerMoon.Part_OilFilter canon canon,
+	}
+	item AssaultRifle2
+	{
+		ModelWeaponPart = SilencerMoon.Suppressor_Rifle_Copper SilencerMoon.Part_308_Copper canon canon,
+		ModelWeaponPart = SilencerMoon.Suppressor_Rifle_Ballistic SilencerMoon.Part_308_Ballistic canon canon,
+		ModelWeaponPart = SilencerMoon.Suppressor_OilFilter SilencerMoon.Part_OilFilter canon canon,
+	}
+	item HuntingRifle
+	{
+		ModelWeaponPart = SilencerMoon.Suppressor_Rifle_Copper SilencerMoon.Part_308_Copper canon canon,
+		ModelWeaponPart = SilencerMoon.Suppressor_Rifle_Ballistic SilencerMoon.Part_308_Ballistic canon canon,
+		ModelWeaponPart = SilencerMoon.Suppressor_OilFilter SilencerMoon.Part_OilFilter canon canon,
+	}
+	item MSR7T_Rifle
+	{
+		ModelWeaponPart = SilencerMoon.Suppressor_Rifle_Copper SilencerMoon.Part_308_Copper canon canon,
+		ModelWeaponPart = SilencerMoon.Suppressor_Rifle_Ballistic SilencerMoon.Part_308_Ballistic canon canon,
+		ModelWeaponPart = SilencerMoon.Suppressor_OilFilter SilencerMoon.Part_OilFilter canon canon,
+	}
+	item L94_Rifle
+	{
+		ModelWeaponPart = SilencerMoon.Suppressor_Rifle_Copper SilencerMoon.Part_308_Copper canon canon,
+		ModelWeaponPart = SilencerMoon.Suppressor_Rifle_Ballistic SilencerMoon.Part_308_Ballistic canon canon,
+		ModelWeaponPart = SilencerMoon.Suppressor_OilFilter SilencerMoon.Part_OilFilter canon canon,
+	}
+
+	/* The weapon models of 42.21 have no "canon" point. Each one gets it at its own "muzzle" point (same offset,
+	   no rotation), as Simple Suppressors did; ModelScript.Load updates or adds attachments by id and leaves the rest
+	   of the game's model as it is. */
+	model Handgun
+	{
+		attachment canon
+		{
+			offset = 0.0 0.1466 -0.0236,
+			rotate = 0.0 0.0 0.0,
+		}
+	}
+	model Handgun02
+	{
+		attachment canon
+		{
+			offset = 0.0 0.1432 -0.0225,
+			rotate = 0.0 0.0 0.0,
+		}
+	}
+	model Handgun03
+	{
+		attachment canon
+		{
+			offset = 0.0 0.1443 -0.0279,
+			rotate = 0.0 0.0 0.0,
+		}
+	}
+	model Trapper_Carbine
+	{
+		attachment canon
+		{
+			offset = 0.0 0.353 0.021,
+			rotate = 0.0 0.0 0.0,
+		}
+	}
+	model L92_Carbine
+	{
+		attachment canon
+		{
+			offset = 0.0 0.3866 0.0263,
+			rotate = 0.0 0.0 0.0,
+		}
+	}
+	model L94_Rifle
+	{
+		attachment canon
+		{
+			offset = 0.0 0.3866 0.0263,
+			rotate = 0.0 0.0 0.0,
+		}
+	}
+	model AssaultRifle
+	{
+		attachment canon
+		{
+			offset = 0.0 0.3993 0.0237,
+			rotate = 0.0 0.0 0.0,
+		}
+	}
+	model VarmintRifle
+	{
+		attachment canon
+		{
+			offset = 0.0 0.5065 0.0331,
+			rotate = 0.0 0.0 0.0,
+		}
+	}
+	model M14
+	{
+		attachment canon
+		{
+			offset = 0.0 0.5004 0.0297,
+			rotate = 0.0 0.0 0.0,
+		}
+	}
+	model HuntingRifle
+	{
+		attachment canon
+		{
+			offset = 0.0 0.4968 0.0308,
+			rotate = 0.0 0.0 0.0,
+		}
+	}
+	model MSR7T_Rifle
+	{
+		attachment canon
+		{
+			offset = 0.0 0.4968 0.0308,
+			rotate = 0.0 0.0 0.0,
+		}
+	}
+	model JS14_Rifle
+	{
+		attachment canon
+		{
+			offset = 0.0 0.3822 0.0321,
+			rotate = 0.0 0.0 0.0,
+		}
+	}
+}

@@ -8,6 +8,7 @@ Le mod per giocare a **Project Zomboid** (Build 42) sul server **Moon**.
 | --- | --- | --- | --- |
 | **ZomBOT (Moon)** | **Obbligatoria** | il launcher la installa e la aggiorna da solo, in `%UserProfile%\Zomboid\mods\ZomBOTMoon`; sugli altri server non si carica | ZomBOT e Admin-Scorte insieme: le domande a ZomBOT dalla chat del gioco, il contenitore che lampeggia, le casse colorate e, per gli admin, le finestre delle basi e delle scorte. Vedi [ZomBOT: cosa fa](#zombot-cosa-fa) e [Admin-Scorte: cosa fa](#admin-scorte-cosa-fa). |
 | **Silenziatori** | **Disattivata** | per ora a nessuno | I silenziatori per le armi: la mod Simple Suppressors di Kiidxatlas, tradotta in italiano e corretta. Vedi [Silenziatori (disattivata)](#silenziatori-disattivata). |
+| **SilencerMoon** | **In prova** (disattivata) | per ora a nessuno | I silenziatori artigianali che prenderanno il posto di Silenziatori: leghe fuse da un fucile a pompa, silenziatori per pistole e per fucili, il filtro dell'olio come ripiego. Vedi [SilencerMoon (in prova)](#silencermoon-in-prova). |
 
 ---
 
@@ -118,6 +119,23 @@ ZomBOT conta le scorte delle basi (cibo, munizioni, medicine, libri...) e le mos
 
 **Chi non è admin** non vede le finestre, ma ha **il riquadro delle scorte sotto gli oggetti**: passando il mouse su un oggetto, sotto il riquadro del gioco compare «ZomBOT - scorte» con le basi in cui quell'oggetto manca o scarseggia («Scarseggia a ... (300 su 1.000)», «Manca a ...» per un libro o una VHS). Il server rifiuta comunque ogni modifica che non arrivi da un admin.
 
+## SilencerMoon (in prova)
+
+**SilencerMoon** è la mod dei silenziatori artigianali di Moon, rifatta da capo partendo da Simple Suppressors: prenderà il posto di Silenziatori. **Per ora è in prova**: il launcher non la installa e il server non la usa. Nessun silenziatore si trova già fatto: si costruiscono tutti.
+
+| Silenziatore | Come si ottiene | Rumore | Gittata | Danno | Durata media |
+| --- | --- | ---: | ---: | ---: | ---: |
+| **A filtro dell'olio** | un filtro smontato da un veicolo (Meccanica 8, chiave inglese, una volta per veicolo) + dadi e bulloni, Saldatura 3 | -30% | -40% | -25% | 25 spari |
+| **Acciaio Ramato** | 3 lingotti (pistole) o 4 (fucili) di Acciaio Ramato, Saldatura 7 | -40% | -30% | -20% | 100 spari |
+| **Lega Balistica** | 3 o 4 lingotti di Lega Balistica di Recupero, Saldatura 7 | -65% | -20% | -12,5% | 1.000 spari |
+
+- **Le leghe** si fondono alla fornace (fornace di fusione o altoforno) con Forgiatura 5: un fucile a pompa (anche rotto, purché scarico e senza accessori), più 2 scarti di rame e una lamiera piccola per l'Acciaio Ramato, o 2 tubi di metallo e 2 lamiere piccole per la Lega Balistica. Servono crogiolo, pinze e stampo per lingotti, e 8 di carbone. Escono 4 lingotti.
+- **I silenziatori** si saldano con torcia al propano (ne consumano il gas), bacchette per saldatura, maschera, trapano e lima. Le ricette si imparano da una **rivista** piuttosto rara, che si trova nelle armerie, nelle librerie, nelle ferramenta e nelle officine.
+- **Armi:** per le pistole la Pistola, la Pistola M1911 e la Pistola D-E; per i fucili il Fucile d'assalto M16, il Fucile Varmint, il Fucile JS-14, il Fucile M14, il Fucile da caccia, il Fucile tattico MSR7T, il Fucile L94 e anche la Carabina da cacciatore e la Carabina L92 (munizioni da pistola, ma armi da spalla). Niente fucili a pompa né revolver. Il silenziatore a filtro dell'olio va su tutte.
+- **Si monta** con «Aggiungi miglioria» e **si smonta** con «Rimuovi miglioria», con un cacciavite. Il rumore è la distanza da cui gli zombie sentono lo sparo; gittata e danno calano finché il silenziatore è montato e funziona. Si consuma sparando, a caso: a condizione 0 resta montato ma non fa più niente. Le barre nel riquadro dell'oggetto mostrano i tre valori.
+
+Il progetto completo, con le scelte e le verifiche fatte sui file del gioco 42.21, è nell'analisi v1.2 (non in questo repository). Le prove del Lua: `python -m pytest -q tests/silencermoon` con un Python che ha `pytest` e `lupa` (per esempio quello di ZomBOT). Gli script in `tools/silencermoon` rifanno le icone ramate, la texture e il poster.
+
 ## Silenziatori (disattivata)
 
 **Per ora Silenziatori è disattivata**: il server non la usa, per entrare non serve, e il launcher e `mod-moon-server.bat` non la installano (compare «Disattivata»). Se l'avevi installata prima te lo dicono: nel launcher premi **TOGLI** nella sua scheda, nel bat **`3`**.
@@ -167,6 +185,7 @@ Ogni modifica nel codice è segnata con `[moon]`, così si ritrova facilmente. N
 
 ## Crediti
 
+- **SilencerMoon** riusa modelli 3D, icone e allineamenti alle armi di Simple Suppressors; i suoni silenziati sono registrazioni CC0 (vedi `SOURCES.txt` nella mod).
 - **Simple Suppressors**, da cui nasce Silenziatori: Kiidxatlas ([Steam Workshop](https://steamcommunity.com/sharedfiles/filedetails/?id=3782565181)). Modelli, suoni, ricette e quasi tutto il codice sono suoi. Se la mod ti piace, lascia un pollice in su sulla sua pagina del Workshop.
 - **Traduzione italiana e correzioni**: per il server Moon.
 - **ZomBOT e Admin-Scorte**: il bot Discord del server Moon.

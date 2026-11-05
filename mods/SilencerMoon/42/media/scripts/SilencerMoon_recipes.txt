@@ -1,0 +1,186 @@
+module SilencerMoon
+{
+	/***** Alloys: one recipe at the furnace, smelting and casting together, like the game's own smelting
+	   (entities/blacksmith/craftRecipes/recipes_blacksmith_furnaces_i.txt): crucible, tongs and ingot mould are kept,
+	   charcoal is burnt. Tags = Furnace: the Smelting Furnace and the Blast Furnace. Nothing to learn. The shotgun may
+	   be broken but must be empty and bare (SilencerMoon.recipeTestShotgun); the recipe tooltip says so. *****/
+
+	craftRecipe SilencerMoon_SmeltCopperSteel
+	{
+		time = 200,
+		Tags = Furnace,
+		category = Blacksmithing,
+		NeedToBeLearn = false,
+		SkillRequired = Blacksmith:5,
+		xpAward = Blacksmith:40,
+		Tooltip = Tooltip_SilencerMoon_Smelt,
+		OnTest = SilencerMoon.recipeTestShotgun,
+		inputs
+		{
+			item 1 [Base.Shotgun;Base.JS3T_Shotgun;Base.ShotgunSawnoff] mode:destroy flags[AllowDestroyedItem],
+			item 2 [Base.CopperScrap],
+			item 1 [Base.SmallSheetMetal],
+			item 1 [Base.CeramicCrucible] mode:keep flags[IsEmpty],
+			item 1 tags[base:crudetongs;base:tongs] mode:keep flags[MayDegradeLight],
+			item 8 tags[base:charcoal],
+			item 1 [Base.ClayIngotMold;Base.IronIngotMold;Base.SteelIngotMold] mode:keep,
+		}
+		outputs
+		{
+			item 4 SilencerMoon.CopperSteelIngot,
+		}
+	}
+
+	craftRecipe SilencerMoon_SmeltBallisticAlloy
+	{
+		time = 200,
+		Tags = Furnace,
+		category = Blacksmithing,
+		NeedToBeLearn = false,
+		SkillRequired = Blacksmith:5,
+		xpAward = Blacksmith:40,
+		Tooltip = Tooltip_SilencerMoon_Smelt,
+		OnTest = SilencerMoon.recipeTestShotgun,
+		inputs
+		{
+			item 1 [Base.Shotgun;Base.JS3T_Shotgun;Base.ShotgunSawnoff] mode:destroy flags[AllowDestroyedItem],
+			item 2 [Base.MetalPipe;Base.MetalPipe_Broken] mode:destroy flags[AllowDestroyedItem],
+			item 2 [Base.SmallSheetMetal],
+			item 1 [Base.CeramicCrucible] mode:keep flags[IsEmpty],
+			item 1 tags[base:crudetongs;base:tongs] mode:keep flags[MayDegradeLight],
+			item 8 tags[base:charcoal],
+			item 1 [Base.ClayIngotMold;Base.IronIngotMold;Base.SteelIngotMold] mode:keep,
+		}
+		outputs
+		{
+			item 4 SilencerMoon.BallisticAlloyIngot,
+		}
+	}
+
+	/***** Suppressors: welded like the game's welded weapons (AnySurfaceCraft, Welding). They burn propane and
+	   welding rods (item N of a drainable = N uses). Learned from SilencerMoon.SuppressorMagazine. *****/
+
+	craftRecipe SilencerMoon_MakePistolCopper
+	{
+		time = 400,
+		Tags = AnySurfaceCraft,
+		category = Weaponry,
+		timedAction = Welding,
+		NeedToBeLearn = true,
+		SkillRequired = MetalWelding:7,
+		xpAward = MetalWelding:25,
+		Tooltip = Tooltip_SilencerMoon_MakeSuppressor,
+		inputs
+		{
+			item 3 [SilencerMoon.CopperSteelIngot],
+			item 4 [Base.BlowTorch] flags[Prop1],
+			item 2 [Base.WeldingRods],
+			item 1 tags[base:weldingmask] mode:keep,
+			item 1 tags[base:drillmetal] mode:keep flags[MayDegradeLight],
+			item 1 tags[base:file] mode:keep flags[MayDegradeLight],
+		}
+		outputs
+		{
+			item 1 SilencerMoon.Suppressor_Pistol_Copper,
+		}
+	}
+
+	craftRecipe SilencerMoon_MakeRifleCopper
+	{
+		time = 400,
+		Tags = AnySurfaceCraft,
+		category = Weaponry,
+		timedAction = Welding,
+		NeedToBeLearn = true,
+		SkillRequired = MetalWelding:7,
+		xpAward = MetalWelding:25,
+		Tooltip = Tooltip_SilencerMoon_MakeSuppressor,
+		inputs
+		{
+			item 4 [SilencerMoon.CopperSteelIngot],
+			item 6 [Base.BlowTorch] flags[Prop1],
+			item 3 [Base.WeldingRods],
+			item 1 tags[base:weldingmask] mode:keep,
+			item 1 tags[base:drillmetal] mode:keep flags[MayDegradeLight],
+			item 1 tags[base:file] mode:keep flags[MayDegradeLight],
+		}
+		outputs
+		{
+			item 1 SilencerMoon.Suppressor_Rifle_Copper,
+		}
+	}
+
+	craftRecipe SilencerMoon_MakePistolBallistic
+	{
+		time = 400,
+		Tags = AnySurfaceCraft,
+		category = Weaponry,
+		timedAction = Welding,
+		NeedToBeLearn = true,
+		SkillRequired = MetalWelding:7,
+		xpAward = MetalWelding:25,
+		Tooltip = Tooltip_SilencerMoon_MakeSuppressor,
+		inputs
+		{
+			item 3 [SilencerMoon.BallisticAlloyIngot],
+			item 4 [Base.BlowTorch] flags[Prop1],
+			item 2 [Base.WeldingRods],
+			item 1 tags[base:weldingmask] mode:keep,
+			item 1 tags[base:drillmetal] mode:keep flags[MayDegradeLight],
+			item 1 tags[base:file] mode:keep flags[MayDegradeLight],
+		}
+		outputs
+		{
+			item 1 SilencerMoon.Suppressor_Pistol_Ballistic,
+		}
+	}
+
+	craftRecipe SilencerMoon_MakeRifleBallistic
+	{
+		time = 400,
+		Tags = AnySurfaceCraft,
+		category = Weaponry,
+		timedAction = Welding,
+		NeedToBeLearn = true,
+		SkillRequired = MetalWelding:7,
+		xpAward = MetalWelding:25,
+		Tooltip = Tooltip_SilencerMoon_MakeSuppressor,
+		inputs
+		{
+			item 4 [SilencerMoon.BallisticAlloyIngot],
+			item 6 [Base.BlowTorch] flags[Prop1],
+			item 3 [Base.WeldingRods],
+			item 1 tags[base:weldingmask] mode:keep,
+			item 1 tags[base:drillmetal] mode:keep flags[MayDegradeLight],
+			item 1 tags[base:file] mode:keep flags[MayDegradeLight],
+		}
+		outputs
+		{
+			item 1 SilencerMoon.Suppressor_Rifle_Ballistic,
+		}
+	}
+
+	craftRecipe SilencerMoon_MakeOilFilter
+	{
+		time = 200,
+		Tags = AnySurfaceCraft,
+		category = Weaponry,
+		timedAction = Welding,
+		NeedToBeLearn = true,
+		SkillRequired = MetalWelding:3,
+		xpAward = MetalWelding:10,
+		Tooltip = Tooltip_SilencerMoon_MakeSuppressor,
+		inputs
+		{
+			item 1 [SilencerMoon.ScavengedOilFilter],
+			item 1 [Base.NutsBolts],
+			item 2 [Base.BlowTorch] flags[Prop1],
+			item 1 tags[base:weldingmask] mode:keep,
+			item 1 tags[base:drillmetal] mode:keep flags[MayDegradeLight],
+		}
+		outputs
+		{
+			item 1 SilencerMoon.Suppressor_OilFilter,
+		}
+	}
+}

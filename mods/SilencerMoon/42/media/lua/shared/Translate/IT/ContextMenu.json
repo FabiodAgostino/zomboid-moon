@@ -1,0 +1,7 @@
+{
+  "ContextMenu_SilencerMoon_TakeOilFilter": "Smonta il filtro dell'olio",
+  "ContextMenu_SilencerMoon_NeedMechanics": "Serve Meccanica %1.",
+  "ContextMenu_SilencerMoon_NeedWrench": "Serve una chiave inglese.",
+  "ContextMenu_SilencerMoon_EngineRunning": "Spegni prima il motore.",
+  "ContextMenu_SilencerMoon_FilterTaken": "Il filtro dell'olio di questo veicolo è già stato smontato."
+}

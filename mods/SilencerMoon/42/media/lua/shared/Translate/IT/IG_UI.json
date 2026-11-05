@@ -1,0 +1,12 @@
+{
+  "IGUI_SilencerMoon_Tier": "Silenziatore: %1",
+  "IGUI_SilencerMoon_Tier_oilfilter": "filtro dell'olio",
+  "IGUI_SilencerMoon_Tier_copper": "Acciaio Ramato",
+  "IGUI_SilencerMoon_Tier_ballistic": "Lega Balistica di Recupero",
+  "IGUI_SilencerMoon_Noise": "Riduzione rumore",
+  "IGUI_SilencerMoon_Range": "Penalità gittata",
+  "IGUI_SilencerMoon_Damage": "Penalità danno",
+  "IGUI_SilencerMoon_Condition": "Condizione del silenziatore: %1/%2",
+  "IGUI_SilencerMoon_WornOut": "Silenziatore consumato: non attutisce più",
+  "IGUI_SilencerMoon_AverageLife": "Durata media stimata: %1 spari (l'usura è casuale)"
+}

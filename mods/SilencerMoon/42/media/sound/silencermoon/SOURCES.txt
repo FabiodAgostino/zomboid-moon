@@ -1,0 +1,131 @@
+Simple Suppressors gunshot effects
+
+Eight sounds, one per caliber in the mod's own caliber system (matching
+SimpleSuppressorsCompatibility's PART_CALIBERS/CALIBER_OPTIONS). Every gun
+sharing a caliber shares its suppressor's sound: a suppressor barely touches
+a supersonic bullet's crack (that is the bullet's own sonic boom, not muzzle
+blast), so which specific firearm is chambered in that caliber does not
+change what the suppressor itself sounds like.
+  9mm      - handguns (Base.Pistol, and 9mm platforms from other mods)
+  45acp    - handguns and pistol-caliber carbines (1911, TrapperCarbine, ...)
+  44       - magnum handguns (Desert Eagle-class, .44 Magnum)
+  357      - magnum handguns (.357 Magnum)
+  556      - 5.56/.223 rifles, bolt-action or full-auto alike
+  308      - .308/7.62x51 rifles
+  3030     - .30-30 Winchester lever-action rifles
+  shotgun  - 12 gauge
+
+9mm and 45ACP: real recordings, used directly
+-----------------------------------------------------------------
+Real recorded suppressed gunfire of the exact caliber, trimmed to a single
+shot and level-normalized only. No suppression is simulated -- the source
+recordings already are of suppressed firearms.
+
+9mm source: "Suppressed SIG Sauer P226" by areniporgen, shooting close
+  exterior, chambered in 9x19mm Parabellum, recorded from phone microphone.
+  https://freesound.org/people/areniporgen/sounds/828790/
+45ACP source: "Springfield Armory 1911 Operator (Suppressed)" by
+  areniporgen, recorded from a phone microphone, exterior.
+  https://freesound.org/people/areniporgen/sounds/827945/
+Pack: "Real Gun Sounds" by areniporgen, https://freesound.org/people/areniporgen/packs/38798/
+License: CC0 1.0 Universal (public domain dedication)
+License URL: https://creativecommons.org/publicdomain/zero/1.0/
+
+Fetched as the Freesound "-hq" preview transcode (no Freesound account was
+available to pull the lossless originals). If you obtain the original WAVs
+from Freesound, drop them next to build_gunshot_sounds.py as real_9mm.wav /
+real_45acp.wav and re-run the script; it prefers local originals over the
+cached preview when present.
+
+44 and 357: real 45ACP crack + deep, boosted body layer
+-----------------------------------------------------------------
+No real suppressed recording of either magnum handgun caliber under a usable
+open license was found. Both reuse the real 45ACP crack above with a real
+unsuppressed-AR-15-derived low-frequency body layer added underneath,
+lowpassed well below the crack's own energy (~260-320 Hz) and boosted 8-9 dB
+above it so the magnum "thump" reads as clearly distinct from the lighter
+9mm/45ACP handgun sounds, not just a marginally darker copy of them. .44
+Magnum is cut slightly lower/heavier than .357 Magnum to reflect its larger
+case and greater power.
+
+556, 308, and 3030: real rifle-class crack + caliber-scaled body layer
+-----------------------------------------------------------------
+Rifle-class crack source: "Heckler & Koch MP7 Suppressed (Semi & Full Auto)"
+  by areniporgen, recorded from a phone microphone, exterior; the semi-auto
+  shot was isolated from this recording. A suppressor barely touches a
+  supersonic bullet's crack, so this one real suppressed crack is authentic
+  for any supersonic rifle-class round; only the low-frequency body layer
+  below is varied by caliber to tell 556, 308, and 3030 clearly apart.
+  https://freesound.org/people/areniporgen/sounds/732250/
+Pack: "Real Gun Sounds" by areniporgen, https://freesound.org/people/areniporgen/packs/38798/
+License: CC0 1.0 Universal (public domain dedication)
+License URL: https://creativecommons.org/publicdomain/zero/1.0/
+
+Fetched as the Freesound "-hq" preview transcode. Drop the original next to
+build_gunshot_sounds.py as real_rifle.wav to use it instead of the cached
+preview.
+
+Low-frequency body layer (44, 357, 556, 308, 3030)
+-----------------------------------------------------------------
+A slice of a REAL unsuppressed CC0 5.56 AR-15 recording, lowpassed and
+shaped to a natural decay, provides caliber-appropriate low-frequency
+muzzle-blast mass under each real suppressed crack above. This is not a
+second unsuppressed blast -- it is deliberately pushed to two clearly
+distinct extremes rather than a subtle per-caliber nudge:
+  - 308 (full-power rifle) and 44/357 (magnum handgun): heavily lowpassed
+    (~260-320 Hz), long (200-260 ms), and boosted well above the crack's own
+    level -- a genuinely deep, sustained "boom" tail.
+  - 556 (intermediate rifle) and 3030 (lever-action, low-power rifle round):
+    higher cutoff (~550-650 Hz), short (80-90 ms), and quiet relative to the
+    crack -- a lean, crack-forward report with only a light body underneath.
+This keeps mechanically similar guns of different power classes (a
+full-auto 5.56 rifle vs a bolt-action .308) from converging on the same
+sound just because they share a rifle-class crack recording.
+
+Source: The Free Firearm Sound Library
+Creators: Ben Jaszczak, Brian Nelson, Kevin Heras, Matthew Nanney
+License: CC0 1.0 Universal
+License URL: https://creativecommons.org/publicdomain/zero/1.0/
+Source page: https://opengameart.org/content/the-free-firearm-sound-library
+Download: https://opengameart.org/sites/default/files/Prepared%20SFX%20Library.7z
+Recording used: AR-15/D_32P.wav, onset 0.70 s.
+
+Loudness mastering (applied to all eight sounds)
+-----------------------------------------------------------------
+A single suppressed shot recording trimmed to a fixed window and
+peak-normalized is not the same as a game-ready sound: measured, the raw
+trims above integrated 19-23 dBFS quieter than their peak level implied,
+because 80-95% of each file's duration is a near-silent phone-microphone
+room-tone/reverb tail (real, but far below audibility, not a deliberate
+"boominess"). That is what made every caliber read as muted in-game.
+Every file is now: (1) trimmed to the last point its envelope is still
+within 32 dB of its own peak, removing that dead air rather than any
+audible content, then (2) compressed/limited (soft tanh knee, no hard
+digital clipping) so its average loudness sits a fixed amount below its
+peak instead of the 15-23 dB a raw single transient decay leaves. The
+peak ceiling and that fixed amount are chosen per caliber by checking up to
+4 overlapping instances (this mod's maxInstancesPerEmitter) at the
+caliber's real maximum fire rate and picking the loudest combination that
+still stays under 0 dBFS -- as loud as each caliber's fire rate allows
+without the engine's overlapping copies summing into audible clipping.
+9mm (600 rpm) and 5.56 (900 rpm) land quieter than the others for exactly
+this reason, not because they are meant to sound weaker.
+
+Shotgun
+-----------------------------------------------------------------
+No real suppressed-shotgun recording under a usable open license could be
+found (suppressed shotguns are uncommon and rarely recorded/released). This
+one remains derived from an unsuppressed recording:
+
+Source: The Free Firearm Sound Library (see above)
+Recording used: Nova/O_21P.wav, first close-recorded shot, onset 0.430 s.
+
+The DSP that derives it is calibrated against the measured spectral profile
+of the real recordings above (spectral centroid, high-frequency energy
+ratio, crest factor) rather than guessed parameters: a light high-shelf
+reduction and a short natural decay replace a hard lowpass and downward
+compressor, which would otherwise read as an objectively muffled,
+over-filtered signature next to real suppressed recordings (which measure
+4.8-6.5 kHz centroid, 7-61% of energy above 5 kHz).
+
+No audio from RSS or other Project Zomboid mods is included in this mod.
