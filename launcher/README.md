@@ -9,18 +9,20 @@
 - **Mod come schede con un interruttore.** Accendi e la mod si installa; spegni e si toglie, dopo una domanda. Le altre sono facoltative; una mod con `"required": true` invece serve per entrare sul server (oggi ZomBOT (Moon)) e dalla 1.0.2 ha una scheda senza interruttore, con «SERVE PER MOON»: **il launcher la installa da solo all'avvio se manca**, e **GIOCA la aggiorna prima di avviare** se non è identica a quella della release, senza chiedere. Per lei non c'è la scelta della versione: deve essere quella del server.
 - **Aggiornamenti.** All'avvio legge l'ultima release del repo e scarica il suo `moon-mods.zip` (una sola volta per release). Confronta ogni file installato con quello della release, byte per byte, come faceva il bat con `fc /b`. Se qualcosa è diverso la mod diventa **Da aggiornare**, e GIOCA diventa **AGGIORNA**.
 - **Versione a scelta.** Accanto al nome di ogni mod c'è la sua versione: con più versioni pubblicate si apre un menu con tutte, la più nuova in cima. Una versione precedente si installa dalla release che l'aveva pubblicata; la scheda dice «versione scelta da te», e il launcher non la aggiorna da solo finché non si sceglie di nuovo l'ultima.
-- **Stato: «Installabile» o «Disattivata».** Lo decide il repo (vedi [Disattivare una mod](#disattivare-o-riattivare-una-mod)). Una mod disattivata non si installa né si aggiorna. Se qualcuno ce l'ha già, il launcher lo avvisa e nella scheda offre **TOGLI**, ma non la toglie da solo: tenerla installata non fa niente di male, il gioco carica solo quello che il server chiede.
+- **Stato: «Installabile» o «Disattivata».** Lo decide il repo (vedi [Disattivare una mod](#disattivare-o-riattivare-una-mod)). Una mod disattivata non si installa né si aggiorna. Se qualcuno ce l'ha già, la sua scheda lo dice e offre **TOGLI**, ma il launcher non la toglie da solo: tenerla installata non fa niente di male, il gioco carica solo quello che il server chiede.
 - **Le installazioni del bat.** Riconosce le mod installate con `mod-moon-server.bat` (dai file, e dalla versione scritta in `media\lua\Moon-<mod>.version`), e scrive quei file come il bat: si può passare dall'uno all'altro.
 - **In home**, come il bat, una tabella con ogni mod, la sua versione e com'è sul computer: aggiornata, da aggiornare, non installata, disattivata.
-- **Le mod che una mod sostituisce** (dalla 1.0.2). ZomBOT (Moon) contiene ZomBOT e Admin-Scorte, che prima si copiavano nella cartella del gioco: le loro schede non si vedono più, e **all'avvio il launcher toglie dalla cartella del gioco i loro vecchi file**, solo quelli che `mods.json` elenca, e dice quali. Il gioco li caricherebbe su qualsiasi server, e chi controlla i file Lua espelle chi li ha. Se il gioco è aperto aspetta che si chiuda; se non conosce la cartella del gioco non fa niente.
+- **Le mod che una mod sostituisce** (dalla 1.0.2). ZomBOT (Moon) contiene ZomBOT e Admin-Scorte, che prima si copiavano nella cartella del gioco: le loro schede non si vedono più, e **all'avvio il launcher toglie dalla cartella del gioco i loro vecchi file**, solo quelli che `mods.json` elenca, e dice quali. Il gioco li caricherebbe su qualsiasi server, e chi controlla i file Lua espelle chi li ha. Dalla 1.0.4 anche **Silenziatori**, sostituita da SilencerMoon (le due insieme non vanno d'accordo): il launcher toglie tutta la sua cartella, `%UserProfile%\Zomboid\mods\Silenziatori`, e la sua scheda non c'è più. Se il gioco è aperto aspetta che si chiuda; i file nella cartella del gioco li toglie solo se sa dov'è.
 - **File condivisi.** Un file che due mod mettono nello stesso posto (`ZomBotMenu.lua`, in Admin-Scorte e in ZomBOT) resta finché è installata almeno una delle due.
+- **Il codice della musica** (dalla 1.0.4). La musica di Jukebox (Moon) è cifrata: quando manca la chiave (o è quella di prima), il launcher chiede **una volta** il codice personale del giocatore, prima di avviare il gioco, e scarica subito gli asset del Jukebox. Vedi [Il codice della musica](#il-codice-della-musica-dalla-104).
+- **Gli avvisi nell'angolo** (dalla 1.0.4) solo per un errore o per qualcosa che il giocatore deve fare: la cartella trascinata che non contiene il gioco, il gioco da chiudere per togliere i vecchi file, la rete che manca quando chiedi la musica, la cartella delle mod che non c'è ancora. Il resto (installata, tolta, launcher aggiornato, avvio del gioco, una mod disattivata) lo dicono la barra sotto GIOCA e le schede.
 - **GIOCA** avvia il gioco con `steam://rungameid/108600`; senza Steam, con `ProjectZomboid64.exe`. Se prima c'è da installare o aggiornare (INSTALLA, AGGIORNA), lo fa e poi avvia il gioco. **Quando il gioco parte, il launcher si chiude.** Se l'avvio non riesce resta aperto e dice perché. Con il gioco già aperto le mod non si toccano: se serve, il launcher aspetta che si chiuda.
 - **Il gioco** lo trova come il bat: nella cartella data al launcher (trascinata sulla finestra o sull'exe, oppure scelta con «Cambia cartella»), poi nella cartella di Steam e in tutte le librerie di `libraryfolders.vdf`.
 - **Notizie**: sono le note delle release di GitHub, scritte in markdown.
 - **Si aggiorna da solo.** Se il campo `launcher` di `mods.json` nell'ultima release è più alto della versione dell'exe, compare **AGGIORNA E RIAVVIA**. Il launcher scarica il nuovo exe, ne controlla lo SHA-256, prende il posto del vecchio e si riavvia.
 - Senza connessione usa le mod e le notizie scaricate l'ultima volta.
 
-Dove tiene le sue cose: `%LocalAppData%\Moon` (`installate.json` con le mod e le versioni installate, `impostazioni.json` con la cartella del gioco, `cache` con l'ultima release scaricata).
+Dove tiene le sue cose: `%LocalAppData%\Moon` (`installate.json` con le mod e le versioni installate, `impostazioni.json` con la cartella del gioco, `cache` con l'ultima release scaricata). La chiave della musica no: sta dove la scrive anche il gioco, `%UserProfile%\Zomboid\Lua\JukeboxMoon_key.txt`.
 
 ## mods.json: aggiungere o cambiare una mod
 
@@ -47,10 +49,10 @@ Le mod non sono scritte nel launcher: sono in [`mods.json`](../mods.json), in ci
 | --- | --- |
 | `id` | Unico, non cambiarlo più: il launcher ricorda così cosa ha installato. |
 | `name` | Come compare nella scheda. |
-| `versionFile`, `versionKey` | Il file della mod con la sua versione: la prima riga (`VERSION`), o il valore di `versionKey` (per Silenziatori `modversion` in `mod.info`). In alternativa si scrive la versione direttamente, `"version": "1.0.0"`. Quando cambi i file di una mod, alza la sua versione. |
+| `versionFile`, `versionKey` | Il file della mod con la sua versione: la prima riga (`VERSION`), o il valore di `versionKey` (per SilencerMoon `modversion` in `mod.info`). In alternativa si scrive la versione direttamente, `"version": "1.0.0"`. Quando cambi i file di una mod, alza la sua versione. |
 | `state`, `stateNote` | `"installabile"` (se manca è così) o `"disattivata"`, con il motivo facoltativo che compare nella scheda. |
 | `required` | `true` se senza questa mod non si entra sul server. |
-| `audience`, `summary`, `note`, `afterInstall` | I testi della scheda e dell'avviso dopo l'installazione. Facoltativi. |
+| `audience`, `summary`, `note`, `afterInstall` | I testi della scheda e dell'avviso dopo l'installazione. Facoltativi. Dalla 1.0.4 l'avviso dopo l'installazione non c'è più: `afterInstall` lo mostrano solo i launcher precedenti. |
 | `image` | Un'immagine del repo per la scheda. Facoltativa: senza, c'è l'iniziale del nome. |
 | `installedVersion` | Dove sta la versione installata. Con `"key"` è una riga di un file della mod (`modversion` di `mod.info`); senza, è un file di una riga che il launcher scrive accanto alla mod e toglie con lei, come il bat (`Moon-ZomBOT.version`). Facoltativo. |
 | `install` | Cosa copiare. `from` è un file o una cartella del repo (una cartella porta tutti i suoi file, anche nelle sottocartelle). `to` comincia con `{zomboid}` (`%UserProfile%\Zomboid`) o `{game}` (la cartella del gioco). |
@@ -70,11 +72,20 @@ Jukebox (Moon) ha il motore nel repo e il catalogo dei CD fuori: lo fa `tools/ju
 | --- | --- |
 | `release` | Il tag della pre-release con `manifest.json`, `catalog-*.zip` e gli album `a*-*.jbm`. |
 | `to` | Dove vanno i file: la cartella della mod, quella del suo `install` con `mirror`. |
-| `keyFile` | Dove il gioco scrive la chiave della musica quando il giocatore entra sul server. |
+| `keyFile` | Dove sta la chiave della musica: la scrive il gioco quando il giocatore entra sul server, e dalla 1.0.4 anche il launcher, dal codice del giocatore. |
 
-I file del pacchetto entrano nel piano della mod come quelli del repo: lo stesso confronto, e il `mirror` non li toglie. Il catalogo pubblico va a tutti; gli album, cifrati, solo con la chiave giusta. Si scarica solo ciò che manca o è cambiato, e ogni file si verifica prima di installarlo (`Core/Pack.cs`). Le impronte dei file installati si ricordano (`hashes.json` nella cache, salvato dopo ogni controllo): la musica non si rilegge a ogni avvio.
+I file del pacchetto entrano nel piano della mod come quelli del repo: lo stesso confronto, e il `mirror` non li toglie. Il catalogo pubblico va a tutti; gli album, cifrati, solo con la chiave giusta. Mentre li scarica la barra dice «Scarico gli asset del Jukebox», per il catalogo come per gli album (scelta dell'utente: mai «musica» nell'avanzamento), e così gli avvisi del pacchetto sulla scheda. Si scarica solo ciò che manca o è cambiato, e ogni file si verifica prima di installarlo (`Core/Pack.cs`). Le impronte dei file installati si ricordano (`hashes.json` nella cache, salvato dopo ogni controllo): la musica non si rilegge a ogni avvio.
 
 Il pacchetto si rilegge a ogni installazione (`ModPlan.Base`), così togliere e rimettere la mod, o riprovare dopo un errore, funziona nella stessa sessione senza riscaricare ciò che è già pronto. Se il pacchetto non si legge (GitHub irraggiungibile, elenco rovinato, un file bloccato) la mod resta con i file del repo e un avviso sulla scheda, e i file del pacchetto già installati **restano** (`ModPlan.KeepExtras`: il `mirror` non li toglie); le altre mod vanno avanti. L'elenco ha 15 secondi per arrivare, e un album si ferma dopo 30 secondi senza dati. La pre-release `jukebox` non compare fra le novità.
+
+### Il codice della musica (dalla 1.0.4)
+
+Prima della 1.0.4 la chiave arrivava solo dal gioco, entrando su Moon: la prima sessione era senza musica e bisognava riaprire il launcher. Ora il launcher la chiede al giocatore come **codice personale**, una volta sola, e scarica la musica **prima** di avviare il gioco.
+
+- **Quando.** Una mod con `pack` che serve per Moon (o che è installata) ha musica da scaricare e la chiave in `keyFile` manca o non è quella del catalogo (`keyId` di `manifest.json`, diverso dopo un `build --new-key`). Allora, prima di installare: all'avvio, se le mod obbligatorie mancano e il launcher le installa da solo; e su **GIOCA**. Senza connessione non lo chiede (la musica non si scaricherebbe).
+- **La finestra** spiega dove trovarlo: su Discord, nel server di Moon, `/scheda` (ZomBOT manda solo a te il link alla tua scheda dal vivo; se non sa ancora chi sei, `/scheda` e il nome nel gioco), poi «Musica», «Copia», e qui si incolla (Ctrl+V, tasto destro o **INCOLLA**). Dice subito se il codice è intero, sbagliato o vecchio. **Conferma** (o Invio) accetta solo un codice giusto; **Più tardi** (o Esc) fa partire il gioco come prima, senza musica, e GIOCA non lo chiede più fino alla prossima apertura del launcher: nel frattempo la scheda della mod ha **CODICE MUSICA**.
+- **Dopo.** La chiave va in `keyFile` nello stesso formato del gioco (64 caratteri esadecimali minuscoli e l'id della chiave, una riga ciascuno, `\n`), scritta in un file accanto che prende il suo nome (`Packs.WriteKey`): il launcher se la ricorda lì, e il gioco la riscrive solo se il server ne dà una diversa. Il piano della mod si rilegge con la chiave e la musica si scarica con la barra di sempre; poi parte il gioco.
+- **Il codice** («moon-music-code v1», `Core/MusicCode.cs`, lo stesso byte per byte della pagina dal vivo di ZomBOT, `zomboid-discord/src/zombot/musiccode.py`): `MOON-` e il base32 (RFC 4648, maiuscolo, senza `=`) di 39 byte a gruppi di cinque: `[0x01]` + sale (4 byte) + (chiave XOR SHA-256(`moon-music-code|v1|` + sale)) + i primi 2 byte dello SHA-256 di quei 37. Si legge ignorando spazi, a capo, trattini, minuscole e il `MOON` davanti; versione, lunghezza e controllo devono tornare, e la chiave vale solo se il suo id (`Packs.KeyId`) è il `keyId` del manifest. Ogni giocatore ha un sale suo, quindi un codice diverso per la stessa chiave: il codice **è** la chiave, personale, da non passare.
 
 ### Una mod che ne sostituisce altre: `replaces`
 
@@ -108,6 +119,22 @@ ZomBOT (Moon) è ZomBOT e Admin-Scorte insieme, in una mod vera dentro `{zomboid
 | `mods` | Gli `id` delle mod che questa sostituisce: le loro schede non si vedono più. |
 | `what` | Come chiamarle nei messaggi: «Ho tolto i vecchi file di ZomBOT e Admin-Scorte». |
 | `files` | I vecchi file da togliere quando ci sono: esattamente questi, solo file, mai cartelle. Il launcher li legge dal `mods.json` del ramo `main`, quindi si cambiano con un commit. |
+| `folders` | Dalla 1.0.4: le vecchie cartelle da togliere intere quando ci sono. Solo la cartella di una mod dentro `{zomboid}` (come per `mirror`, per esempio `{zomboid}/mods/Silenziatori`), mai nel gioco e mai una cartella dove una mod di `mods.json` installa: altrimenti il launcher non legge il file. Un collegamento dentro la cartella si toglie, senza seguirlo. |
+| `why` | Dalla 1.0.4: perché vanno tolti, nei messaggi («Chiudi Project Zomboid e li tolgo io: …»). Senza, «sugli altri server fanno espellere chi li ha». |
+
+SilencerMoon fa lo stesso con Silenziatori, che ha sostituito e con cui non va d'accordo:
+
+```json
+"replaces": {
+  "mods": ["silenziatori"],
+  "what": "Silenziatori",
+  "why": "non vanno d'accordo con SilencerMoon",
+  "files": [],
+  "folders": ["{zomboid}/mods/Silenziatori"]
+}
+```
+
+**Silenziatori invece non è più in `mods`** (dalla 1.0.4): né scheda né file nel pacchetto. I launcher 1.0.2 e 1.0.3 leggono `replaces`, saltano `folders` e `why`, e con `files` vuoto non toccano niente: non mostrano più la sua scheda e propongono l'aggiornamento, e la 1.0.4 toglie la cartella. Il codice resta nel repo, in `mods/Silenziatori`.
 
 **Perché ZomBOT e Admin-Scorte restano anche in `mods`, come «disattivata».** I launcher 1.0.1 non conoscono `replaces` e lo saltano, ma leggono ancora `mods`. Accettano solo gli stati «installabile» e «disattivata», e ogni mod deve avere i suoi file nel pacchetto: con uno stato nuovo, o senza le cartelle `zombot/` e `admin-scorte/`, non riuscirebbero a leggere la release e non proporrebbero nemmeno l'aggiornamento. Così invece mostrano ZomBOT (Moon) da installare e le due vecchie «Disattivate», con il motivo, e si aggiornano alla 1.0.2, che fa il resto. Quando nessuno usa più la 1.0.1, quelle due voci e le loro cartelle si possono togliere.
 

@@ -29,6 +29,12 @@ Niente di questo è stato fatto: ogni passo sul server, su GitHub e nel launcher
    legge anche `Zomboid/Lua/jukeboxmoon_unique.json`, scritto da questa mod, e annuncia in #zombot chi trova il CD:
    deve essere in produzione prima che il server parta con la mod, o un ritrovamento dei primi minuti arriverebbe in
    ritardo (lo annuncia comunque, una volta).
+7. **Il codice della musica: launcher 1.0.4** (deciso il 5 novembre 2026). Prima della release, la scheda «Musica»
+   della pagina dal vivo di ZomBOT (repo zomboid-discord) deve essere in produzione e leggere la chiave del server
+   (`JukeboxMoon_server_key.txt`): il launcher 1.0.4 chiede il codice a chi non ha la chiave, e senza la pagina
+   nessuno saprebbe dove trovarlo (resta «Più tardi», con il gioco senza musica come prima). Poi la release come
+   sempre (`launcher/README.md`, «Pubblicare una release»). Da lì chi apre il launcher incolla il codice una volta e
+   ha la musica già alla prima sessione; chi non lo incolla la ha dalla seconda, come con la 1.0.3.
 
 Chi usa `mod-moon-server.bat`, un Mac o Linux non ha il launcher: deve copiare a mano `mods/JukeboxMoon` del repo e
 il catalogo pubblico (lo zip `catalog-*.zip` della pre-release `jukebox`, scompattato nella stessa cartella). Senza
@@ -64,6 +70,10 @@ contenitori non ancora aperti.
 `build`, `publish`, riavvio del server a server vuoto. I giocatori aprono il launcher, che scarica solo gli album
 cambiati. Gli id non cambiano mai: i CD nei salvataggi restano validi.
 
+Con `build --new-key` (una chiave nuova) cambiano anche i codici della pagina dal vivo: il launcher di ognuno chiede
+quello nuovo prima di scaricare gli album nuovi, e lo dice («il codice è vecchio»). Chi entra su Moon prima di
+incollarlo riceve la chiave nuova dal gioco, come sempre.
+
 ## Un motore nuovo (il codice della mod)
 
 Alza `modversion` in `mods/JukeboxMoon/42/mod.info`, pubblica una release del launcher, poi `publish` (che ricopia il
@@ -93,4 +103,4 @@ motore sul server) e riavvio. Il catalogo dice per quale motore è stato fatto (
 | cirene, `~/server/zomboid/live/Zomboid/Lua/jukeboxmoon_unique.json` | I CD unici: trovati o no, e da chi (per ZomBOT) |
 | cirene, `~/server/zomboid/live/Zomboid/Lua/JukeboxMoon_server_key.txt` | La chiave (solo il proprietario la legge) |
 | PC di un giocatore, `%UserProfile%\Zomboid\mods\JukeboxMoon` | Motore, elenco dei CD e audio, dal launcher |
-| PC di un giocatore, `%UserProfile%\Zomboid\Lua\JukeboxMoon_key.txt` | La chiave, scritta dal gioco |
+| PC di un giocatore, `%UserProfile%\Zomboid\Lua\JukeboxMoon_key.txt` | La chiave, scritta dal gioco o (launcher 1.0.4) dal launcher, dal codice della pagina dal vivo |

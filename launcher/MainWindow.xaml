@@ -165,6 +165,21 @@
                                     Command="{Binding ChooseGameCommand}" Visibility="{Binding NeedsGame, Converter={StaticResource Vis}}" />
                             <Button DockPanel.Dock="Right" Style="{StaticResource GhostButton}" Content="TOGLI" Padding="12,6"
                                     Command="{Binding RemoveCommand}" Visibility="{Binding CanRemove, Converter={StaticResource Vis}}" />
+                            <!-- the music this computer cannot open yet: the player's code, from the live page -->
+                            <Button DockPanel.Dock="Right" Content="CODICE MUSICA" Padding="12,6"
+                                    Command="{Binding MusicCodeCommand}" Visibility="{Binding NeedsMusicCode, Converter={StaticResource Vis}}"
+                                    ToolTip="Incolla il tuo codice della musica: lo trovi nella tua scheda dal vivo, alla voce «Musica»">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource GhostButton}">
+                                        <Setter Property="Margin" Value="8,0,0,0" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasUpdate}" Value="True">
+                                                <Setter Property="Margin" Value="8,0,8,0" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
                             <Grid Width="10" Height="10" Margin="0,0,10,0" VerticalAlignment="Center">
                                 <Ellipse x:Name="halo" Fill="{StaticResource TextFaint}" Opacity="0">
                                     <Ellipse.Effect>
@@ -845,6 +860,112 @@
                         </StackPanel>
                     </DockPanel>
                     <StackPanel x:Name="DialogButtons" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,22,0,0" />
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- the music's code, asked once before the game (Core/MusicCode.cs): the same card as the questions -->
+        <Grid x:Name="CodeLayer" Visibility="Collapsed" Background="#B8020306" KeyboardNavigation.TabNavigation="Cycle"
+              PreviewKeyDown="CodeLayer_PreviewKeyDown">
+            <Border Width="640" HorizontalAlignment="Center" VerticalAlignment="Center" CornerRadius="16"
+                    Background="#F70E1320" BorderBrush="{StaticResource HairlineStrong}" BorderThickness="1" Padding="28,24,24,22"
+                    RenderTransformOrigin="0.5,0.5">
+                <Border.RenderTransform>
+                    <ScaleTransform x:Name="CodeScale" />
+                </Border.RenderTransform>
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="40" ShadowDepth="10" Direction="270" Opacity="0.6" Color="Black" />
+                </Border.Effect>
+                <StackPanel>
+                    <DockPanel>
+                        <Grid DockPanel.Dock="Left" Width="40" Height="40" Margin="0,0,16,0" VerticalAlignment="Top">
+                            <Ellipse Fill="#1FFFB547" />
+                            <TextBlock Style="{StaticResource Icon}" Text="&#xEC4F;" FontSize="18" Foreground="{StaticResource Accent}"
+                                       HorizontalAlignment="Center" />
+                        </Grid>
+                        <StackPanel>
+                            <TextBlock x:Name="CodeTitle" FontFamily="{StaticResource Display}" FontWeight="Bold" FontSize="22" TextWrapping="Wrap" />
+                            <TextBlock x:Name="CodeMessage" Foreground="{StaticResource TextDim}" FontSize="14" TextWrapping="Wrap" Margin="0,8,0,0"
+                                       LineHeight="21" />
+                            <Border Margin="0,14,0,0" Padding="14,11,14,12" CornerRadius="8" Background="#14FFFFFF"
+                                    BorderBrush="{StaticResource Hairline}" BorderThickness="1">
+                                <StackPanel>
+                                    <c:SpacedText Text="COME LO TROVI" FontFamily="{StaticResource Display}" FontWeight="SemiBold" FontSize="11" Spacing="2.2"
+                                                  Foreground="{StaticResource Accent}" />
+                                    <Grid Margin="0,9,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="28" />
+                                            <ColumnDefinition />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Width="19" Height="19" CornerRadius="10" Background="#33FFB547" VerticalAlignment="Top" HorizontalAlignment="Left">
+                                            <TextBlock Text="1" FontFamily="{StaticResource Display}" FontWeight="SemiBold" FontSize="11.5"
+                                                       Foreground="{StaticResource Accent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </Border>
+                                        <TextBlock Grid.Column="1" FontSize="13" TextWrapping="Wrap" LineHeight="19">
+                                            Su Discord, nel server di Moon, scrivi <Run FontWeight="SemiBold" Foreground="{StaticResource Accent}">/scheda</Run>:
+                                            ZomBOT ti manda, solo a te, il link alla tua scheda dal vivo (se non sa ancora chi sei:
+                                            <Run FontWeight="SemiBold" Foreground="{StaticResource Accent}">/scheda</Run> e il tuo nome nel gioco).
+                                        </TextBlock>
+                                    </Grid>
+                                    <Grid Margin="0,8,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="28" />
+                                            <ColumnDefinition />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Width="19" Height="19" CornerRadius="10" Background="#33FFB547" VerticalAlignment="Top" HorizontalAlignment="Left">
+                                            <TextBlock Text="2" FontFamily="{StaticResource Display}" FontWeight="SemiBold" FontSize="11.5"
+                                                       Foreground="{StaticResource Accent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </Border>
+                                        <TextBlock Grid.Column="1" FontSize="13" TextWrapping="Wrap" LineHeight="19">
+                                            Aprila, vai su <Run FontWeight="SemiBold">«Musica»</Run> e premi <Run FontWeight="SemiBold">«Copia»</Run>.
+                                        </TextBlock>
+                                    </Grid>
+                                    <Grid Margin="0,8,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="28" />
+                                            <ColumnDefinition />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Width="19" Height="19" CornerRadius="10" Background="#33FFB547" VerticalAlignment="Top" HorizontalAlignment="Left">
+                                            <TextBlock Text="3" FontFamily="{StaticResource Display}" FontWeight="SemiBold" FontSize="11.5"
+                                                       Foreground="{StaticResource Accent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </Border>
+                                        <TextBlock Grid.Column="1" FontSize="13" TextWrapping="Wrap" LineHeight="19">
+                                            Incollalo qui sotto (Ctrl+V, il tasto destro o <Run FontWeight="SemiBold">INCOLLA</Run>) e premi
+                                            <Run FontWeight="SemiBold">CONFERMA</Run>.
+                                        </TextBlock>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+                            <TextBox x:Name="CodeBox" Style="{StaticResource CodeBox}" Tag="MOON-…" Margin="0,16,0,0" RenderTransformOrigin="0.5,0.5"
+                                     TextChanged="CodeBox_TextChanged" PreviewKeyDown="CodeBox_PreviewKeyDown"
+                                     AutomationProperties.Name="Codice della musica">
+                                <TextBox.RenderTransform>
+                                    <TranslateTransform />
+                                </TextBox.RenderTransform>
+                            </TextBox>
+                            <DockPanel x:Name="CodeFeedback" Margin="0,8,0,0" Visibility="Collapsed">
+                                <TextBlock x:Name="CodeFeedbackIcon" Style="{StaticResource Icon}" FontSize="13" Margin="0,2,8,0" VerticalAlignment="Top" />
+                                <TextBlock x:Name="CodeFeedbackText" FontSize="12.5" TextWrapping="Wrap" LineHeight="18" />
+                            </DockPanel>
+                            <TextBlock Foreground="{StaticResource TextFaint}" FontSize="12" TextWrapping="Wrap" Margin="0,12,0,0" LineHeight="17"
+                                       Text="Il codice è personale, come una chiave: non passarlo ad altri. Con «Più tardi» il gioco parte lo stesso, questa volta senza musica." />
+                        </StackPanel>
+                    </DockPanel>
+                    <DockPanel Margin="56,22,0,0">
+                        <Button x:Name="CodePaste" DockPanel.Dock="Left" Style="{StaticResource GhostButton}" Padding="16,8" MinWidth="96"
+                                Click="CodePaste_Click" ToolTip="Incolla il codice che hai copiato dalla scheda">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Style="{StaticResource Icon}" Text="&#xE77F;" FontSize="13" Margin="0,1,8,0" VerticalAlignment="Center" />
+                                <TextBlock Text="INCOLLA" />
+                            </StackPanel>
+                        </Button>
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                            <Button x:Name="CodeConfirm" Style="{StaticResource AccentButton}" Content="CONFERMA" MinWidth="96" Padding="16,8"
+                                    Margin="10,0,0,0" Click="CodeConfirm_Click" />
+                            <Button x:Name="CodeLater" Style="{StaticResource GhostButton}" Content="PIÙ TARDI" MinWidth="96" Padding="16,8"
+                                    Margin="10,0,0,0" Click="CodeLater_Click" />
+                        </StackPanel>
+                    </DockPanel>
                 </StackPanel>
             </Border>
         </Grid>

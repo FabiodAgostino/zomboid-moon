@@ -1,5 +1,5 @@
 {
-  "launcher": "1.0.3",
+  "launcher": "1.0.4",
   "mods": [
     {
       "id": "zombot-moon",
@@ -81,22 +81,6 @@
       ]
     },
     {
-      "id": "silenziatori",
-      "name": "Silenziatori",
-      "versionFile": "mods/Silenziatori/42/mod.info",
-      "versionKey": "modversion",
-      "state": "disattivata",
-      "stateNote": "Per ora sul server è disattivata: non si installa.",
-      "audience": "Per tutti",
-      "summary": "I silenziatori per le armi, in italiano e senza i bug dell'originale.",
-      "note": "La mod Simple Suppressors di Kiidxatlas, tradotta e corretta.",
-      "image": "mods/Silenziatori/42/poster.png",
-      "installedVersion": { "file": "{zomboid}/mods/Silenziatori/42/mod.info", "key": "modversion" },
-      "install": [
-        { "from": "mods/Silenziatori", "to": "{zomboid}/mods/Silenziatori", "mirror": true }
-      ]
-    },
-    {
       "id": "silencermoon",
       "name": "SilencerMoon",
       "versionFile": "mods/SilencerMoon/42/mod.info",
@@ -105,13 +89,20 @@
       "state": "installabile",
       "audience": "Per tutti",
       "summary": "I silenziatori artigianali: fondi un fucile a pompa in una lega, saldane un silenziatore per pistole o per fucili, o arrangiane uno con un filtro dell'olio.",
-      "note": "Prenderà il posto di Silenziatori. Modelli e suoni da Simple Suppressors di Kiidxatlas.",
+      "note": "Ha preso il posto di Silenziatori: se ce l'hai ancora, la tolgo io. Modelli e suoni da Simple Suppressors di Kiidxatlas.",
       "afterInstall": "Le ricette dei silenziatori si imparano da una rivista che si trova nelle armerie e nelle librerie; le leghe si fondono alla fornace.",
       "image": "mods/SilencerMoon/42/poster.png",
       "installedVersion": { "file": "{zomboid}/mods/SilencerMoon/42/mod.info", "key": "modversion" },
       "install": [
         { "from": "mods/SilencerMoon", "to": "{zomboid}/mods/SilencerMoon", "mirror": true }
-      ]
+      ],
+      "replaces": {
+        "mods": ["silenziatori"],
+        "what": "Silenziatori",
+        "why": "non vanno d'accordo con SilencerMoon",
+        "files": [],
+        "folders": ["{zomboid}/mods/Silenziatori"]
+      }
     }
   ]
 }

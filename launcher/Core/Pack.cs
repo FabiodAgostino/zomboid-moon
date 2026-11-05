@@ -18,8 +18,9 @@ public sealed record PackManifest(string CatalogVersion, string PackageVersion, 
 /// tools/jukebox and published as the assets of the pre-release "jukebox" (docs/jukebox/TECHNICAL_DESIGN.md).
 ///   - manifest.json says every file, with its size and SHA-256;
 ///   - the public catalogue (a zip) goes to everyone: with it a player enters Moon even without the music;
-///   - the music is one .jbm per album, a zip encrypted with AES-256-GCM. The key is written by the game in
-///     Zomboid/Lua/JukeboxMoon_key.txt when the player enters the server: before the first time there is no music.
+///   - the music is one .jbm per album, a zip encrypted with AES-256-GCM. The key is in Zomboid/Lua/JukeboxMoon_key.txt:
+///     the game writes it when the player enters the server, and from 1.0.4 the launcher writes it from the player's
+///     code (Core/MusicCode.cs), asked once before the game starts, so the music is there from the first time.
 /// The files become part of the mod's plan, like the repo's: the same byte-by-byte check, and the mirror keeps them.
 /// Only what is missing or different is downloaded, checked, opened and checked again before it is installed.
 /// </summary>
@@ -59,7 +60,7 @@ public static partial class Packs
         catch (Exception) when (!ct.IsCancellationRequested)
         {
             // a folder that cannot be written, an antivirus holding a file: the other mods go on, this one waits
-            return Unresolved(repo, "Non riesco a preparare la musica: riprova più tardi.");
+            return Unresolved(repo, "Non riesco a preparare gli asset del Jukebox: riprova più tardi.");
         }
     }
 
@@ -87,13 +88,13 @@ public static partial class Packs
         }
         catch (HttpRequestException e) when (e.StatusCode == HttpStatusCode.NotFound)
         {
-            trouble = "La musica non è ancora pubblicata.";
+            trouble = "Gli asset del Jukebox non sono ancora pubblicati.";
         }
         catch (Exception e) when (e is HttpRequestException or TaskCanceledException or IOException)
         {
-            trouble = "Non riesco a scaricare l'elenco dei CD: uso quello dell'ultima volta.";
+            trouble = "Non riesco a scaricare l'elenco degli asset del Jukebox: uso quello dell'ultima volta.";
         }
-        if (!File.Exists(manifestPath)) return Unresolved(plan, trouble ?? "La musica non è ancora pubblicata.");
+        if (!File.Exists(manifestPath)) return Unresolved(plan, trouble ?? "Gli asset del Jukebox non sono ancora pubblicati.");
 
         PackManifest m;
         try
@@ -103,7 +104,7 @@ public static partial class Packs
         catch (Exception e) when (e is JsonException or InvalidDataException or KeyNotFoundException or InvalidOperationException
                                        or FormatException)
         {
-            return Unresolved(plan, "L'elenco dei CD non si legge: riprova più tardi.");
+            return Unresolved(plan, "L'elenco degli asset del Jukebox non si legge: riprova più tardi.");
         }
 
         var keyPath = roots.Resolve(def.KeyFile);
@@ -170,8 +171,8 @@ public static partial class Packs
         var notice = missingAudio == 0
             ? trouble
             : key is null
-                ? "La musica arriva dopo la tua prima volta su Moon: il gioco mi dà la chiave e la scarico io."
-                : "La chiave della musica è cambiata: entra su Moon per avere quella nuova, poi riapri il launcher.";
+                ? "Per la musica mi serve il tuo codice: è nella tua scheda dal vivo, alla voce «Musica» (su Discord: /scheda)."
+                : "La chiave della musica è cambiata: mi serve il codice nuovo, dalla tua scheda dal vivo («Musica»).";
 
         async Task Fetch(IProgress<Step> progress, CancellationToken token)
         {
@@ -182,7 +183,8 @@ public static partial class Packs
             {
                 var (asset, encrypted) = assets[i];
                 var share = 0.9 / assets.Count;
-                var title = encrypted ? "Scarico la musica" : "Scarico l'elenco dei CD";
+                // the same words for the catalogue and the albums, never «musica» (the user, 05/11/2026)
+                const string title = "Scarico gli asset del Jukebox";
                 progress.Report(new(i * share, title, $"{i + 1} di {assets.Count} · {asset.Size / 1_000_000.0:0.0} MB"));
                 var dest = Path.Combine(folder, "assets", asset.Asset);
                 if (!(File.Exists(dest) && new FileInfo(dest).Length == asset.Size && FileSha(dest) == asset.Sha256))
@@ -226,15 +228,15 @@ public static partial class Packs
         }
 
         var fetch = needCatalog || needAlbums.Count > 0 ? (Func<IProgress<Step>, CancellationToken, Task>)Fetch : null;
-        return With(plan, files, fetch, Cleanup, notice);
+        return With(plan, files, fetch, Cleanup, notice, m.KeyId, needsKey: missingAudio > 0);
     }
 
     static ModPlan With(ModPlan plan, IReadOnlyList<PlannedFile> files, Func<IProgress<Step>, CancellationToken, Task>? fetch,
-        Action? cleanup, string? notice) =>
+        Action? cleanup, string? notice, string keyId, bool needsKey) =>
         new()
         {
             Def = plan.Def, Files = files, Mirrors = plan.Mirrors, ImagePath = plan.ImagePath, Fetch = fetch, Cleanup = cleanup,
-            Notice = notice, Base = plan,
+            Notice = notice, Base = plan, MusicKeyId = keyId, NeedsMusicKey = needsKey,
         };
 
     /// <summary>The package could not be read: only the repo's files, and the package's files already installed stay
@@ -290,6 +292,27 @@ public static partial class Packs
         }
     }
 
+    /// <summary>
+    /// The key in the file, as the game writes it (JukeboxMoon/Player.lua, Handlers.key): the 64 lowercase hex characters
+    /// of the key and its id, one per line, each ending with "\n". Atomically: a file next to it takes its name, so the
+    /// game and the launcher never read half a key.
+    /// </summary>
+    public static void WriteKey(string path, byte[] key)
+    {
+        var text = Convert.ToHexString(key).ToLowerInvariant() + "\n" + KeyId(key) + "\n";
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        var temp = path + ".tmp";
+        try
+        {
+            File.WriteAllBytes(temp, System.Text.Encoding.ASCII.GetBytes(text));
+            File.Move(temp, path, overwrite: true);
+        }
+        finally
+        {
+            if (File.Exists(temp)) File.Delete(temp);
+        }
+    }
+
     public static string KeyId(byte[] key) => Convert.ToHexString(SHA256.HashData(key))[..16].ToLowerInvariant();
 
     static string FileSha(string path)
@@ -302,7 +325,7 @@ public static partial class Packs
     public static byte[] Decrypt(byte[] key, byte[] blob)
     {
         if (blob.Length < 4 + 12 + 16 || !blob.AsSpan(0, 4).SequenceEqual(Magic))
-            throw new InvalidDataException("Il file della musica non è nel formato giusto.");
+            throw new InvalidDataException("Un asset del Jukebox non è nel formato giusto: riprova.");
         var nonce = blob.AsSpan(4, 12);
         var cipher = blob.AsSpan(16, blob.Length - 16 - 16);
         var tag = blob.AsSpan(blob.Length - 16);
@@ -314,7 +337,7 @@ public static partial class Packs
         }
         catch (CryptographicException e)
         {
-            throw new InvalidDataException("La chiave non apre la musica: entra su Moon per avere quella giusta.", e);
+            throw new InvalidDataException("Un asset del Jukebox non si apre con la tua chiave: riprova; se succede ancora, copia di nuovo il codice dalla tua scheda dal vivo.", e);
         }
         return plain;
     }

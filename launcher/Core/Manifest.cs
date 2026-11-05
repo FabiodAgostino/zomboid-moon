@@ -81,16 +81,34 @@ public sealed class Manifest
                 if (Target.Depth(files[i]) < 2)
                     throw new InvalidDataException($"mods.json: «{mod.Name}» vuole togliere {files[i]}: si tolgono solo file, non cartelle intere.");
             }
+            // a whole folder only like a mirror: a mod's own folder inside {zomboid}, and never one where a mod of
+            // mods.json installs
+            var folders = mod.Replaces.Folders;
+            for (var i = 0; i < folders.Count; i++)
+            {
+                folders[i] = Target.Normalize(folders[i], mod.Name);
+                var f = folders[i];
+                if (Target.IsGame(f) || Target.Depth(f) < 2)
+                    throw new InvalidDataException(
+                        $"mods.json: «{mod.Name}» vuole togliere la cartella {f}: si può solo per la cartella di una mod dentro {{zomboid}}, come {{zomboid}}/mods/Silenziatori.");
+                var used = m.Mods.SelectMany(x => x.Install.Select(e => e.To).Append(x.Pack?.To ?? ""))
+                    .FirstOrDefault(t => t.Length > 0 && (t.Equals(f, StringComparison.OrdinalIgnoreCase)
+                                                          || t.StartsWith(f + "/", StringComparison.OrdinalIgnoreCase)
+                                                          || f.StartsWith(t + "/", StringComparison.OrdinalIgnoreCase)));
+                if (used is not null)
+                    throw new InvalidDataException($"mods.json: «{mod.Name}» vuole togliere la cartella {f}, ma una mod installa in {used}.");
+            }
         }
         return m;
     }
 }
 
 /// <summary>
-/// The mods that a mod takes the place of, and their old files to remove wherever they still are. ZomBOT (Moon) holds
+/// The mods that a mod takes the place of, and what is left of them to remove wherever it still is. ZomBOT (Moon) holds
 /// ZomBOT and Admin-Scorte, which used to be copied into the game's folder: the game loads those files on every
-/// server, and a server that checks the Lua files kicks whoever has them. A launcher older than 1.0.2 does not know
-/// this field and skips it, so mods.json stays readable for it.
+/// server, and a server that checks the Lua files kicks whoever has them. SilencerMoon takes the place of Silenziatori,
+/// and the two do not get along: its whole folder goes (Folders, from 1.0.4). A launcher older than 1.0.2 does not
+/// know this field and skips it, and one older than 1.0.4 skips Folders and Why, so mods.json stays readable for them.
 /// </summary>
 public sealed class ReplacesDef
 {
@@ -98,8 +116,12 @@ public sealed class ReplacesDef
     public List<string> Mods { get; set; } = [];
     /// <summary>What they were, for the messages: «ZomBOT e Admin-Scorte».</summary>
     public string What { get; set; } = "";
+    /// <summary>Why what is left of them must go, for the messages: «non vanno d'accordo con SilencerMoon».</summary>
+    public string? Why { get; set; }
     /// <summary>The old files to delete when they are there: exactly these, and nothing else.</summary>
     public List<string> Files { get; set; } = [];
+    /// <summary>The old folders to delete whole when they are there: a mod's own folder in {zomboid}, like a mirror.</summary>
+    public List<string> Folders { get; set; } = [];
 }
 
 public sealed class ModDef
@@ -140,8 +162,9 @@ public sealed class ModDef
 /// <summary>
 /// A package published as the assets of a pre-release of the repo (the launcher never takes a pre-release for its own):
 /// manifest.json, a public zip and encrypted .jbm files, made by tools/jukebox. Its files are installed in the mod's own
-/// folder with the repo's (To, the folder of the mod's mirror entry). The key that opens the .jbm files is written by
-/// the game, when the player enters the server, in KeyFile. A launcher older than 1.0.3 does not know this field.
+/// folder with the repo's (To, the folder of the mod's mirror entry). The key that opens the .jbm files is in KeyFile:
+/// written by the game when the player enters the server, or (from 1.0.4) by the launcher from the player's code.
+/// A launcher older than 1.0.3 does not know this field.
 /// </summary>
 public sealed class PackDef
 {
@@ -149,7 +172,7 @@ public sealed class PackDef
     public string Release { get; set; } = "";
     /// <summary>Where the files go: the mod's folder, «{zomboid}/mods/JukeboxMoon».</summary>
     public string To { get; set; } = "";
-    /// <summary>Where the game writes the key: «{zomboid}/Lua/JukeboxMoon_key.txt».</summary>
+    /// <summary>Where the key is: «{zomboid}/Lua/JukeboxMoon_key.txt», written by the game or by the launcher.</summary>
     public string KeyFile { get; set; } = "";
 }
 
@@ -251,6 +274,11 @@ public sealed class ModPlan
     /// <summary>The package could not be read: the files of the mirror that this plan does not know are the package's
     /// (the catalogue, the music) and stay where they are.</summary>
     public bool KeepExtras { get; init; }
+    /// <summary>The id of the key that opens the package's music (manifest.json, keyId); null when it was not read.</summary>
+    public string? MusicKeyId { get; init; }
+    /// <summary>The package has music that this computer cannot open: no key in pack.keyFile, or the key of before.
+    /// Before the game starts the launcher asks for the player's code (Core/MusicCode.cs).</summary>
+    public bool NeedsMusicKey { get; init; }
 
     HashSet<string>? targets;
     public HashSet<string> Targets => targets ??= new HashSet<string>(Files.Select(f => f.Target), Target.Comparer);

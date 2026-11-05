@@ -32,6 +32,25 @@ public sealed class DialogRequest
     public void Close(int button) => result.TrySetResult(button);
 }
 
+/// <summary>
+/// The window that asks for the music's code (Core/MusicCode.cs). The view says at once what the pasted text is (Check)
+/// and closes it with the key («Conferma», only a good code) or with null («Più tardi»).
+/// </summary>
+public sealed class MusicCodeRequest
+{
+    readonly TaskCompletionSource<byte[]?> result = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    public required string Title { get; init; }
+    public required string Message { get; init; }
+    /// <summary>The id of the key that opens the music of now: the manifest's keyId.</summary>
+    public required string KeyId { get; init; }
+
+    public MusicCodeCheck Check(string? text) => MusicCode.Check(text, KeyId);
+
+    public Task<byte[]?> Result => result.Task;
+    public void Close(byte[]? key) => result.TrySetResult(key);
+}
+
 /// <summary>Everything the window shows and does: the mods, the news, the GIOCA button and the progress bar.</summary>
 public sealed class MainViewModel : Observable, IDisposable
 {
@@ -50,6 +69,10 @@ public sealed class MainViewModel : Observable, IDisposable
     bool gameRunning;
     bool launching;
     bool confirming;
+    /// <summary>The window of the music's code is open.</summary>
+    bool askingCode;
+    /// <summary>«Più tardi» to the music's code: GIOCA does not ask again until the launcher is opened again.</summary>
+    bool musicCodeLater;
     ReleaseAsset? launcherAsset;
 
     public MainViewModel(Options options)
@@ -72,6 +95,7 @@ public sealed class MainViewModel : Observable, IDisposable
     }
 
     public Func<DialogRequest, Task<int>> Dialog { get; set; } = _ => Task.FromResult(-1);
+    public Func<MusicCodeRequest, Task<byte[]?>> AskCode { get; set; } = _ => Task.FromResult<byte[]?>(null);
     public Action<string, string, ToastKind> Toast { get; set; } = (_, _, _) => { };
     public Action Minimize { get; set; } = () => { };
     public Action CloseLauncher { get; set; } = () => { };
@@ -228,7 +252,7 @@ public sealed class MainViewModel : Observable, IDisposable
             // the mods that Moon needs first
             foreach (var plan in plans.OrderByDescending(p => p.Def.Required))
                 Mods.Add(new ModCard(plan, Mods.Count, ToggleAsync, c => InstallAsync([c], latest: true), UninstallAsync,
-                    ChooseVersionAsync, ChooseGameAsync));
+                    ChooseVersionAsync, ChooseGameAsync, EnterMusicCodeAsync));
             foreach (var card in Mods)
             {
                 var def = live?.Mods.FirstOrDefault(m => m.Id.Equals(card.Def.Id, StringComparison.OrdinalIgnoreCase)) ?? card.Def;
@@ -238,12 +262,8 @@ public sealed class MainViewModel : Observable, IDisposable
             await CleanOldFilesAsync();
             await RefreshAsync();
             CheckLauncherUpdate();
-            foreach (var card in Mods.Where(m => m.Disabled && m.IsOn))
-                Toast($"{card.Name} è disattivata",
-                    (card.DisabledNote is { Length: > 0 } note ? note + " " : "")
-                    + "Ce l'hai ancora installata: se vuoi, toglila dalla sua scheda.", ToastKind.Warning);
+            // a disabled mod still installed says it on its card (TOGLI), and the new version is in the corner: no toast
             _ = LoadVersionsAsync(isOffline);
-            if (options.JustUpdated) Toast("Launcher aggiornato", $"Ora hai Moon {VersionText}.", ToastKind.Ok);
         }
         catch (Exception e)
         {
@@ -262,13 +282,20 @@ public sealed class MainViewModel : Observable, IDisposable
 
     /// <summary>
     /// The mods that Moon needs (ZomBOT (Moon)), installed without asking as soon as the launcher opens when they are
-    /// missing. With the game open, GIOCA does it later.
+    /// missing. With the game open, GIOCA does it later. The music's code first, when it is needed: then the music
+    /// comes in the same install.
     /// </summary>
     async Task InstallMissingRequiredAsync()
     {
+        if (askingCode) return;
         var missing = Mods.Where(m => m.Required && !m.Disabled && m.State == ModState.NotInstalled).ToList();
         if (missing.Count == 0 || await Task.Run(Game.IsRunning)) return;
-        await InstallAsync(missing, latest: true);
+        var unlocked = await MusicCodeAsync(askedByPlayer: false);
+        if (unlocked is null) return;
+        if (unlocked.Count > 0)
+            missing = Mods.Where(m => (m.Required && !m.Disabled && m.State == ModState.NotInstalled)
+                                      || (unlocked.Contains(m) && m.HasUpdate)).ToList();
+        if (missing.Count > 0) await InstallAsync(missing, latest: true);
     }
 
     /// <summary>The older versions of every mod, from the older releases: the menus fill in while the launcher is ready.</summary>
@@ -374,7 +401,6 @@ public sealed class MainViewModel : Observable, IDisposable
         GameText = found;
         await CleanOldFilesAsync();
         if (Mods.Count > 0) await RefreshAsync();
-        Toast("Project Zomboid trovato", found, ToastKind.Ok);
     }
 
     async Task WatchGameAsync()
@@ -391,28 +417,33 @@ public sealed class MainViewModel : Observable, IDisposable
     }
 
     /// <summary>
-    /// The old copies of the mods that another one replaces (ZomBOT and Admin-Scorte in the game's folder, now inside
-    /// ZomBOT (Moon)): the game loads them on every server, and the servers that check the Lua files kick whoever has
-    /// them. Exactly the files that mods.json lists, nothing else; with the game open, as soon as it closes; without
-    /// the game's folder, nothing.
+    /// What is left of the mods that another one replaces: the old copies of ZomBOT and Admin-Scorte in the game's
+    /// folder (now inside ZomBOT (Moon)), which the game loads on every server, so that the servers that check the Lua
+    /// files kick whoever has them; and, from 1.0.4, the folder of Silenziatori, replaced by SilencerMoon (the two do
+    /// not get along). Exactly the files and the folders that mods.json lists, nothing else; with the game open, as soon
+    /// as it closes; the files in the game's folder only when the launcher knows where it is.
     /// </summary>
     async Task CleanOldFilesAsync()
     {
-        if (gameFolder is null || replacing.Count == 0) return;
+        if (replacing.Count == 0) return;
         var roots = new Roots(options.ZomboidFolder, gameFolder);
-        var found = replacing.SelectMany(m => m.Replaces!.Files.Select(t => (Mod: m, Path: roots.Resolve(t))))
-            .Where(x => x.Path is not null && File.Exists(x.Path)).Select(x => (x.Mod, Path: x.Path!)).ToList();
+        var found = replacing.SelectMany(m => m.Replaces!.Files.Select(t => (Mod: m, Path: roots.Resolve(t), Folder: false))
+                .Concat(m.Replaces.Folders.Select(t => (Mod: m, Path: roots.Resolve(t), Folder: true))))
+            .Where(x => x.Path is not null && (x.Folder ? Directory.Exists(x.Path) : File.Exists(x.Path)))
+            .Select(x => (x.Mod, Path: x.Path!, x.Folder)).ToList();
         if (found.Count == 0)
         {
             cleanupWaiting = false;
             return;
         }
-        var names = string.Join(" e ", found.Select(f => f.Mod.Replaces!.What).Where(w => w.Length > 0).Distinct());
+        var mods = found.Select(f => f.Mod).Distinct().ToList();
+        var names = string.Join(" e ", mods.Select(m => m.Replaces!.What).Where(w => w.Length > 0).Distinct());
         if (names.Length == 0) names = "mod che non si usano più";
         if (await Task.Run(Game.IsRunning))
         {
+            // something the player must do: close the game
             if (!cleanupWaiting)
-                Toast($"Vecchi file di {names} da togliere", "Chiudi Project Zomboid e li tolgo io: sugli altri server ti fanno espellere.",
+                Toast($"Vecchi file di {names} da togliere", $"Chiudi Project Zomboid e li tolgo io: {string.Join("; ", mods.Select(Why).Distinct())}.",
                     ToastKind.Warning);
             cleanupWaiting = true;
             return;
@@ -421,12 +452,19 @@ public sealed class MainViewModel : Observable, IDisposable
         var failed = await Task.Run(() =>
         {
             var left = new List<string>();
-            foreach (var (_, path) in found)
+            foreach (var (_, path, folder) in found)
             {
                 try
                 {
-                    File.SetAttributes(path, FileAttributes.Normal);
-                    File.Delete(path);
+                    if (folder)
+                    {
+                        DeleteOldFolder(path);
+                    }
+                    else
+                    {
+                        File.SetAttributes(path, FileAttributes.Normal);
+                        File.Delete(path);
+                    }
                 }
                 catch (Exception e) when (e is IOException or UnauthorizedAccessException)
                 {
@@ -440,33 +478,68 @@ public sealed class MainViewModel : Observable, IDisposable
         store.SaveState();
         if (failed.Count > 0)
         {
+            var inGame = gameFolder is not null && failed.Any(p => p.StartsWith(gameFolder, StringComparison.OrdinalIgnoreCase));
             await ShowErrorAsync(new InstallerException(
-                $"Non riesco a togliere {failed.Count} vecchi file di {names} dalla cartella del gioco: \"{Path.Combine(gameFolder, "media", "lua")}\".",
-                "Chiudi il gioco e riprova, oppure riavvia il launcher come amministratore.", true), "Vecchi file da togliere");
+                $"Non riesco a togliere i vecchi file di {names}: \"{failed[0]}\"" + (failed.Count > 1 ? $" e altri {failed.Count - 1}." : "."),
+                inGame ? "Chiudi il gioco e riprova, oppure riavvia il launcher come amministratore." : "Chiudi il gioco e riprova.", inGame),
+                "Vecchi file da togliere");
             return;
         }
-        var mod = found[0].Mod;
-        // said, without stopping the launcher until OK
+        // said, without stopping the launcher until OK: the launcher deleted something from this computer
         _ = Dialog(new DialogRequest
         {
             Title = $"Ho tolto i vecchi file di {names}",
-            Message = $"{names} ora {(names.Contains(" e ", StringComparison.Ordinal) ? "sono" : "è")} dentro la mod {mod.Name}, che installo e aggiorno io. "
-                      + "Dalla cartella del gioco ho tolto i loro vecchi file: sugli altri server non ti faranno più espellere.",
-            Advice = string.Join(", ", found.Select(f => Path.GetFileName(f.Path))),
+            Message = string.Join(" ", mods.Select(m => $"Al posto di {m.Replaces!.What} ora c'è {m.Name}, che installo e aggiorno io. "
+                                                         + $"I vecchi file {Why(m)}: li ho tolti.")),
+            Advice = string.Join(", ", found.Select(f => f.Folder ? f.Path : Path.GetFileName(f.Path))),
             Icon = "\uE73E",
         });
     }
 
+    /// <summary>Why what is left of a replaced mod must go: mods.json says it, or the reason of ZomBOT and Admin-Scorte.</summary>
+    static string Why(ModDef mod) => mod.Replaces?.Why is { Length: > 0 } why ? why : "sugli altri server fanno espellere chi li ha";
+
     /// <summary>
-    /// GIOCA: first the mods that need it (INSTALLA, AGGIORNA), then the game. When the game starts the launcher closes;
-    /// when something goes wrong it stays open and says why.
+    /// A replaced mod's own folder, all of it; a link inside is removed, never followed. A few more tries: Windows may
+    /// still hold a file just deleted (the indexer, an antivirus) and refuse the empty folder for a moment, and .NET
+    /// removes a junction inside but then says «access denied» (it also tries to unmount it as a volume) and leaves
+    /// the folder that is empty by then.
+    /// </summary>
+    static void DeleteOldFolder(string dir)
+    {
+        var all = new EnumerationOptions { RecurseSubdirectories = true, AttributesToSkip = FileAttributes.ReparsePoint };
+        foreach (var f in Directory.EnumerateFiles(dir, "*", all)) File.SetAttributes(f, FileAttributes.Normal);
+        for (var attempt = 0; ; attempt++)
+        {
+            try
+            {
+                Directory.Delete(dir, recursive: true);
+                return;
+            }
+            catch (Exception e) when ((e is IOException or UnauthorizedAccessException) && !Directory.Exists(dir))
+            {
+                return;
+            }
+            catch (Exception e) when ((e is IOException or UnauthorizedAccessException) && attempt < 4)
+            {
+                Thread.Sleep(400);
+            }
+        }
+    }
+
+    /// <summary>
+    /// GIOCA: the music's code when it is needed, then the mods that need it (INSTALLA, AGGIORNA) with the music, then
+    /// the game. When the game starts the launcher closes; when something goes wrong it stays open and says why.
     /// </summary>
     async Task PlayAsync()
     {
-        if (IsBusy) return;
+        if (IsBusy || askingCode) return;
         // the mod that Moon needs must be exactly the release's: looked at again now, since its files may have changed
         // while the launcher was open. Missing or different, it is installed before the game starts, without asking.
         if (installer is not null && !HasLoadError) await RefreshAsync();
+        // the code before anything is installed: with it the music comes now, before the game, not after the first
+        // time on Moon. «Più tardi» and the game starts as before, without the music.
+        if (installer is not null && !HasLoadError && await MusicCodeAsync(askedByPlayer: false) is null) return;
         if (PlayLabel is "INSTALLA" or "AGGIORNA")
         {
             var todo = Mods.Where(m => (m.Required && m.State == ModState.NotInstalled && !m.Disabled) || m.HasUpdate).ToList();
@@ -479,11 +552,10 @@ public sealed class MainViewModel : Observable, IDisposable
     {
         try
         {
-            var how = Game.Launch(gameFolder, options.DryRun, options.DryRunFails);
+            Game.Launch(gameFolder, options.DryRun, options.DryRunFails);
             launching = true;
             UpdatePlayState();
-            Toast("Buona fortuna là fuori", how == "steam" ? "Steam sta aprendo Project Zomboid." : how, ToastKind.Info);
-            // the game is starting: the launcher is not needed any more
+            // the game is starting («AVVIO…» under the button): the launcher is not needed any more
             await Task.Delay(TimeSpan.FromSeconds(1.5));
             CloseLauncher();
         }
@@ -553,9 +625,17 @@ public sealed class MainViewModel : Observable, IDisposable
         {
             PlayLabel = "GIOCA";
             StatusTitle = "Tutto pronto";
-            StatusDetail = "Entra sul server Moon come sempre: le mod le attiva il server, non devi attivare niente tu.";
+            var music = CanFetchMusic ? Mods.FirstOrDefault(m => m.NeedsMusicCode) : null;
+            StatusDetail = music is null
+                ? "Entra sul server Moon come sempre: le mod le attiva il server, non devi attivare niente tu."
+                : musicCodeLater
+                    ? $"Questa volta {music.Name} è senza musica: il tuo codice lo puoi incollare dalla sua scheda, in MOD."
+                    : $"Per la musica di {music.Name} premi GIOCA: ti chiedo il tuo codice, una volta sola.";
         }
     }
+
+    /// <summary>The music comes from GitHub, or from --pacchetto: offline, asking for the code would be for nothing.</summary>
+    bool CanFetchMusic => !Offline || options.PackFolder is not null;
 
     // ---- the mods ---------------------------------------------------------------------------------------------------
 
@@ -682,7 +762,6 @@ public sealed class MainViewModel : Observable, IDisposable
         }
         IsBusy = true;
         UpdatePlayState();
-        var hints = new List<string>();
         var done = false;
         try
         {
@@ -704,14 +783,11 @@ public sealed class MainViewModel : Observable, IDisposable
                 {
                     card.IsWorking = false;
                 }
-                if (card.Def.AfterInstall is { Length: > 0 } hint) hints.Add(hint);
             }
             await RefreshAsync();
+            // the bar says it, and the cards: no toast (from 1.0.4 «afterInstall» is not shown)
             ProgressTitle = "Tutto pronto";
             await Task.Delay(700);
-            Toast(cards.Count == 1 ? $"{cards[0].Name} {cards[0].SelectedVersion} installata" : "Tutto pronto",
-                hints.Count > 0 ? string.Join(" ", hints) : "Avvia Project Zomboid ed entra sul server Moon come sempre.",
-                ToastKind.Ok);
             done = true;
         }
         catch (Exception e)
@@ -775,13 +851,9 @@ public sealed class MainViewModel : Observable, IDisposable
             {
                 card.IsWorking = false;
             }
+            // the bar and the card say it: no toast
             await RefreshAsync();
             await Task.Delay(500);
-            var last = reporter.Last.Detail;
-            Toast($"{card.Name} tolta", last is { Length: > 0 } and not "fatto" ? last
-                : card.Disabled ? "Si potrà installare di nuovo quando il server la riattiva."
-                : "Per rimetterla, accendi di nuovo il suo interruttore.",
-                ToastKind.Info);
         }
         catch (Exception e)
         {
@@ -815,6 +887,98 @@ public sealed class MainViewModel : Observable, IDisposable
         request.Close(-1);
         await shown;
         return true;
+    }
+
+    // ---- the music's code -------------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// The music's code (Core/MusicCode.cs), asked when a mod that Moon needs, or that is installed, has music that this
+    /// computer cannot open: no key, or the key of before. Once: the key goes in the file where the game writes it too
+    /// (pack.keyFile), and from then on the launcher finds it there. «Più tardi»: GIOCA does not ask again until the
+    /// launcher is opened again; the card's «CODICE MUSICA» still can (askedByPlayer).
+    /// </summary>
+    /// <returns>The cards whose plans now have the music (empty: nothing to do, «Più tardi», offline); null when the key
+    /// could not be written: the player has been told, and the game does not start.</returns>
+    async Task<List<ModCard>?> MusicCodeAsync(bool askedByPlayer)
+    {
+        var needing = Mods.Where(m => m.NeedsMusicCode).ToList();
+        if (needing.Count == 0 || askingCode || (musicCodeLater && !askedByPlayer)) return [];
+        if (!CanFetchMusic)
+        {
+            if (askedByPlayer)
+                Toast("Sei senza connessione", "Gli asset del Jukebox si scaricano da GitHub: riprova quando torna la rete.", ToastKind.Warning);
+            return [];
+        }
+        var card = needing[0];
+        var keyPath = new Roots(options.ZomboidFolder, gameFolder).Resolve(card.Def.Pack!.KeyFile)!;
+        var keyId = card.Plan.MusicKeyId!;
+        var old = await Task.Run(() => Packs.ReadKey(keyPath));
+        // the game may have written it while the launcher was open: then there is nothing to ask
+        if (old is null || Packs.KeyId(old) != keyId)
+        {
+            byte[]? key;
+            askingCode = true;
+            try
+            {
+                key = await AskCode(new MusicCodeRequest
+                {
+                    Title = old is null ? "Il codice della musica" : "Serve il codice nuovo della musica",
+                    Message = old is null
+                        ? $"Per scaricare la musica di {card.Name} prima di avviare il gioco mi serve il tuo codice. "
+                          + "Una tantum: te lo chiedo una volta sola, poi il launcher se lo ricorda."
+                        : $"La chiave della musica di {card.Name} è cambiata e il codice di prima non apre i CD. "
+                          + "Copia quello nuovo dalla tua scheda, come la prima volta: poi il launcher se lo ricorda.",
+                    KeyId = keyId,
+                });
+            }
+            finally
+            {
+                askingCode = false;
+            }
+            if (key is null)
+            {
+                musicCodeLater = true;
+                UpdatePlayState();
+                return [];
+            }
+            try
+            {
+                await Task.Run(() => Packs.WriteKey(keyPath, key));
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                await ShowErrorAsync(new InstallerException($"Non riesco a salvare la chiave della musica in \"{keyPath}\".",
+                    "Chiudi Project Zomboid e riprova.", false, e), "Codice non salvato");
+                return null;
+            }
+            musicCodeLater = false;
+        }
+        // read again with the key: now the music is in their plans, and the cards say what is missing
+        IsBusy = true;
+        BeginProgress("Preparo gli asset del Jukebox", "leggo l'elenco", true);
+        try
+        {
+            foreach (var c in needing)
+                if (c.Plan.Base is { } repo) Replace(c, await AttachPackAsync(repo));
+            await RefreshAsync();
+        }
+        finally
+        {
+            IsBusy = false;
+            EndProgress();
+            UpdatePlayState();
+        }
+        return needing;
+    }
+
+    /// <summary>«CODICE MUSICA» on a card: the code now, also after «Più tardi», then the music.</summary>
+    async Task EnterMusicCodeAsync(ModCard card)
+    {
+        if (IsBusy || askingCode || confirming || installer is null) return;
+        var unlocked = await MusicCodeAsync(askedByPlayer: true);
+        if (unlocked is not { Count: > 0 }) return;
+        var todo = unlocked.Where(c => c.HasUpdate || (c.Required && !c.Disabled && c.State == ModState.NotInstalled)).ToList();
+        if (todo.Count > 0) await InstallAsync(todo, latest: true);
     }
 
     // ---- the launcher -----------------------------------------------------------------------------------------------

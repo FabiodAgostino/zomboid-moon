@@ -11,8 +11,8 @@ gioco nominato qui è verificato nel jar della 42.21 (`javap`) o nel suo Lua.
 | Motore | `mods/JukeboxMoon/` (questo repo) | Lua, finestre, testi, opzioni. Cambia di rado; arriva con le release del launcher |
 | Catalogo | generato da `tools/jukebox` nella cartella dell'admin | Pubblico: oggetti CD, suoni, copertine, `CatalogData.lua`, nomi dei CD. Cifrato: l'audio in pezzi, un pacchetto per album. Mai in git |
 | Pubblicazione | `python -m tools.jukebox publish` | Carica il catalogo nella release `jukebox` di GitHub (pre-release, il launcher non la prende per una sua versione) e copia motore e catalogo pubblico nella mod del server, con la chiave |
-| Chiave | sul server, `Zomboid/Lua/JukeboxMoon_server_key.txt` | Il server la dà a chi entra (comando `key`); la mod la scrive in `Zomboid/Lua/JukeboxMoon_key.txt` sul PC del giocatore |
-| Launcher | `launcher/` (questo repo) | Installa motore e catalogo pubblico a tutti; con la chiave scarica e decifra gli album nuovi o cambiati. Nessun passaggio a mano, niente Discord |
+| Chiave | sul server, `Zomboid/Lua/JukeboxMoon_server_key.txt` | Il server la dà a chi entra (comando `key`); la mod la scrive in `Zomboid/Lua/JukeboxMoon_key.txt` sul PC del giocatore. Dal 5 novembre 2026 la pagina dal vivo di ZomBOT la mostra a ogni giocatore come codice personale, e il launcher 1.0.4 la scrive nello stesso file |
+| Launcher | `launcher/` (questo repo) | Installa motore e catalogo pubblico a tutti; chiede una volta il codice della musica e, con la chiave, scarica e decifra gli album nuovi o cambiati prima di avviare il gioco |
 
 ## Il gioco
 
@@ -239,7 +239,10 @@ e nel Lua della 42.21:
 ## La distribuzione
 
 Scelta dell'utente (5 novembre 2026): automatica e sicura, **niente Discord**. Chi può entrare su Moon ha già un
-account e la password del server: è il server del gioco a dare la chiave della musica.
+account e la password del server: è il server del gioco a dare la chiave della musica. Poi, lo stesso giorno, la
+prima sessione senza musica è sembrata troppo: la chiave arriva anche come **codice personale** dalla pagina dal vivo
+di ZomBOT, che il launcher chiede una volta (sotto, «Il codice della musica»). Discord serve solo a ricevere il link
+alla propria pagina: il codice non passa mai in un messaggio.
 
 ### Il pacchetto del catalogo
 
@@ -273,12 +276,36 @@ il builder si ferma invece di dare numeri nuovi (i CD nei salvataggi suonerebber
   dal repo). `publish` la copia sul server in `Zomboid/Lua/JukeboxMoon_server_key.txt`.
 - Il server la legge all'avvio e la manda nel benvenuto (`key {key, id}`) a ogni giocatore collegato: in MP solo chi
   ha passato l'accesso del server; in single player l'admin che prova.
-- La mod del giocatore la scrive in `Zomboid/Lua/JukeboxMoon_key.txt` (solo se è una chiave e se è cambiata); il
-  launcher la legge da lì e controlla che sia quella del catalogo (`keyId`). La prima sessione su Moon di un
-  giocatore nuovo è senza musica; dalla seconda c'è.
+- La mod del giocatore la scrive in `Zomboid/Lua/JukeboxMoon_key.txt` (solo se è una chiave e se è cambiata): due
+  righe, i 64 caratteri esadecimali minuscoli e l'id, ognuna con `\n`. Il launcher la legge da lì e controlla che sia
+  quella del catalogo (`keyId`). Dalla 1.0.4 può scriverla anche il launcher, nello stesso formato, dal codice del
+  giocatore: chi lo incolla ha la musica dalla prima sessione; chi non lo incolla la ha, come prima, dalla seconda.
 - Una chiave che gira fuori dal gruppo apre la musica a chi la ha: `build --new-key` ne fa una nuova e ricifra tutto;
   la vecchia resta accanto come `jukebox.key.<id>`. L'audio installato sul PC è in chiaro (il gioco deve leggerlo):
-  la cifratura protegge la musica pubblicata, non i file di chi gioca.
+  la cifratura protegge la musica pubblicata, non i file di chi gioca. Con una chiave nuova anche i codici cambiano:
+  il launcher chiede quello nuovo (o lo prende dal gioco, se nel frattempo il giocatore è entrato su Moon).
+
+### Il codice della musica (5 novembre 2026)
+
+La pagina dal vivo di ZomBOT (scheda «Musica»; il link lo manda ZomBOT, solo al giocatore, con `/scheda` su Discord)
+mostra a ogni giocatore il suo codice; il launcher lo chiede una volta prima di avviare il gioco, ne ricava la chiave e
+la scrive nel file del gioco. Il contratto, «moon-music-code v1», è lo stesso byte per byte nei due programmi
+(`zomboid-discord/src/zombot/musiccode.py` e `launcher/Core/MusicCode.cs`), e non si cambia da una parte sola:
+
+- codice = `MOON-` + base32 (RFC 4648, alfabeto maiuscolo, senza `=`) di 39 byte, a gruppi di cinque separati da `-`;
+- i 39 byte: payload (37) + controllo (2). payload = `[0x01]` + sale (4 byte) + (K XOR maschera), con maschera =
+  SHA-256(ASCII `moon-music-code|v1|` + sale) e K la chiave da 32 byte; controllo = SHA-256(payload)[0:2];
+- il sale lo sceglie la pagina, diverso per ogni giocatore (dal suo id): stessa chiave, codici diversi;
+- lettura: maiuscole, senza spazi, a capo e `-`, senza il `MOON` davanti; base32 con il `=` che manca; esattamente
+  39 byte, versione 1, controllo giusto; K = la parte cifrata XOR la maschera. I 3 bit dopo l'ultimo byte non contano
+  (come in Python). La chiave vale solo se SHA-256(K) in esadecimale minuscolo, primi 16 caratteri, è il `keyId` del
+  manifest; altrimenti il codice è sbagliato o vecchio (una chiave nuova: si ricopia dalla pagina).
+- Vettore di prova: `MOON-AEEDE-CTEGK-XI5NJ-H7FBA-FM2IO-XIZM2-ULMRM-4C5G7-VBSYY-DGJ56-DQNTC-ITTMW-PPI` → K = i byte
+  0..31, `keyId` `630dcd2966c43366`.
+
+Il codice **è** la chiave: chi lo ha apre la musica come chi è entrato su Moon. È personale (il sale dice di chi era
+un codice che gira) e la pagina lo dà solo alla sessione del suo giocatore; il launcher non lo tiene: tiene la chiave,
+nel file del gioco.
 
 ### GitHub
 
@@ -304,8 +331,15 @@ mod potrebbe caricare la vecchia. Il server li carica al riavvio. L'audio sul se
 - `mods.json`: la voce `jukebox-moon` installa `mods/JukeboxMoon` in `{zomboid}/mods/JukeboxMoon` con `mirror`, e
   `pack` dice la release del catalogo. I file del catalogo entrano nel piano della mod come quelli del repo: lo stesso
   confronto byte per byte, e il `mirror` non li tocca.
-- Il catalogo pubblico è obbligatorio come il motore: GIOCA lo installa prima di avviare il gioco. L'audio no: senza
-  chiave la scheda dice «La musica arriva dopo la prima volta su Moon».
+- Il catalogo pubblico è obbligatorio come il motore: GIOCA lo installa prima di avviare il gioco. L'audio vuole la
+  chiave: quando manca, o non è quella del `keyId` (e c'è musica da scaricare), la 1.0.4 chiede il codice **prima** di
+  installare, all'avvio (installazione automatica delle mod obbligatorie) e su GIOCA, in una finestra che spiega dove
+  trovarlo e dice subito se è giusto, intero o vecchio. Con il codice scrive la chiave (`Packs.WriteKey`, atomico,
+  formato del gioco), rilegge il pacchetto e scarica gli album con la barra di sempre, poi avvia il gioco. Mentre
+  scarica, la barra dice «Scarico gli asset del Jukebox» (catalogo e album; mai «musica» nell'avanzamento, scelta
+  dell'utente), e così gli avvisi del pacchetto sulla scheda. «Più tardi»
+  fa come prima (motore e catalogo, gioco senza musica) e GIOCA non lo richiede fino alla prossima apertura; la scheda
+  della mod ha «CODICE MUSICA» e l'avviso «Per la musica mi serve il tuo codice». Senza connessione non lo chiede.
 - Si scaricano solo gli album che mancano o sono cambiati, si verifica l'impronta dell'allegato, si decifra (la chiave
   sbagliata non passa il tag di GCM) e si verifica ogni file prima di installarlo (`Core/Pack.cs`, launcher 1.0.3).
   Le impronte dei file installati si ricordano per percorso, dimensione e data (`Core/HashCache.cs`, salvate dopo

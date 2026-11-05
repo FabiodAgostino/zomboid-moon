@@ -7,8 +7,8 @@ Le mod per giocare a **Project Zomboid** (Build 42) sul server **Moon**.
 | Mod | Stato | Come arriva | Cos'è |
 | --- | --- | --- | --- |
 | **ZomBOT (Moon)** | **Obbligatoria** | il launcher la installa e la aggiorna da solo, in `%UserProfile%\Zomboid\mods\ZomBOTMoon`; sugli altri server non si carica | ZomBOT e Admin-Scorte insieme: le domande a ZomBOT dalla chat del gioco, il contenitore che lampeggia, le casse colorate e, per gli admin, le finestre delle basi e delle scorte. Vedi [ZomBOT: cosa fa](#zombot-cosa-fa) e [Admin-Scorte: cosa fa](#admin-scorte-cosa-fa). |
-| **Jukebox (Moon)** | **Obbligatoria** | il launcher 1.0.3 la installa e la aggiorna da solo, con la musica | I jukebox del mondo suonano i CD di Moon, scelti dall'admin; chi ascolta vicino si annoia e si stressa meno. Vedi [Jukebox (Moon)](#jukebox-moon). |
-| **Silenziatori** | **Disattivata** | per ora a nessuno | I silenziatori per le armi: la mod Simple Suppressors di Kiidxatlas, tradotta in italiano e corretta. Vedi [Silenziatori (disattivata)](#silenziatori-disattivata). |
+| **Jukebox (Moon)** | **Obbligatoria** | il launcher la installa e la aggiorna da solo, con la musica (dalla 1.0.4 ti chiede una volta il tuo codice della musica, e la musica arriva prima di entrare) | I jukebox del mondo suonano i CD di Moon, scelti dall'admin; chi ascolta vicino si annoia e si stressa meno. Vedi [Jukebox (Moon)](#jukebox-moon). |
+| **Silenziatori** | **Tolta** | a nessuno: il launcher 1.0.4 la toglie dal tuo computer | La vecchia mod dei silenziatori (Simple Suppressors di Kiidxatlas, tradotta e corretta), sostituita da SilencerMoon. Vedi [Silenziatori (tolta)](#silenziatori-tolta). |
 | **SilencerMoon** | **Obbligatoria** | il launcher la installa e la aggiorna da solo, in `%UserProfile%\Zomboid\mods\SilencerMoon` | I silenziatori artigianali che prendono il posto di Silenziatori: leghe fuse da un fucile a pompa, silenziatori per pistole e per fucili, il filtro dell'olio come ripiego. Vedi [SilencerMoon](#silencermoon). |
 
 ---
@@ -36,7 +36,7 @@ Puoi anche toglierli a mano. La cartella del gioco di solito è `...\Steam\steam
 
 Il modo più semplice è il launcher di Moon: un solo file, da scaricare dalle **[Release](https://github.com/FabiodAgostino/zomboid-moon/releases/latest)**. Nella pagina, sotto «Assets», **scarica `MoonLauncher.exe`, non «Source code»**: quelli sono i sorgenti del repo, che GitHub aggiunge a ogni release.
 
-Lo apri con un doppio clic: non si installa niente. Ti mostra le mod di Moon e com'è il tuo computer, installa ZomBOT (Moon) e toglie i vecchi file di ZomBOT. Con **GIOCA** controlla che ZomBOT (Moon) sia quella giusta, se serve la aggiorna, e avvia Project Zomboid. Si aggiorna da solo quando esce una versione nuova. Se compare la finestra blu **«Windows ha protetto il PC»**, premi **«Ulteriori informazioni»** e poi **«Esegui comunque»**: Windows avvisa così per i programmi scaricati che non hanno una firma.
+Lo apri con un doppio clic: non si installa niente. Ti mostra le mod di Moon e com'è il tuo computer, installa ZomBOT (Moon) e toglie i vecchi file di ZomBOT e (dalla 1.0.4) la vecchia Silenziatori. Con **GIOCA** controlla che le mod siano quelle giuste, se serve le aggiorna, la prima volta ti chiede il codice della musica (vedi [Jukebox (Moon)](#jukebox-moon)), e avvia Project Zomboid. Si aggiorna da solo quando esce una versione nuova. Se compare la finestra blu **«Windows ha protetto il PC»**, premi **«Ulteriori informazioni»** e poi **«Esegui comunque»**: Windows avvisa così per i programmi scaricati che non hanno una firma.
 
 Cosa fa e come si pubblica una versione: [launcher/README.md](launcher/README.md).
 
@@ -155,19 +155,19 @@ Il progetto completo, con le scelte e le verifiche fatte sui file del gioco 42.2
 
 ## Jukebox (Moon)
 
-**Serve per giocare su Moon** (dal 6 novembre 2026): la installa e la aggiorna il launcher 1.0.3, come ZomBOT (Moon), insieme alla musica.
+**Serve per giocare su Moon** (dal 6 novembre 2026): la installa e la aggiorna il launcher (dalla 1.0.3), come ZomBOT (Moon), insieme alla musica.
 
 - **Nel gioco**: tasto destro su un jukebox con la corrente, «Jukebox». I CD di Moon si mettono e si tolgono dalla finestra del bottino del jukebox; la finestra «Jukebox» ha Riproduci, Ferma, Precedente, Successiva, la riproduzione casuale e il volume, che vale solo per te. Chi è vicino sente lo stesso brano nello stesso punto.
-- **La musica** la sceglie l'admin. Il launcher la scarica da solo: la prima volta che entri su Moon il gioco ti dà la chiave, e dalla volta dopo il launcher scarica i CD (solo quelli nuovi). La prima sessione è senza musica.
+- **La musica** la sceglie l'admin, ed è cifrata. Dal launcher 1.0.4 basta il tuo **codice della musica**, che il launcher ti chiede **una volta sola**, prima di avviare il gioco: su Discord, nel server di Moon, scrivi `/scheda` (ZomBOT ti manda, solo a te, il link alla tua scheda dal vivo; se non sa ancora chi sei: `/scheda` e il tuo nome nel gioco), apri la scheda, vai su «Musica», premi «Copia» e incollalo nel launcher. Il launcher se lo ricorda e scarica i CD (solo quelli nuovi) **prima** che il gioco parta: niente più prima sessione senza musica. Il codice è personale: non passarlo ad altri. Con «Più tardi» il gioco parte lo stesso, quella volta senza musica (e la chiave arriva comunque dal gioco quando entri su Moon, come prima).
 - **Senza il launcher** (bat, Mac, Linux) la musica non arriva.
 
 Per gli admin, come aggiungere un CD: [docs/jukebox/README_ADMIN.md](docs/jukebox/README_ADMIN.md). Come è fatta: [docs/jukebox/TECHNICAL_DESIGN.md](docs/jukebox/TECHNICAL_DESIGN.md).
 
-## Silenziatori (disattivata)
+## Silenziatori (tolta)
 
-**Silenziatori è disattivata e sarà sostituita da SilencerMoon**: il server non la usa, per entrare non serve, e il launcher e `mod-moon-server.bat` non la installano. Se l'avevi installata prima te lo dicono: nel launcher premi **TOGLI** nella sua scheda, nel bat **`3`**.
+**Silenziatori non c'è più: l'ha sostituita SilencerMoon**, e le due insieme non vanno d'accordo. Il server non la usa e per entrare non serve. **Il launcher, dalla versione 1.0.4, la toglie da solo dal tuo computer**: all'avvio, a gioco chiuso, cancella la sua cartella `%UserProfile%\Zomboid\mods\Silenziatori` e ti dice cosa ha tolto (se il gioco è aperto ti chiede di chiuderlo). La sua scheda non c'è più. Con `mod-moon-server.bat` la toglie **`3`**.
 
-Il codice resta nel pacchetto, nella cartella `mods/Silenziatori`, con le correzioni descritte sotto. Chi la vuole in una partita in single player può copiare a mano quella cartella in `C:\Users\<il tuo nome>\Zomboid\mods\`, poi dal menu principale: **Mod**, attiva **«Silenziatori»**, e crea una nuova partita (non insieme alla mod originale Simple Suppressors).
+Il codice resta nel repo, nella cartella `mods/Silenziatori`, con le correzioni descritte sotto, ma non è più nel pacchetto delle mod e né il launcher né il bat la installano.
 
 ## Cosa cambia rispetto all'originale
 

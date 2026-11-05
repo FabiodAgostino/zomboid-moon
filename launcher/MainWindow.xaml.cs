@@ -28,7 +28,16 @@ public partial class MainWindow : Window
         vm = viewModel;
         DataContext = vm;
         vm.Dialog = ShowDialogAsync;
+        vm.AskCode = ShowMusicCodeAsync;
         vm.Toast = ShowToast;
+        // a code copied over two lines is still one code: Ctrl+V and the right button paste it on one line
+        DataObject.AddPastingHandler(CodeBox, (_, e) =>
+        {
+            if (e.SourceDataObject.GetData(DataFormats.UnicodeText) is not string text) return;
+            var one = new DataObject();
+            one.SetText(OneLine(text));
+            e.DataObject = one;
+        });
         vm.Minimize = () => WindowState = WindowState.Minimized;
         vm.CloseLauncher = Close;
         page = PageHome;
@@ -325,6 +334,162 @@ public partial class MainWindow : Window
         {
             dialogs.Release();
         }
+    }
+
+    // ---- the music's code -------------------------------------------------------------------------------------------
+
+    MusicCodeRequest? codeRequest;
+
+    /// <summary>
+    /// The window of the music's code: the steps to get it, the box, a word at once on what is pasted, and three buttons.
+    /// «Conferma» closes it only with a good code; «Più tardi» (or Esc) with nothing.
+    /// </summary>
+    async Task<byte[]?> ShowMusicCodeAsync(MusicCodeRequest request)
+    {
+        await dialogs.WaitAsync();
+        try
+        {
+            codeRequest = request;
+            CodeTitle.Text = request.Title;
+            CodeMessage.Text = request.Message;
+            CodeBox.Text = "";
+            ShowCodeFeedback(null);
+
+            CodeLayer.Visibility = Visibility.Visible;
+            CodeLayer.BeginAnimation(OpacityProperty, Fade(0, 1, 200, 0));
+            CodeScale.BeginAnimation(ScaleTransform.ScaleXProperty, Fade(0.94, 1, 260, 0));
+            CodeScale.BeginAnimation(ScaleTransform.ScaleYProperty, Fade(0.94, 1, 260, 0));
+            CodeBox.Focus();
+
+            var key = await request.Result;
+
+            var fade = Fade(1, 0, 160, 0);
+            var done = new TaskCompletionSource();
+            fade.Completed += (_, _) => done.TrySetResult();
+            CodeLayer.BeginAnimation(OpacityProperty, fade);
+            await done.Task;
+            CodeLayer.Visibility = Visibility.Collapsed;
+            return key;
+        }
+        finally
+        {
+            // the code is a secret: it does not stay in the window
+            codeRequest = null;
+            CodeBox.Text = "";
+            dialogs.Release();
+        }
+    }
+
+    void CodeBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (codeRequest is null) return;
+        if (CodeBox.Text.Length == 0)
+        {
+            ShowCodeFeedback(null);
+            return;
+        }
+        var check = codeRequest.Check(CodeBox.Text);
+        // while it is being pasted or typed, a code not whole yet is only a hint, not an error
+        ShowCodeFeedback(check, quiet: check.Problem == MusicCodeProblem.Incomplete);
+    }
+
+    void CodePaste_Click(object sender, RoutedEventArgs e)
+    {
+        string? text = null;
+        try
+        {
+            if (Clipboard.ContainsText()) text = Clipboard.GetText();
+        }
+        catch (ExternalException)
+        {
+            // another program is holding the clipboard: as if it were empty
+        }
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            ShowCodeFeedback("Non c'è niente da incollare: nella tua scheda premi «Copia», poi qui «Incolla».", false);
+            return;
+        }
+        CodeBox.Text = OneLine(text);
+        CodeBox.CaretIndex = CodeBox.Text.Length;
+        CodeBox.Focus();
+    }
+
+    void CodeConfirm_Click(object sender, RoutedEventArgs e)
+    {
+        if (codeRequest is null) return;
+        var check = codeRequest.Check(CodeBox.Text);
+        if (check.Ok)
+        {
+            codeRequest.Close(check.Key);
+            return;
+        }
+        ShowCodeFeedback(check);
+        Shake(CodeBox);
+        CodeBox.Focus();
+    }
+
+    void CodeLater_Click(object sender, RoutedEventArgs e) => codeRequest?.Close(null);
+
+    // Enter in the box is «Conferma», Esc anywhere «Più tardi». Not IsDefault/IsCancel: GIOCA is already the window's
+    // default button, and two of them make Enter move the focus instead of pressing.
+    void CodeBox_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter) return;
+        e.Handled = true;
+        CodeConfirm_Click(sender, e);
+    }
+
+    void CodeLayer_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Escape) return;
+        e.Handled = true;
+        CodeLater_Click(sender, e);
+    }
+
+    /// <summary>Green for a good code, red for a wrong or old one, grey (quiet) for a hint; null hides it.</summary>
+    void ShowCodeFeedback(MusicCodeCheck? check, bool quiet = false)
+    {
+        if (check is null)
+        {
+            CodeFeedback.Visibility = Visibility.Collapsed;
+            CodeBox.ClearValue(BorderBrushProperty);
+            return;
+        }
+        ShowCodeFeedback(check.Message, check.Ok ? true : quiet ? (bool?)null : false);
+    }
+
+    void ShowCodeFeedback(string message, bool? good)
+    {
+        var (glyph, color) = good switch
+        {
+            true => ("", (Brush)FindResource("Ok")),
+            false => ("", (Brush)FindResource("Danger")),
+            null => ("", (Brush)FindResource("TextDim")),
+        };
+        CodeFeedbackIcon.Text = glyph;
+        CodeFeedbackIcon.Foreground = color;
+        CodeFeedbackText.Text = message;
+        CodeFeedbackText.Foreground = good is null ? color : (Brush)FindResource("Text");
+        CodeFeedback.Visibility = Visibility.Visible;
+        if (good is null) CodeBox.ClearValue(BorderBrushProperty);
+        else CodeBox.BorderBrush = color;
+    }
+
+    /// <summary>A code copied over more lines, as one line.</summary>
+    static string OneLine(string text) => text.Replace("\r", "", StringComparison.Ordinal).Replace("\n", "", StringComparison.Ordinal).Trim();
+
+    /// <summary>A no, without words: the box shakes.</summary>
+    static void Shake(UIElement e)
+    {
+        if (e.RenderTransform is not TranslateTransform t || t.IsFrozen)
+        {
+            t = new TranslateTransform();
+            e.RenderTransform = t;
+        }
+        var shake = new DoubleAnimationUsingKeyFrames { Duration = TimeSpan.FromMilliseconds(360) };
+        foreach (var (ms, x) in new[] { (0, 0.0), (60, -8.0), (120, 7.0), (180, -5.0), (250, 3.0), (360, 0.0) })
+            shake.KeyFrames.Add(new EasingDoubleKeyFrame(x, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(ms))));
+        t.BeginAnimation(TranslateTransform.XProperty, shake);
     }
 
     // ---- Windows 11: rounded corners and a dark frame ---------------------------------------------------------------

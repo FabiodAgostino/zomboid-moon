@@ -46,6 +46,17 @@ python -m pytest -q tests/jukebox/test_builder.py    # Python con pytest, Pillow
   chiave anche l'audio, identico byte per byte; chiave sbagliata, niente audio e l'avviso; dopo l'installazione tutto
   «Aggiornata» e niente da scaricare. Dalla revisione anche: togliere e rimettere la mod nella stessa sessione;
   elenco illeggibile senza rete, con i file del catalogo e della musica che restano; `hashes.json` salvato.
+- **Launcher 1.0.4, il codice della musica** (5 novembre 2026): `Core/MusicCode.cs` provato con un programma che usa
+  gli stessi file: il vettore di prova (chiave = byte 0..31, `keyId` `630dcd2966c43366`), lo stesso codice incollato
+  in minuscolo, con spazi, a capo, senza trattini o senza `MOON`; controllo sbagliato, `keyId` diverso («vecchio»),
+  incompleto, troppo lungo, lettere fuori dall'alfabeto, versione 2; 200 codici fatti dalla pagina di ZomBOT
+  (`musiccode.make`) letti tutti con la chiave giusta; file della chiave identico a quello del gioco, atomico; il
+  pacchetto finto senza chiave (chiede il codice, niente audio), poi con la chiave del codice (audio identico,
+  avanzamento «Scarico gli asset del Jukebox», mai «musica»), chiave di prima (codice «vecchio»). Nel launcher vero
+  (`--prova`, cartelle finte, `--pacchetto` finto) guidato con UI Automation: la finestra all'avvio, incompleto,
+  sbagliato (resta aperta), giusto, Invio, musica scaricata prima di GIOCA e launcher chiuso; «Più tardi» (gioco senza
+  musica, «CODICE MUSICA» sulla scheda); la cartella di Silenziatori tolta all'avvio, con un collegamento dentro non
+  seguito. Il `mods.json` nuovo letto dal codice della 1.0.3 (git) senza errori: Silenziatori non c'è, niente tolto.
 
 ## Nel gioco (da fare, nell'ordine)
 

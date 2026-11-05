@@ -29,7 +29,7 @@ public sealed class ModCard : Observable
     readonly Func<ModCard, string, Task> chooseVersion;
 
     public ModCard(ModPlan plan, int index, Func<ModCard, Task> toggle, Func<ModCard, Task> update, Func<ModCard, Task> remove,
-        Func<ModCard, string, Task> chooseVersion, Func<Task> chooseGame)
+        Func<ModCard, string, Task> chooseVersion, Func<Task> chooseGame, Func<ModCard, Task> musicCode)
     {
         this.plan = plan;
         Index = index;
@@ -38,6 +38,7 @@ public sealed class ModCard : Observable
         UpdateCommand = new Command(() => update(this));
         RemoveCommand = new Command(() => remove(this));
         ChooseGameCommand = new Command(chooseGame);
+        MusicCodeCommand = new Command(() => musicCode(this));
         ToggleVersionsCommand = new Command(() => IsVersionMenuOpen = !IsVersionMenuOpen, () => CanChooseVersion);
         selectedVersion = plan.Def.Version;
         disabled = plan.Def.Disabled;
@@ -71,6 +72,7 @@ public sealed class ModCard : Observable
         {
             plan = value;
             Raise(nameof(Note));
+            Raise(nameof(NeedsMusicCode));
         }
     }
 
@@ -90,6 +92,7 @@ public sealed class ModCard : Observable
     public ICommand RemoveCommand { get; }
     public ICommand ChooseGameCommand { get; }
     public ICommand ToggleVersionsCommand { get; }
+    public ICommand MusicCodeCommand { get; }
 
     /// <summary>A mod that Moon needs: no switch, the launcher installs and updates it by itself.</summary>
     public bool HasSwitch => !Def.Required;
@@ -134,7 +137,8 @@ public sealed class ModCard : Observable
     void RaiseState()
     {
         foreach (var p in new[] { nameof(State), nameof(IsOn), nameof(Switch), nameof(StatusText), nameof(StatusKind), nameof(VersionText),
-                     nameof(HasUpdate), nameof(NeedsGame), nameof(CanToggle), nameof(CanRemove), nameof(CanChooseVersion), nameof(StateLabel) })
+                     nameof(HasUpdate), nameof(NeedsGame), nameof(CanToggle), nameof(CanRemove), nameof(CanChooseVersion), nameof(StateLabel),
+                     nameof(NeedsMusicCode) })
             Raise(p);
     }
 
@@ -161,6 +165,11 @@ public sealed class ModCard : Observable
     public bool CanToggle => !IsWorking && State != ModState.NeedsGame && !Disabled && !Def.Required;
     /// <summary>A disabled mod that is still installed: the card offers to remove it, it never does it by itself.</summary>
     public bool CanRemove => Disabled && IsOn && !IsWorking;
+    /// <summary>
+    /// Music that this computer cannot open yet (no key, or the key of before), for a mod that Moon needs or that is
+    /// installed: the card offers «CODICE MUSICA», and GIOCA asks for the code before the game starts.
+    /// </summary>
+    public bool NeedsMusicCode => Plan.NeedsMusicKey && Plan.MusicKeyId is not null && !Disabled && !IsWorking && (Def.Required || IsOn);
     public string StateLabel => Disabled ? "DISATTIVATA" : Def.Required ? "SERVE PER MOON" : "INSTALLABILE";
 
     /// <summary>ok, update, off, game, disabled: the colour of the state's dot.</summary>
@@ -278,6 +287,7 @@ public sealed class ModCard : Observable
             Raise(nameof(CanToggle));
             Raise(nameof(CanRemove));
             Raise(nameof(CanChooseVersion));
+            Raise(nameof(NeedsMusicCode));
         }
     }
 

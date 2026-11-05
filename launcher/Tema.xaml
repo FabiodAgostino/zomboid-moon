@@ -609,6 +609,106 @@
         </Style.Triggers>
     </Style>
 
+    <!-- ==================================================================================================== text box -->
+    <!-- the right button's menu on a text box, in the launcher's colours -->
+    <Style x:Key="MenuItemDark" TargetType="MenuItem">
+        <Setter Property="Foreground" Value="{StaticResource Text}" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="CommandTarget" Value="{Binding PlacementTarget, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="MenuItem">
+                    <Border x:Name="bg" CornerRadius="5" Padding="12,6" Background="Transparent">
+                        <DockPanel>
+                            <TextBlock DockPanel.Dock="Right" Text="{TemplateBinding InputGestureText}" Foreground="{StaticResource TextFaint}"
+                                       FontSize="12" Margin="28,0,0,0" />
+                            <ContentPresenter ContentSource="Header" RecognizesAccessKey="True" />
+                        </DockPanel>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsHighlighted" Value="True">
+                            <Setter TargetName="bg" Property="Background" Value="#26FFFFFF" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.4" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="MenuDark" TargetType="ContextMenu">
+        <Setter Property="OverridesDefaultStyle" Value="True" />
+        <Setter Property="HasDropShadow" Value="False" />
+        <Setter Property="ItemContainerStyle" Value="{StaticResource MenuItemDark}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ContextMenu">
+                    <Border Background="#FA0E1320" BorderBrush="{StaticResource HairlineStrong}" BorderThickness="1" Padding="4">
+                        <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle" />
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- a text to paste, like the music's code: the hint in Tag while it is empty -->
+    <Style x:Key="CodeBox" TargetType="TextBox">
+        <Setter Property="Foreground" Value="{StaticResource Text}" />
+        <Setter Property="Background" Value="#73000000" />
+        <Setter Property="BorderBrush" Value="{StaticResource HairlineStrong}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CaretBrush" Value="{StaticResource Accent}" />
+        <Setter Property="SelectionBrush" Value="{StaticResource Accent}" />
+        <Setter Property="FontFamily" Value="Cascadia Mono, Consolas" />
+        <Setter Property="FontSize" Value="15" />
+        <Setter Property="Padding" Value="12,10" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource FocusNone}" />
+        <Setter Property="ContextMenu">
+            <Setter.Value>
+                <ContextMenu Style="{StaticResource MenuDark}">
+                    <MenuItem Header="Incolla" Command="ApplicationCommands.Paste" />
+                    <MenuItem Header="Copia" Command="ApplicationCommands.Copy" />
+                    <MenuItem Header="Taglia" Command="ApplicationCommands.Cut" />
+                    <MenuItem Header="Seleziona tutto" Command="ApplicationCommands.SelectAll" />
+                </ContextMenu>
+            </Setter.Value>
+        </Setter>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TextBox">
+                    <Border CornerRadius="8" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}">
+                        <!-- the text box itself keeps Padding around the text (and 2 more pixels for the caret): the hint does the same -->
+                        <Grid>
+                            <TextBlock x:Name="hint" Text="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}"
+                                       Foreground="{StaticResource TextFaint}" Margin="{TemplateBinding Padding}" IsHitTestVisible="False"
+                                       Visibility="Collapsed">
+                                <TextBlock.RenderTransform>
+                                    <TranslateTransform X="2" />
+                                </TextBlock.RenderTransform>
+                            </TextBlock>
+                            <ScrollViewer x:Name="PART_ContentHost" Focusable="False" HorizontalScrollBarVisibility="Hidden"
+                                          VerticalScrollBarVisibility="Hidden" />
+                        </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="Text" Value="">
+                            <Setter TargetName="hint" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+        <Style.Triggers>
+            <Trigger Property="IsKeyboardFocused" Value="True">
+                <Setter Property="BorderBrush" Value="{StaticResource Accent}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
     <!-- ======================================================================================================== bits -->
     <Style x:Key="Badge" TargetType="Border">
         <Setter Property="CornerRadius" Value="4" />
