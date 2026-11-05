@@ -1,6 +1,8 @@
 -- SilencerMoon in the loot: only the magazine that teaches the suppressors. Rather rare, not very rare: weights like
 -- the game's recipe magazines in the same lists (WeaponMag2 is 0.5 in BookstoreMilitaryHistory, the farming
 -- magazines 2 in GunStoreMagazineRack). No suppressor, alloy or oil filter is ever found: they are made.
+-- The server's loot (and single player's): a multiplayer client, which loads media/lua/server too, skips it.
+if isClient() then return end
 
 require "Items/ProceduralDistributions"
 

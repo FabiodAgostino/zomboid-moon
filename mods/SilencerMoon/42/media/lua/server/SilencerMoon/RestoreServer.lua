@@ -1,15 +1,17 @@
 -- SilencerMoon on the server: the admin's commands for the restore (shared/SilencerMoon/Restore.lua), and the rounds
 -- that keep fixing weapons while it is on: every ten game minutes the players online and the loaded vehicles, and
 -- each square as it loads. Nothing at all runs while it is off.
+--
+-- A multiplayer client loads media/lua/server too (GameLoadingState.enter, with no condition): without this line each
+-- client would also walk the containers of every square it loads while the restore is on, changing nothing.
+if isClient() then return end
 
 require "SilencerMoon/Restore"
 require "SilencerMoon/Shot"
 
 local Restore = SilencerMoon.Restore
 
-local function reply(player, fixed)
-	local data = Restore.data() or {}
-	local args = { active = Restore.active(), fixedNow = fixed or 0, fixed = tonumber(data.fixed) or 0 }
+local function send(player, args)
 	if isServer() then
 		sendServerCommand(player, SilencerMoon.Shot.COMMAND_MODULE, Restore.REPLY, args)
 	elseif SilencerMoon.onRestoreReply then
@@ -17,11 +19,23 @@ local function reply(player, fixed)
 	end
 end
 
+local function reply(player, fixed, query)
+	local data = Restore.data() or {}
+	send(player, { active = Restore.active(), fixedNow = fixed or 0, fixed = tonumber(data.fixed) or 0,
+		query = query == true })
+end
+
 -- The admin's command (in single player the client calls it directly).
 function SilencerMoon.onRestoreCommand(player, command)
-	if command ~= Restore.COMMAND_START and command ~= Restore.COMMAND_STOP then return end
+	if command ~= Restore.COMMAND_START and command ~= Restore.COMMAND_STOP and command ~= Restore.COMMAND_QUERY then
+		return
+	end
 	if not Restore.isAdmin(player) then
-		if isServer() then sendServerCommand(player, SilencerMoon.Shot.COMMAND_MODULE, Restore.REPLY, { refused = true }) end
+		send(player, { refused = true })
+		return
+	end
+	if command == Restore.COMMAND_QUERY then
+		reply(player, 0, true)
 		return
 	end
 	local fixed = Restore.set(command == Restore.COMMAND_START)

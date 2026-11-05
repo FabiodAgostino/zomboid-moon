@@ -1,6 +1,10 @@
 -- SilencerMoon on the server: each round the shooter's game reports (shared/SilencerMoon/Shot.lua) is rolled here,
 -- then the weapon goes back to its owner. The report is checked: the weapon in hand, a working SilencerMoon
 -- suppressor, and no more rounds than a firearm can fire (a burst of at most 20 in any second).
+--
+-- A multiplayer client loads media/lua/server too (GameLoadingState.enter, with no condition): this file is for the
+-- server and single player only.
+if isClient() then return end
 
 require "SilencerMoon/Core"
 require "SilencerMoon/Stats"

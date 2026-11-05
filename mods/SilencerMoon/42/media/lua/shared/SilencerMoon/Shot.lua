@@ -1,10 +1,13 @@
 -- SilencerMoon: what happens when a suppressed weapon fires.
 --
--- Noise (the shooter's game, client or single player): the game's own Lua makes the shot's noise
--- (ISReloadWeaponAction.attackHook, on Hook.Attack, where the radius is weapon:getSoundRadius() times the sandbox
--- FirearmNoiseMultiplier, halved indoors) and in multiplayer sends it to the server. OnWeaponSwing fires just before
--- (SwipeStatePlayer.enter), so the radius, the sound and the muzzle flash are set there. None of them is saved with
--- the weapon: they are set again before every shot and given back when the suppressor is gone or worn out.
+-- Noise (every game that shows the shot): the game's own Lua makes the shot's noise (ISReloadWeaponAction.attackHook,
+-- on Hook.Attack, where the radius is weapon:getSoundRadius() times the sandbox FirearmNoiseMultiplier, halved
+-- indoors) and in multiplayer the shooter's game sends it to the server. OnWeaponSwing fires just before
+-- (SwipeStatePlayer.enter, for every player in that state, before any check of who is local), so the radius, the
+-- sound and the muzzle flash are set there, for the other players' shots too: on their screens the shot sound comes
+-- from the weapon of that player as their game has it (SwipeStatePlayer.OnAnimEvent_PlaySwingSoundAlways reads
+-- getSwingSound()). None of them is saved with the weapon: they are set again before every shot and given back when
+-- the suppressor is gone or worn out.
 --
 -- Wear (decided by the server): OnWeaponSwingHitPoint fires on the shooter's game for every round, missed shots
 -- included, but on a dedicated server only for rounds that hit something (network/fields/hit/Player.attack). So the
@@ -102,8 +105,9 @@ function Shot.isRound(character, weapon)
 	return Core.activeTier(weapon) ~= nil
 end
 
+-- Every player's shot, not only ours: the others must hear and see it suppressed too.
 local function onWeaponSwing(character, weapon)
-	if character and instanceof(character, "IsoPlayer") and character:isLocalPlayer() then
+	if character and instanceof(character, "IsoPlayer") then
 		Shot.applyNoise(weapon)
 	end
 end

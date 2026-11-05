@@ -438,12 +438,27 @@ def test_the_dedicated_server_does_not_touch_the_noise(lua):
     assert w.radius == 100
 
 
-def test_every_supported_firearm_has_a_suppressed_sound():
+def test_every_supported_firearm_has_a_suppressed_sound_and_no_loop():
     sounds = set(re.findall(r"sound (SilencerMoon_Suppressed\w+)", (SCRIPTS / "SilencerMoon_sounds.txt").read_text()))
     lua = lua_runtime("shared/SilencerMoon/Core.lua")
     for weapon, calibre in lua.eval("SilencerMoon.Core.CALIBER_SOUND").items():
         assert f"SilencerMoon_Suppressed{calibre}" in sounds, weapon
-        assert f"SilencerMoon_Suppressed{calibre}FullAuto" in sounds, weapon
+    # attackHook plays <SwingSound>FullAuto as a loop when it exists: a single shot used that way skips rounds
+    assert not any(s.endswith("FullAuto") for s in sounds)
+
+
+def test_another_players_shot_is_suppressed_on_my_screen_too(lua):
+    lua.execute('FRESH["Base.Pistol"] = { radius = 100, swing = "M9Shoot", flash = "flash_key" }')
+    remote = lua.eval("newPlayer()")
+    lua.execute("function remoteIsNotLocal(p) function p:isLocalPlayer() return false end end")
+    lua.eval("remoteIsNotLocal")(remote)
+    w = lua.eval('newWeapon("Base.Pistol", 15, 0.6, 1.0)')
+    w.parts["Suppressor"] = lua.eval('newPart("SilencerMoon.Suppressor_Pistol_Ballistic", 10)')
+    lua.eval("EVENTS.OnWeaponSwing.list[1]")(remote, w)
+    assert (w.radius, w.swing, w.flash) == (35, "SilencerMoon_Suppressed9mm", None)
+    lua.execute("CLIENT = true")
+    lua.eval("EVENTS.OnWeaponSwingHitPoint.list[1]")(remote, w)
+    assert len(lua.eval("SENT")) == 0  # only the shooter's own game reports the round
 
 
 # ------------------------------------------------------------------ alloy recipes
@@ -531,7 +546,12 @@ MISSING = re.compile(r"(?<![\w.:])(next|xpcall)\s*\(|\btable\.(pack|unpack)\b|\b
 @pytest.mark.parametrize("path", lua_files(), ids=lambda p: p.name)
 def test_lua_is_plain_ascii_and_uses_only_what_the_game_has(path):
     text = path.read_text(encoding="utf-8")
-    assert text.isascii(), f"{path.name}: Kahlua loses accented letters in strings; texts go in Translate/*.json"
+    if path.name == "ZomBotMenu.lua":
+        # byte for byte the copy of ZomBOT (Moon): its comments keep the accents (the game skips them), its code not
+        code = [line.split("--", 1)[0] for line in text.splitlines()]
+        assert all(part.isascii() for part in code), "ZomBotMenu.lua: accented letters outside the comments"
+    else:
+        assert text.isascii(), f"{path.name}: Kahlua loses accented letters in strings; texts go in Translate/*.json"
     code = "\n".join(re.sub(r"--.*$", "", line) for line in text.split("\n"))
     assert not MISSING.search(code), f"{path.name}: the game's Lua has no {MISSING.search(code).group(0)}"
 
@@ -615,8 +635,9 @@ def test_every_text_has_a_translation(lang):
     used = set()
     for path in lua_files():
         used |= set(re.findall(r'"((?:IGUI|ContextMenu|Tooltip)_SilencerMoon_\w+)"', path.read_text()))
-    used |= {f"IGUI_SilencerMoon_Tier_{t}" for t in ("oilfilter", "copper", "ballistic")}
-    used.discard("IGUI_SilencerMoon_Tier_")
+    for prefix in ("IGUI_SilencerMoon_Tier_", "IGUI_SilencerMoon_TierName_"):  # built in Lua from the tier's id
+        used |= {f"{prefix}{t}" for t in ("oilfilter", "copper", "ballistic")}
+        used.discard(prefix)
     used |= set(re.findall(r"Tooltip = (\w+)", script_text()))
     used |= {f"SilencerMoon.{n}" for n in blocks("item") if n in {
         "CopperSteelIngot", "BallisticAlloyIngot", "ScavengedOilFilter", "SuppressorMagazine",
@@ -629,3 +650,15 @@ def test_every_text_has_a_translation(lang):
 def test_italian_texts_avoid_glyphs_the_game_font_may_lack():
     for value in translations("IT").values():
         assert not set(value) & set("—–«»“”"), value
+
+
+def test_the_shared_zombot_menu_is_the_same_file_as_in_zombot_moon():
+    """The one «ZomBOT» entry: the same file, byte for byte, in every Moon mod (its header says so)."""
+    ours = LUA / "client" / "ZomBotMenu.lua"
+    theirs = ROOT / "mods" / "ZomBOTMoon" / "42" / "media" / "lua" / "client" / "ZomBotMenu.lua"
+    assert ours.read_bytes() == theirs.read_bytes()
+
+
+def test_a_worn_out_suppressor_shows_no_bars():
+    text = (LUA / "client" / "SilencerMoon" / "Tooltip.lua").read_text()
+    assert "local rows = worn and {} or Tooltip.rows(tier)" in text

@@ -1,7 +1,8 @@
 -- SilencerMoon: three bars under the game's tooltip of a suppressor, and of a firearm that has one mounted.
 -- 20 ticks each (5% per tick): green the noise taken away, orange the range lost, red the damage lost, grey the
 -- rest, the exact value always written beside (12,5% fills two ticks and a half). Then the condition of a mounted
--- suppressor and the average life, which is only an average: the wear is random.
+-- suppressor and the average life, which is only an average: the wear is random. A worn-out suppressor (condition
+-- 0) does nothing, so it shows no bars, only that it is worn out.
 --
 -- The game builds one tooltip per inventory panel and reuses it for whatever the mouse is on (setItem), so every
 -- tooltip gets a renderer that first draws the game's own (or another mod's) and then adds ours when it applies.
@@ -77,7 +78,9 @@ local function render(self, tier, part, mounted)
 	local text = getTextManager()
 	local lineH = text:getFontHeight(font)
 	local title = getText("IGUI_SilencerMoon_Tier", getText("IGUI_SilencerMoon_Tier_" .. tier.id))
-	local rows = Tooltip.rows(tier)
+	-- worn out (condition 0), mounted or not: it does nothing any more, so no bars, only that
+	local worn = part:getCondition() <= 0
+	local rows = worn and {} or Tooltip.rows(tier)
 	local labelW, valueW = 0, 0
 	for _, row in ipairs(rows) do
 		row.label = getText(row.key)
@@ -86,17 +89,17 @@ local function render(self, tier, part, mounted)
 		valueW = math.max(valueW, text:MeasureStringX(font, row.value))
 	end
 	local footer = {}
-	if mounted then
-		if part:getCondition() <= 0 then
-			footer[#footer + 1] = getText("IGUI_SilencerMoon_WornOut")
-		else
+	if worn then
+		footer[#footer + 1] = getText("IGUI_SilencerMoon_WornOut")
+	else
+		if mounted then
 			footer[#footer + 1] = getText("IGUI_SilencerMoon_Condition", tostring(part:getCondition()),
 				tostring(part:getConditionMax()))
 		end
+		footer[#footer + 1] = getText("IGUI_SilencerMoon_AverageLife", tostring(Core.averageShots(tier)))
 	end
-	footer[#footer + 1] = getText("IGUI_SilencerMoon_AverageLife", tostring(Core.averageShots(tier)))
 
-	local width = PAD + labelW + PAD + BAR_W + PAD + valueW + PAD
+	local width = worn and 0 or (PAD + labelW + PAD + BAR_W + PAD + valueW + PAD)
 	width = math.max(width, text:MeasureStringX(font, title) + PAD * 2)
 	for _, line in ipairs(footer) do width = math.max(width, text:MeasureStringX(font, line) + PAD * 2) end
 	width = math.max(width, self:getWidth())

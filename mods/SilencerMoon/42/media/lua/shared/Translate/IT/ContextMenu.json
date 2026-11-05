@@ -3,7 +3,5 @@
   "ContextMenu_SilencerMoon_NeedMechanics": "Serve Meccanica %1.",
   "ContextMenu_SilencerMoon_NeedWrench": "Serve una chiave inglese.",
   "ContextMenu_SilencerMoon_EngineRunning": "Spegni prima il motore.",
-  "ContextMenu_SilencerMoon_FilterTaken": "Il filtro dell'olio di questo veicolo è già stato smontato.",
-  "ContextMenu_SilencerMoon_RestoreStart": "SilencerMoon: togli i silenziatori da tutte le armi",
-  "ContextMenu_SilencerMoon_RestoreStop": "SilencerMoon: smetti di togliere i silenziatori"
+  "ContextMenu_SilencerMoon_FilterTaken": "Il filtro dell'olio di questo veicolo è già stato smontato."
 }

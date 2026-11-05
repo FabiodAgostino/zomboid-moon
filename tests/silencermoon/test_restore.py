@@ -305,3 +305,119 @@ def test_the_client_never_fixes_anything():
     weapon, _ = lua.eval("suppressedIn")(None)
     assert lua.eval("SilencerMoon.Restore.weapon")(weapon, None) is False
     assert weapon.parts["Suppressor"] is not None
+
+
+# ------------------------------------------------------------------ the admins' window (client/SilencerMoon/Admin.lua)
+
+ADMIN_PRELUDE = r"""
+function getText(key, a, b)
+    local s = key
+    if a ~= nil then s = s .. "|" .. tostring(a) end
+    if b ~= nil then s = s .. "|" .. tostring(b) end
+    return s
+end
+UIFont = { Small = "small", Medium = "medium" }
+function getTextManager()
+    local tm = {}
+    function tm:getFontHeight(font) return 10 end
+    function tm:MeasureStringX(font, text) return #text * 7 end
+    return tm
+end
+HALO = {}
+HaloTextHelper = {
+    addGoodText = function(p, t) table.insert(HALO, t) end,
+    addBadText = function(p, t) table.insert(HALO, "BAD " .. t) end,
+}
+ADMIN_PLAYER = nil
+function getPlayer() return ADMIN_PLAYER end
+package.preload["ISUI/ISCollapsableWindow"] = function()
+    ISCollapsableWindow = {}
+    function ISCollapsableWindow:derive(name) local c = setmetatable({}, { __index = self }); c.__index = c; c.Type = name; return c end
+end
+package.preload["ISUI/ISButton"] = function() ISButton = {} end
+package.preload["ISUI/ISModalDialog"] = function() ISModalDialog = {} end
+"""
+
+
+def admin_runtime(client=False):
+    lua = restore_runtime()
+    lua.execute("SERVER = false")
+    lua.execute(ADMIN_PRELUDE)
+    if client:
+        lua.execute("CLIENT = true")
+    lua.execute((LUA_CLIENT / "Admin.lua").read_text(encoding="utf-8"))
+    return lua
+
+
+from test_silencermoon import LUA  # noqa: E402
+
+LUA_CLIENT = LUA / "client" / "SilencerMoon"
+
+
+def test_the_silenziatori_button_is_in_the_zombot_menu_for_admins_only():
+    lua = admin_runtime(client=True)
+    defs = list(lua.eval("ZomBotMenu.defs").values())
+    extra = [d for d in defs if d.kind == "extra" and d.id == "silencermoon"]
+    main = [d for d in defs if d.kind == "main" and d.id == "silencermoon"]
+    assert len(extra) == 1 and len(main) == 1
+    assert extra[0].label(None) == "IGUI_SilencerMoon_AdminButton"
+    assert extra[0].available(lua.eval("newAdmin(true)"), None) is True
+    assert extra[0].available(lua.eval("newAdmin(false)"), None) is False
+    assert main[0].order > 20  # after ZomBOT (Moon)'s own main windows (10 and 20): only a fallback
+
+
+def test_the_values_table_comes_from_the_tiers():
+    lua = admin_runtime()
+    admin, core = lua.eval("SilencerMoon.Admin"), lua.eval("SilencerMoon.Core")
+    rows = {tid: admin.valuesRow(core.TIERS[tid]) for tid in ("oilfilter", "copper", "ballistic")}
+    assert [rows["oilfilter"][i] for i in (1, 2, 3)] == ["-30%", "-40%", "-25%"]
+    assert [rows["copper"][i] for i in (1, 2, 3)] == ["-40%", "-30%", "-20%"]
+    assert [rows["ballistic"][i] for i in (1, 2, 3)] == ["-65%", "-20%", "-12,5%"]
+    assert rows["ballistic"][4] == "IGUI_SilencerMoon_Shots|1000"
+    assert rows["copper"].name == "IGUI_SilencerMoon_TierName_copper"
+
+
+def test_the_explanation_is_wrapped_by_words():
+    lua = admin_runtime()
+    wrap = lua.eval("SilencerMoon.Admin.wrap")
+    lines = list(wrap("uno due tre quattro cinque sei", 50, lambda t: len(t) * 5).values())
+    assert lines == ["uno due", "tre", "quattro", "cinque sei"]
+    assert all(len(line) * 5 <= 50 for line in lines)
+    assert list(wrap("", 50, lambda t: len(t)).values()) == []
+
+
+def test_the_window_follows_the_servers_answer():
+    lua = admin_runtime(client=True)
+    lua.execute("ADMIN_PLAYER = newAdmin(true)")
+    reply = lua.eval("SilencerMoon.onRestoreReply")
+    window = lua.eval("{ refresh = function(self) self.refreshed = (self.refreshed or 0) + 1 end }")
+    lua.eval("SilencerMoon.Admin").window = window
+    reply(lua.eval("{ active = true, fixedNow = 3, fixed = 7 }"))
+    assert lua.eval("MODDATA.SilencerMoon.restoring") is True and lua.eval("MODDATA.SilencerMoon.fixed") == 7
+    assert window.fixed == 7 and window.refreshed == 1
+    assert window.status == "IGUI_SilencerMoon_RestoreStarted|3|7" and lua.eval("HALO[1]") == window.status
+    reply(lua.eval("{ active = true, fixedNow = 0, fixed = 9, query = true }"))  # «Aggiorna»: no message
+    assert len(lua.eval("HALO")) == 1 and window.fixed == 9
+    reply(lua.eval("{ refused = true }"))
+    assert window.statusBad is True and lua.eval("MODDATA.SilencerMoon.restoring") is True
+
+
+def test_the_query_changes_nothing_and_is_for_admins():
+    lua = restore_runtime()
+    command = lua.eval("SilencerMoon.onRestoreCommand")
+    command(lua.eval("newAdmin(true)"), "restoreQuery")
+    answer = lua.eval("SERVERCMDS[1]").args
+    assert answer.query is True and answer.active is False
+    assert lua.eval("MODDATA.SilencerMoon") is None
+    command(lua.eval("newAdmin(false)"), "restoreQuery")
+    assert lua.eval("SERVERCMDS[2]").args.refused is True
+
+
+@pytest.mark.parametrize("name", ["Commands.lua", "Distributions.lua", "RestoreServer.lua"])
+def test_a_multiplayer_client_skips_the_server_files(name):
+    lua = lua_runtime("shared/SilencerMoon/Core.lua", "shared/SilencerMoon/Stats.lua", "shared/SilencerMoon/Shot.lua")
+    lua.execute(RESTORE_PRELUDE)
+    lua.execute("CLIENT = true; BEFORE = {}; for k, e in pairs(EVENTS) do BEFORE[k] = #e.list end")
+    lua.execute((LUA / "server" / "SilencerMoon" / name).read_text(encoding="utf-8"))
+    grown = lua.eval("(function() local n = 0 for k, e in pairs(EVENTS) do if #e.list > (BEFORE[k] or 0) then n = n + 1 end end return n end)()")
+    assert grown == 0

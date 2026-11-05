@@ -5,7 +5,8 @@
 -- when its save is read (HandWeapon.load gets nil from InventoryItemFactory.CreateItem and fails, and
 -- InventoryItem.loadItem drops the whole weapon). So every SilencerMoon suppressor must come off before the mod goes.
 --
--- An admin turns it on from the right-click menu. The server keeps it in the world's mod data (it survives restarts)
+-- An admin turns it on from the window "ZomBOT" > "Silenziatori" (client/SilencerMoon/Admin.lua). The server keeps it
+-- in the world's mod data (it survives restarts)
 -- and while it is on: nobody can mount a SilencerMoon suppressor; the weapons of every player online are fixed at
 -- once and every ten game minutes (so also those of whoever logs in later), those in the loaded vehicles too; those
 -- in containers, on the ground and on corpses as their area loads. A detached suppressor stays next to its weapon.
@@ -22,6 +23,7 @@ SilencerMoon.Restore = Restore
 Restore.DATA = "SilencerMoon"         -- the world's mod data: { restoring = bool, fixed = weapons fixed so far }
 Restore.COMMAND_START = "restoreStart"
 Restore.COMMAND_STOP = "restoreStop"
+Restore.COMMAND_QUERY = "restoreQuery" -- the admins' window asks how it stands, changing nothing
 Restore.REPLY = "restoreState"
 
 function Restore.data()
