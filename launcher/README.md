@@ -58,6 +58,24 @@ Le mod non sono scritte nel launcher: sono in [`mods.json`](../mods.json), in ci
 
 Due mod possono mettere lo stesso file nello stesso posto solo se i due file sono identici: il pacchetto della release lo controlla e si ferma se non è così.
 
+### File che non stanno nel repo: `pack` (dalla 1.0.3)
+
+Jukebox (Moon) ha il motore nel repo e il catalogo dei CD fuori: lo fa `tools/jukebox` e lo pubblica come allegati della pre-release `jukebox` del repo (il launcher non prende mai una pre-release per una sua versione).
+
+```json
+"pack": { "release": "jukebox", "to": "{zomboid}/mods/JukeboxMoon", "keyFile": "{zomboid}/Lua/JukeboxMoon_key.txt" }
+```
+
+| Campo di `pack` | Cosa fa |
+| --- | --- |
+| `release` | Il tag della pre-release con `manifest.json`, `catalog-*.zip` e gli album `a*-*.jbm`. |
+| `to` | Dove vanno i file: la cartella della mod, quella del suo `install` con `mirror`. |
+| `keyFile` | Dove il gioco scrive la chiave della musica quando il giocatore entra sul server. |
+
+I file del pacchetto entrano nel piano della mod come quelli del repo: lo stesso confronto, e il `mirror` non li toglie. Il catalogo pubblico va a tutti; gli album, cifrati, solo con la chiave giusta. Si scarica solo ciò che manca o è cambiato, e ogni file si verifica prima di installarlo (`Core/Pack.cs`). Le impronte dei file installati si ricordano (`hashes.json` nella cache, salvato dopo ogni controllo): la musica non si rilegge a ogni avvio.
+
+Il pacchetto si rilegge a ogni installazione (`ModPlan.Base`), così togliere e rimettere la mod, o riprovare dopo un errore, funziona nella stessa sessione senza riscaricare ciò che è già pronto. Se il pacchetto non si legge (GitHub irraggiungibile, elenco rovinato, un file bloccato) la mod resta con i file del repo e un avviso sulla scheda, e i file del pacchetto già installati **restano** (`ModPlan.KeepExtras`: il `mirror` non li toglie); le altre mod vanno avanti. L'elenco ha 15 secondi per arrivare, e un album si ferma dopo 30 secondi senza dati. La pre-release `jukebox` non compare fra le novità.
+
 ### Una mod che ne sostituisce altre: `replaces`
 
 ZomBOT (Moon) è ZomBOT e Admin-Scorte insieme, in una mod vera dentro `{zomboid}/mods`. La sua voce dice quali mod prende il posto e quali vecchi file togliere:
@@ -165,6 +183,7 @@ Per provarlo senza toccare il gioco vero ci sono alcune opzioni da riga di coman
 | `--zomboid <cartella>` | al posto di `%UserProfile%\Zomboid` |
 | `--dati <cartella>` | al posto di `%LocalAppData%\Moon` |
 | `--sorgente <cartella>` | prende le mod da una copia locale del repo invece che da GitHub |
+| `--pacchetto <cartella>` | il pacchetto di Jukebox (Moon) da una cartella di `tools/jukebox build` invece che da GitHub |
 | `--api <url>` | l'indirizzo delle API di GitHub (per un finto server) |
 | `--prova` | non avvia il gioco e non cerca il gioco in Steam: usa solo `--gioco` (dopo GIOCA il launcher si chiude come sempre) |
 | `--prova-errore` | come `--prova`, ma l'avvio del gioco non riesce: per vedere l'errore |

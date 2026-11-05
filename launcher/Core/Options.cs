@@ -9,6 +9,7 @@ namespace Moon.Core;
 ///   --dati &lt;cartella&gt;      where the launcher keeps its state and its downloads (normally %LocalAppData%\Moon)
 ///   --sorgente &lt;cartella&gt;  take the mods from a local copy of the repo instead of GitHub
 ///   --api &lt;url&gt;           GitHub's API address (a fake server, for the tests)
+///   --pacchetto &lt;cartella&gt; the package of Jukebox (Moon) from a folder made by tools/jukebox, not from GitHub
 ///   --prova                does everything but start the game
 ///   --prova-errore         like --prova, and starting the game fails
 /// </summary>
@@ -20,6 +21,7 @@ public sealed class Options
     public string DataFolder { get; private set; } =
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Moon");
     public string? SourceFolder { get; private set; }
+    public string? PackFolder { get; private set; }
     public string ApiBase { get; private set; } = "https://api.github.com";
     public bool DryRun { get; private set; }
     public bool DryRunFails { get; private set; }
@@ -41,6 +43,7 @@ public sealed class Options
                 case "--zomboid": o.ZomboidFolder = Full(Next()); break;
                 case "--dati": o.DataFolder = Full(Next()); break;
                 case "--sorgente": o.SourceFolder = Full(Next()); break;
+                case "--pacchetto": o.PackFolder = Full(Next()); break;
                 case "--api": o.ApiBase = Next().TrimEnd('/'); break;
                 case "--prova": o.DryRun = true; break;
                 case "--prova-errore": o.DryRun = o.DryRunFails = true; break;

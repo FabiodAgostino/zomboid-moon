@@ -1,0 +1,2 @@
+Jukebox (Moon): i file di questa mod sono nella cartella 42.
+La musica (i CD e i brani) la installa il launcher di Moon nella stessa cartella: senza, i jukebox restano muti.

@@ -31,7 +31,7 @@ public sealed class ModCard : Observable
     public ModCard(ModPlan plan, int index, Func<ModCard, Task> toggle, Func<ModCard, Task> update, Func<ModCard, Task> remove,
         Func<ModCard, string, Task> chooseVersion, Func<Task> chooseGame)
     {
-        Plan = plan;
+        this.plan = plan;
         Index = index;
         this.toggle = toggle;
         this.chooseVersion = chooseVersion;
@@ -62,13 +62,26 @@ public sealed class ModCard : Observable
         }
     }
 
-    public ModPlan Plan { get; }
+    ModPlan plan;
+    /// <summary>The latest version's plan; a mod with a package gets a new one at every install (ModPlan.Base).</summary>
+    public ModPlan Plan
+    {
+        get => plan;
+        set
+        {
+            plan = value;
+            Raise(nameof(Note));
+        }
+    }
+
     public ModDef Def => Plan.Def;
     public int Index { get; }
     public string Name => Def.Name;
     public string Initial => Def.Name.Length > 0 ? Def.Name[..1].ToUpperInvariant() : "?";
     public string Summary => Def.Summary ?? "";
-    public string Note => Def.Note ?? "";
+    public string Note => Plan.Notice is { Length: > 0 } notice
+        ? (Def.Note is { Length: > 0 } note ? $"{note} {notice}" : notice)
+        : Def.Note ?? "";
     public string Audience => (Def.Audience ?? (Def.Required ? "Per tutti" : "Facoltativa")).ToUpperInvariant();
     public bool Required => Def.Required;
     public ImageSource? Image { get; }

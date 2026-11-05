@@ -7,6 +7,7 @@ Le mod per giocare a **Project Zomboid** (Build 42) sul server **Moon**.
 | Mod | Stato | Come arriva | Cos'è |
 | --- | --- | --- | --- |
 | **ZomBOT (Moon)** | **Obbligatoria** | il launcher la installa e la aggiorna da solo, in `%UserProfile%\Zomboid\mods\ZomBOTMoon`; sugli altri server non si carica | ZomBOT e Admin-Scorte insieme: le domande a ZomBOT dalla chat del gioco, il contenitore che lampeggia, le casse colorate e, per gli admin, le finestre delle basi e delle scorte. Vedi [ZomBOT: cosa fa](#zombot-cosa-fa) e [Admin-Scorte: cosa fa](#admin-scorte-cosa-fa). |
+| **Jukebox (Moon)** | **In prova** | per ora a nessuno | I jukebox del mondo suonano i CD di Moon, scelti dall'admin; chi ascolta vicino si annoia e si stressa meno. Vedi [Jukebox (Moon) (in prova)](#jukebox-moon-in-prova). |
 | **Silenziatori** | **Disattivata** | per ora a nessuno | I silenziatori per le armi: la mod Simple Suppressors di Kiidxatlas, tradotta in italiano e corretta. Vedi [Silenziatori (disattivata)](#silenziatori-disattivata). |
 | **SilencerMoon** | **In prova** (disattivata) | per ora a nessuno | I silenziatori artigianali che prenderanno il posto di Silenziatori: leghe fuse da un fucile a pompa, silenziatori per pistole e per fucili, il filtro dell'olio come ripiego. Vedi [SilencerMoon (in prova)](#silencermoon-in-prova). |
 
@@ -149,6 +150,16 @@ Se ci ripensi, nella stessa finestra **«Spegni il ripristino»**: i silenziator
 Le armi sistemate nei veicoli vengono rimandate a chi è lì vicino, così anche sul suo schermo il silenziatore è staccato e accanto all'arma.
 
 Il progetto completo, con le scelte e le verifiche fatte sui file del gioco 42.21, è nell'analisi v1.2 (non in questo repository). Le prove del Lua: `python -m pytest -q tests/silencermoon` con un Python che ha `pytest` e `lupa` (per esempio quello di ZomBOT). Gli script in `tools/silencermoon` rifanno le icone ramate, la texture e il poster.
+
+## Jukebox (Moon) (in prova)
+
+**Per ora il server non la usa**: il launcher la mostra «Disattivata». Quando sarà accesa la installa e la aggiorna il launcher, come ZomBOT (Moon), insieme alla musica.
+
+- **Nel gioco**: tasto destro su un jukebox con la corrente, «Jukebox». I CD di Moon si mettono e si tolgono dalla finestra del bottino del jukebox; la finestra «Jukebox» ha Riproduci, Ferma, Precedente, Successiva, la riproduzione casuale e il volume, che vale solo per te. Chi è vicino sente lo stesso brano nello stesso punto.
+- **La musica** la sceglie l'admin. Il launcher la scarica da solo: la prima volta che entri su Moon il gioco ti dà la chiave, e dalla volta dopo il launcher scarica i CD (solo quelli nuovi). La prima sessione è senza musica.
+- **Senza il launcher** (bat, Mac, Linux) la musica non arriva.
+
+Per gli admin, come aggiungere un CD: [docs/jukebox/README_ADMIN.md](docs/jukebox/README_ADMIN.md). Come è fatta: [docs/jukebox/TECHNICAL_DESIGN.md](docs/jukebox/TECHNICAL_DESIGN.md).
 
 ## Silenziatori (disattivata)
 
