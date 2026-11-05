@@ -57,6 +57,23 @@ python -m pytest -q tests/jukebox/test_builder.py    # Python con pytest, Pillow
   sbagliato (resta aperta), giusto, Invio, musica scaricata prima di GIOCA e launcher chiuso; «Più tardi» (gioco senza
   musica, «CODICE MUSICA» sulla scheda); la cartella di Silenziatori tolta all'avvio, con un collegamento dentro non
   seguito. Il `mods.json` nuovo letto dal codice della 1.0.3 (git) senza errori: Silenziatori non c'è, niente tolto.
+- **Launcher 1.0.5, codici monouso e GIOCA che chiede sempre** (5 novembre 2026, sera): `Core/MusicCode.cs` provato
+  con un programma che usa gli stessi file (116 controlli): il codice v2 incollato in tutti i modi (minuscolo, spazi,
+  a capo, senza trattini, senza `MOON-`, trattino lungo), un corpo che comincia con `MOON`, incompleto, troppo lungo,
+  0/1/8/9 e simboli, il codice v1 rifiutato; le risposte di ZomBOT lette (200, chiave di un altro `keyId`, chiave che
+  non torna con il suo id, 409 con e senza data, 404 di ZomBOT e di un proxy, 429, 503 `nokey` e di un proxy, 502/52x,
+  500, redirect); un finto ZomBOT (HttpListener): POST, `Content-Type: application/json`, User-Agent
+  `Moon-Launcher/1.0.5`, `{"code": …}`, connessione chiusa, nessuna risposta (tempo scaduto), redirect non seguito,
+  porta chiusa, nome inesistente; `--riscatta` solo con `--prova`; `mods.json` con `redeem` letto, e letto senza errori
+  dal codice di 1.0.3 e 1.0.4 (tag git) e da `impacchetta.ps1`. Nel launcher vero (`--prova`, `--riscatta` sul finto
+  ZomBOT) guidato con UI Automation: non intero e non un codice senza richieste, «Controllo il codice…» con i pulsanti
+  spenti, ogni risposta con il suo messaggio e la finestra aperta, nessuna chiave scritta per un'altra chiave, poi il
+  codice giusto incollato su due righe: chiave scritta, audio identico. La segnalazione di Zaskor ricostruita con gli
+  exe dei tag e un finto GitHub (1.0.3 installa motore e catalogo, poi la 1.0.4 come dopo l'autoaggiornamento): la
+  1.0.4 avvia il gioco senza chiedere con l'elenco delle release che non arriva, con l'elenco degli asset illeggibile e
+  senza copia, e dopo «Più tardi» all'avvio; la 1.0.5 nei primi e nel terzo caso chiede il codice (e con quello giusto
+  scarica l'audio e avvia), nel secondo lo dice e lascia scegliere, e con la chiave scritta dal gioco scarica l'audio
+  prima di avviare.
 
 ## Nel gioco (da fare, nell'ordine)
 

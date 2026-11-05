@@ -35,6 +35,11 @@ Niente di questo è stato fatto: ogni passo sul server, su GitHub e nel launcher
    nessuno saprebbe dove trovarlo (resta «Più tardi», con il gioco senza musica come prima). Poi la release come
    sempre (`launcher/README.md`, «Pubblicare una release»). Da lì chi apre il launcher incolla il codice una volta e
    ha la musica già alla prima sessione; chi non lo incolla la ha dalla seconda, come con la 1.0.3.
+8. **I codici monouso: launcher 1.0.5** (deciso la sera del 5 novembre 2026). Prima della release, in produzione su
+   ZomBOT (repo zomboid-discord): l'indirizzo `https://zombot.cirene.eu/api/musica/riscatta` con le risposte del
+   contratto (`TECHNICAL_DESIGN.md`, «Il codice della musica»), i codici v2 nella scheda «Musica» e `/codicemusica` per
+   gli admin; l'indirizzo in `mods.json` (`pack.redeem`) deve essere quello. La 1.0.5 non legge più i codici v1: con
+   la pagina che li mostra ancora, nessuno potrebbe usarli. Poi la release come sempre.
 
 Chi usa `mod-moon-server.bat`, un Mac o Linux non ha il launcher: deve copiare a mano `mods/JukeboxMoon` del repo e
 il catalogo pubblico (lo zip `catalog-*.zip` della pre-release `jukebox`, scompattato nella stessa cartella). Senza

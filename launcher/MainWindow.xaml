@@ -864,7 +864,7 @@
             </Border>
         </Grid>
 
-        <!-- the music's code, asked once before the game (Core/MusicCode.cs): the same card as the questions -->
+        <!-- the music's code, asked once before the game and redeemed at ZomBOT (Core/MusicCode.cs): the same card as the questions -->
         <Grid x:Name="CodeLayer" Visibility="Collapsed" Background="#B8020306" KeyboardNavigation.TabNavigation="Cycle"
               PreviewKeyDown="CodeLayer_PreviewKeyDown">
             <Border Width="640" HorizontalAlignment="Center" VerticalAlignment="Center" CornerRadius="16"
@@ -948,7 +948,7 @@
                                 <TextBlock x:Name="CodeFeedbackText" FontSize="12.5" TextWrapping="Wrap" LineHeight="18" />
                             </DockPanel>
                             <TextBlock Foreground="{StaticResource TextFaint}" FontSize="12" TextWrapping="Wrap" Margin="0,12,0,0" LineHeight="17"
-                                       Text="Il codice è personale, come una chiave: non passarlo ad altri. Con «Più tardi» il gioco parte lo stesso, questa volta senza musica." />
+                                       Text="Il codice è tuo: non passarlo ad altri. Con «Più tardi» il gioco parte lo stesso, questa volta senza musica." />
                         </StackPanel>
                     </DockPanel>
                     <DockPanel Margin="56,22,0,0">

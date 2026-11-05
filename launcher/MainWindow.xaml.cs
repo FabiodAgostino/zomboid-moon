@@ -339,10 +339,12 @@ public partial class MainWindow : Window
     // ---- the music's code -------------------------------------------------------------------------------------------
 
     MusicCodeRequest? codeRequest;
+    /// <summary>A code is on its way to ZomBOT: the buttons, Enter and Esc wait for the answer.</summary>
+    bool redeeming;
 
     /// <summary>
     /// The window of the music's code: the steps to get it, the box, a word at once on what is pasted, and three buttons.
-    /// «Conferma» closes it only with a good code; «Più tardi» (or Esc) with nothing.
+    /// «Conferma» sends a whole code to ZomBOT and closes it only with the key ZomBOT gives; «Più tardi» (or Esc) with nothing.
     /// </summary>
     async Task<byte[]?> ShowMusicCodeAsync(MusicCodeRequest request)
     {
@@ -353,6 +355,7 @@ public partial class MainWindow : Window
             CodeTitle.Text = request.Title;
             CodeMessage.Text = request.Message;
             CodeBox.Text = "";
+            SetRedeeming(false);
             ShowCodeFeedback(null);
 
             CodeLayer.Visibility = Visibility.Visible;
@@ -414,21 +417,60 @@ public partial class MainWindow : Window
         CodeBox.Focus();
     }
 
-    void CodeConfirm_Click(object sender, RoutedEventArgs e)
+    /// <summary>
+    /// A text that is not a whole code is refused here, without asking; a whole one goes to ZomBOT, which spends it and
+    /// gives the key. Any other answer stays in the window, with the code, to try again or to close.
+    /// </summary>
+    async void CodeConfirm_Click(object sender, RoutedEventArgs e)
     {
-        if (codeRequest is null) return;
-        var check = codeRequest.Check(CodeBox.Text);
-        if (check.Ok)
+        if (codeRequest is not { } request || redeeming) return;
+        var check = request.Check(CodeBox.Text);
+        if (!check.Ok)
         {
-            codeRequest.Close(check.Key);
+            ShowCodeFeedback(check);
+            Shake(CodeBox);
+            CodeBox.Focus();
             return;
         }
-        ShowCodeFeedback(check);
+        SetRedeeming(true);
+        ShowCodeFeedback("Controllo il codice…", null);
+        MusicRedeem answer;
+        try
+        {
+            answer = await request.Redeem(check.Code!);
+        }
+        catch (Exception)
+        {
+            // RedeemAsync answers for the network itself; anything else must not close the launcher (async void)
+            answer = new MusicRedeem(MusicRedeemOutcome.Unreachable);
+        }
+        finally
+        {
+            SetRedeeming(false);
+        }
+        if (codeRequest != request) return;
+        if (answer.Ok)
+        {
+            request.Close(answer.Key);
+            return;
+        }
+        ShowCodeFeedback(answer.Message, false);
         Shake(CodeBox);
         CodeBox.Focus();
     }
 
-    void CodeLater_Click(object sender, RoutedEventArgs e) => codeRequest?.Close(null);
+    void CodeLater_Click(object sender, RoutedEventArgs e)
+    {
+        if (!redeeming) codeRequest?.Close(null);
+    }
+
+    /// <summary>While ZomBOT answers: no buttons, and the box as it is.</summary>
+    void SetRedeeming(bool on)
+    {
+        redeeming = on;
+        CodeConfirm.IsEnabled = CodeLater.IsEnabled = CodePaste.IsEnabled = !on;
+        CodeBox.IsReadOnly = on;
+    }
 
     // Enter in the box is «Conferma», Esc anywhere «Più tardi». Not IsDefault/IsCancel: GIOCA is already the window's
     // default button, and two of them make Enter move the focus instead of pressing.
@@ -446,7 +488,7 @@ public partial class MainWindow : Window
         CodeLater_Click(sender, e);
     }
 
-    /// <summary>Green for a good code, red for a wrong or old one, grey (quiet) for a hint; null hides it.</summary>
+    /// <summary>Green for a whole code, red for one that is not, grey (quiet) for a hint; null hides it.</summary>
     void ShowCodeFeedback(MusicCodeCheck? check, bool quiet = false)
     {
         if (check is null)

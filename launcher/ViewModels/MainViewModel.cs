@@ -12,6 +12,12 @@ namespace Moon.ViewModels;
 
 public enum ToastKind { Ok, Info, Warning, Error }
 
+/// <summary>Who asks for the music's code: the launcher by itself at the start, GIOCA, or the card's «CODICE MUSICA».</summary>
+public enum MusicAsk { Startup, Play, Card }
+
+/// <summary>The packages read again on GIOCA: ready, unreadable but the player plays without music, or stop.</summary>
+public enum PackCheck { Ready, WithoutMusic, Cancel }
+
 /// <summary>A question in the middle of the window. The view shows it and closes it with the button pressed.</summary>
 public sealed class DialogRequest
 {
@@ -33,8 +39,9 @@ public sealed class DialogRequest
 }
 
 /// <summary>
-/// The window that asks for the music's code (Core/MusicCode.cs). The view says at once what the pasted text is (Check)
-/// and closes it with the key («Conferma», only a good code) or with null («Più tardi»).
+/// The window that asks for the music's code (Core/MusicCode.cs). The view says at once whether the pasted text is a
+/// whole code (Check); «Conferma» sends it to ZomBOT (Redeem) and closes the window with the key when ZomBOT gives the
+/// one of the music of now, otherwise it stays open and says why. «Più tardi» closes it with null.
 /// </summary>
 public sealed class MusicCodeRequest
 {
@@ -42,10 +49,10 @@ public sealed class MusicCodeRequest
 
     public required string Title { get; init; }
     public required string Message { get; init; }
-    /// <summary>The id of the key that opens the music of now: the manifest's keyId.</summary>
-    public required string KeyId { get; init; }
+    /// <summary>A whole code (MusicCodeCheck.Code) to ZomBOT: the key already checked against the manifest's keyId.</summary>
+    public required Func<string, Task<MusicRedeem>> Redeem { get; init; }
 
-    public MusicCodeCheck Check(string? text) => MusicCode.Check(text, KeyId);
+    public MusicCodeCheck Check(string? text) => MusicCode.Check(text);
 
     public Task<byte[]?> Result => result.Task;
     public void Close(byte[]? key) => result.TrySetResult(key);
@@ -57,9 +64,12 @@ public sealed class MainViewModel : Observable, IDisposable
     readonly Options options;
     readonly Store store;
     readonly GitHub github;
+    readonly MusicRedeemer redeemer = new();
     readonly Sources sources;
     readonly DispatcherTimer watch;
     IReadOnlyList<Release> releases = [];
+    /// <summary>The main branch's mods.json as read at the start (null offline or with --sorgente).</summary>
+    Manifest? liveManifest;
     IReadOnlyList<ModDef> replacing = [];
     bool cleanupWaiting;
     ModSource? source;
@@ -71,7 +81,8 @@ public sealed class MainViewModel : Observable, IDisposable
     bool confirming;
     /// <summary>The window of the music's code is open.</summary>
     bool askingCode;
-    /// <summary>«Più tardi» to the music's code: GIOCA does not ask again until the launcher is opened again.</summary>
+    /// <summary>«Più tardi» to the music's code: the launcher does not ask again by itself (at the start, when the game
+    /// closes) until it is opened again. GIOCA always asks (from 1.0.5).</summary>
     bool musicCodeLater;
     ReleaseAsset? launcherAsset;
 
@@ -240,6 +251,7 @@ public sealed class MainViewModel : Observable, IDisposable
             // the main branch says now which mods are disabled and which old files go; the release said it when it
             // came out. The mods that another one replaces (ZomBOT and Admin-Scorte, inside ZomBOT (Moon)) have no card.
             var live = await sources.LiveAsync(isOffline, CancellationToken.None);
+            liveManifest = live;
             replacing = (live ?? source.Manifest).Mods.Where(m => m.Replaces is not null).ToList();
             var replaced = new HashSet<string>(source.Manifest.Mods.Concat(replacing).SelectMany(m => m.Replaces?.Mods ?? []),
                 StringComparer.OrdinalIgnoreCase);
@@ -290,7 +302,7 @@ public sealed class MainViewModel : Observable, IDisposable
         if (askingCode) return;
         var missing = Mods.Where(m => m.Required && !m.Disabled && m.State == ModState.NotInstalled).ToList();
         if (missing.Count == 0 || await Task.Run(Game.IsRunning)) return;
-        var unlocked = await MusicCodeAsync(askedByPlayer: false);
+        var unlocked = await MusicCodeAsync(MusicAsk.Startup);
         if (unlocked is null) return;
         if (unlocked.Count > 0)
             missing = Mods.Where(m => (m.Required && !m.Disabled && m.State == ModState.NotInstalled)
@@ -528,18 +540,25 @@ public sealed class MainViewModel : Observable, IDisposable
     }
 
     /// <summary>
-    /// GIOCA: the music's code when it is needed, then the mods that need it (INSTALLA, AGGIORNA) with the music, then
-    /// the game. When the game starts the launcher closes; when something goes wrong it stays open and says why.
+    /// GIOCA: the packages read again, the music's code when it is needed, then the mods that need it (INSTALLA,
+    /// AGGIORNA) with the music, then the game. When the game starts the launcher closes; when something goes wrong it
+    /// stays open and says why.
     /// </summary>
     async Task PlayAsync()
     {
         if (IsBusy || askingCode) return;
         // the mod that Moon needs must be exactly the release's: looked at again now, since its files may have changed
         // while the launcher was open. Missing or different, it is installed before the game starts, without asking.
-        if (installer is not null && !HasLoadError) await RefreshAsync();
-        // the code before anything is installed: with it the music comes now, before the game, not after the first
-        // time on Moon. «Più tardi» and the game starts as before, without the music.
-        if (installer is not null && !HasLoadError && await MusicCodeAsync(askedByPlayer: false) is null) return;
+        if (installer is not null && !HasLoadError)
+        {
+            await RefreshAsync();
+            // the code before anything is installed: with it the music comes now, before the game, not after the first
+            // time on Moon. «Più tardi» and the game starts as before, without the music. Never skipped without a word:
+            // 1.0.4 did, when GitHub did not answer at the start (Zaskor, 05/11/2026).
+            var packs = await CheckPacksForPlayAsync();
+            if (packs == PackCheck.Cancel) return;
+            if (packs == PackCheck.Ready && await MusicCodeAsync(MusicAsk.Play) is null) return;
+        }
         if (PlayLabel is "INSTALLA" or "AGGIORNA")
         {
             var todo = Mods.Where(m => (m.Required && m.State == ModState.NotInstalled && !m.Disabled) || m.HasUpdate).ToList();
@@ -625,17 +644,78 @@ public sealed class MainViewModel : Observable, IDisposable
         {
             PlayLabel = "GIOCA";
             StatusTitle = "Tutto pronto";
-            var music = CanFetchMusic ? Mods.FirstOrDefault(m => m.NeedsMusicCode) : null;
-            StatusDetail = music is null
-                ? "Entra sul server Moon come sempre: le mod le attiva il server, non devi attivare niente tu."
-                : musicCodeLater
-                    ? $"Questa volta {music.Name} è senza musica: il tuo codice lo puoi incollare dalla sua scheda, in MOD."
+            var music = Mods.FirstOrDefault(m => m.NeedsMusicCode && RedeemUrl(m) is not null);
+            var unread = Mods.FirstOrDefault(PackUnread);
+            if (unread is not null) StatusTitle = $"Gli asset di {unread.Name} non sono pronti";
+            StatusDetail = unread is not null
+                ? $"{unread.Plan.Notice} Premi GIOCA e riprovo."
+                : music is null
+                    ? "Entra sul server Moon come sempre: le mod le attiva il server, non devi attivare niente tu."
                     : $"Per la musica di {music.Name} premi GIOCA: ti chiedo il tuo codice, una volta sola.";
         }
     }
 
-    /// <summary>The music comes from GitHub, or from --pacchetto: offline, asking for the code would be for nothing.</summary>
+    /// <summary>The music comes from GitHub, or from --pacchetto: when the launcher started offline it does not ask by
+    /// itself (Startup). GIOCA and the card try anyway: GitHub's list of releases may be down while the rest answers.</summary>
     bool CanFetchMusic => !Offline || options.PackFolder is not null;
+
+    /// <summary>A mod that Moon needs (or that is installed) whose package could not be read: no list of its files.</summary>
+    static bool PackUnread(ModCard m) =>
+        m.Def.Pack is not null && m.Plan.MusicKeyId is null && !m.Disabled && (m.Def.Required || m.IsOn);
+
+    /// <summary>
+    /// GIOCA (from 1.0.5): the packages of the mods that Moon needs, or that are installed, read again now, from GitHub
+    /// even when the launcher started offline (its list of releases did not come: an hourly limit, a timeout): a list of
+    /// files that did not come at the start, a key that the game wrote meanwhile. 1.0.4 used what it had read at the
+    /// start and, offline or without the list, started the game without asking for the code and without the music.
+    /// A package that still cannot be read is said: try again, play without music, or stop.
+    /// </summary>
+    async Task<PackCheck> CheckPacksForPlayAsync()
+    {
+        var cards = Mods.Where(m => m.Def.Pack is not null && m.Plan.Base is not null && !m.Disabled && (m.Def.Required || m.IsOn)).ToList();
+        if (cards.Count == 0) return PackCheck.Ready;
+        var roots = new Roots(options.ZomboidFolder, gameFolder);
+        while (true)
+        {
+            IsBusy = true;
+            BeginProgress("Preparo gli asset del Jukebox", "leggo l'elenco", true);
+            try
+            {
+                foreach (var c in cards)
+                    Replace(c, await Task.Run(() => Packs.AttachAsync(c.Plan.Base!, github, store.CacheFolder, roots, options.PackFolder,
+                        offline: false, CancellationToken.None)));
+                await RefreshAsync();
+            }
+            finally
+            {
+                IsBusy = false;
+                EndProgress();
+                UpdatePlayState();
+            }
+            var unread = cards.FirstOrDefault(PackUnread);
+            if (unread is null) return PackCheck.Ready;
+            var choice = await Dialog(new DialogRequest
+            {
+                Title = $"Gli asset di {unread.Name} non sono pronti",
+                Message = unread.Plan.Notice ?? "Non riesco a leggere l'elenco degli asset del Jukebox.",
+                Advice = "Senza l'elenco non posso chiederti il codice né scaricare la musica. Controlla la connessione e premi Riprova; "
+                         + "con «Gioca senza musica» il gioco parte lo stesso, questa volta senza.",
+                Buttons = ["Riprova", "Gioca senza musica", "Annulla"],
+                Icon = "",
+            });
+            if (choice == 0) continue;
+            return choice == 1 ? PackCheck.WithoutMusic : PackCheck.Cancel;
+        }
+    }
+
+    /// <summary>
+    /// Where ZomBOT redeems the codes («pack.redeem»): the main branch's mods.json first, so the address changes with a
+    /// commit and without a new launcher, then the release's; https only. With --prova, --riscatta (a fake ZomBOT).
+    /// </summary>
+    Uri? RedeemUrl(ModCard card) =>
+        options.RedeemUrl
+        ?? liveManifest?.Mods.FirstOrDefault(m => m.Id.Equals(card.Def.Id, StringComparison.OrdinalIgnoreCase))?.Pack?.RedeemUri
+        ?? card.Def.Pack?.RedeemUri;
 
     // ---- the mods ---------------------------------------------------------------------------------------------------
 
@@ -893,22 +973,19 @@ public sealed class MainViewModel : Observable, IDisposable
 
     /// <summary>
     /// The music's code (Core/MusicCode.cs), asked when a mod that Moon needs, or that is installed, has music that this
-    /// computer cannot open: no key, or the key of before. Once: the key goes in the file where the game writes it too
-    /// (pack.keyFile), and from then on the launcher finds it there. «Più tardi»: GIOCA does not ask again until the
-    /// launcher is opened again; the card's «CODICE MUSICA» still can (askedByPlayer).
+    /// computer cannot open: no key, or the key of before. Once: ZomBOT spends the code and gives the key (from 1.0.5 a
+    /// code is good once), which goes in the file where the game writes it too (pack.keyFile), and from then on the
+    /// launcher finds it there. By itself (Startup) the launcher asks only with GitHub there and not again after «Più
+    /// tardi»; GIOCA (Play) and the card's «CODICE MUSICA» (Card) ask whenever the music cannot be opened.
     /// </summary>
-    /// <returns>The cards whose plans now have the music (empty: nothing to do, «Più tardi», offline); null when the key
-    /// could not be written: the player has been told, and the game does not start.</returns>
-    async Task<List<ModCard>?> MusicCodeAsync(bool askedByPlayer)
+    /// <returns>The cards whose plans now have the music (empty: nothing to do, «Più tardi», «Gioca senza musica»);
+    /// null when the key could not be written: the player has been told, and the game does not start.</returns>
+    async Task<List<ModCard>?> MusicCodeAsync(MusicAsk reason)
     {
         var needing = Mods.Where(m => m.NeedsMusicCode).ToList();
-        if (needing.Count == 0 || askingCode || (musicCodeLater && !askedByPlayer)) return [];
-        if (!CanFetchMusic)
-        {
-            if (askedByPlayer)
-                Toast("Sei senza connessione", "Gli asset del Jukebox si scaricano da GitHub: riprova quando torna la rete.", ToastKind.Warning);
-            return [];
-        }
+        if (needing.Count == 0 || askingCode) return [];
+        // by itself the launcher asks once, and only with GitHub there; GIOCA and the card always
+        if (reason == MusicAsk.Startup && (musicCodeLater || !CanFetchMusic)) return [];
         var card = needing[0];
         var keyPath = new Roots(options.ZomboidFolder, gameFolder).Resolve(card.Def.Pack!.KeyFile)!;
         var keyId = card.Plan.MusicKeyId!;
@@ -916,19 +993,52 @@ public sealed class MainViewModel : Observable, IDisposable
         // the game may have written it while the launcher was open: then there is nothing to ask
         if (old is null || Packs.KeyId(old) != keyId)
         {
+            // a mods.json without ZomBOT's address: no code, the key comes from the game as with 1.0.3
+            if (RedeemUrl(card) is not { } redeem)
+            {
+                if (reason != MusicAsk.Startup)
+                    Toast("Il codice della musica non si può usare", "La chiave della musica arriva dal gioco, quando entri su Moon.", ToastKind.Warning);
+                return [];
+            }
+            // a code is good once: before ZomBOT spends it, the key must have a place to go
+            while (true)
+            {
+                try
+                {
+                    await Task.Run(() => Packs.CheckKeyWritable(keyPath));
+                    break;
+                }
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+                {
+                    musicCodeLater = true;
+                    var choice = await Dialog(new DialogRequest
+                    {
+                        Title = "Non posso salvare la chiave della musica",
+                        Message = $"Non riesco a scrivere in \"{keyPath}\". Il codice non l'ho usato: vale ancora.",
+                        Advice = "Chiudi Project Zomboid e premi Riprova."
+                                 + (reason == MusicAsk.Play ? " Con «Gioca senza musica» il gioco parte lo stesso, questa volta senza." : ""),
+                        Buttons = reason == MusicAsk.Play ? ["Riprova", "Gioca senza musica", "Annulla"] : ["Riprova", "Chiudi"],
+                        Icon = "",
+                    });
+                    if (choice == 0) continue;
+                    UpdatePlayState();
+                    return reason == MusicAsk.Play && choice == 1 ? [] : null;
+                }
+            }
             byte[]? key;
             askingCode = true;
             try
             {
                 key = await AskCode(new MusicCodeRequest
                 {
-                    Title = old is null ? "Il codice della musica" : "Serve il codice nuovo della musica",
+                    Title = old is null ? "Il codice della musica" : "Serve un codice nuovo della musica",
                     Message = old is null
                         ? $"Per scaricare la musica di {card.Name} prima di avviare il gioco mi serve il tuo codice. "
-                          + "Una tantum: te lo chiedo una volta sola, poi il launcher se lo ricorda."
-                        : $"La chiave della musica di {card.Name} è cambiata e il codice di prima non apre i CD. "
-                          + "Copia quello nuovo dalla tua scheda, come la prima volta: poi il launcher se lo ricorda.",
-                    KeyId = keyId,
+                          + "Il codice vale una volta sola: il launcher se lo ricorda su questo PC. Per un altro PC chiedi un codice nuovo a un admin."
+                        : $"La chiave della musica di {card.Name} è cambiata e quella di prima non apre i CD. "
+                          + "Il codice vale una volta sola: se il tuo l'hai già usato, chiedine uno nuovo a un admin, "
+                          + "oppure premi «Più tardi» e la chiave nuova arriva dal gioco quando entri su Moon.",
+                    Redeem = code => redeemer.RedeemAsync(redeem, code, keyId, CancellationToken.None),
                 });
             }
             finally
@@ -941,15 +1051,26 @@ public sealed class MainViewModel : Observable, IDisposable
                 UpdatePlayState();
                 return [];
             }
-            try
+            // ZomBOT has spent the code: the key is only here now, so a file that will not take it gets another try
+            while (true)
             {
-                await Task.Run(() => Packs.WriteKey(keyPath, key));
-            }
-            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-            {
-                await ShowErrorAsync(new InstallerException($"Non riesco a salvare la chiave della musica in \"{keyPath}\".",
-                    "Chiudi Project Zomboid e riprova.", false, e), "Codice non salvato");
-                return null;
+                try
+                {
+                    await Task.Run(() => Packs.WriteKey(keyPath, key));
+                    break;
+                }
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+                {
+                    var choice = await Dialog(new DialogRequest
+                    {
+                        Title = "Chiave non salvata",
+                        Message = $"ZomBOT ha accettato il codice, ma non riesco a salvare la chiave della musica in \"{keyPath}\".",
+                        Advice = "Chiudi Project Zomboid e premi Riprova: il codice vale una volta sola, e finché il launcher è aperto la chiave ce l'ho io.",
+                        Buttons = ["Riprova", "Chiudi"],
+                        Icon = "",
+                    });
+                    if (choice != 0) return null;
+                }
             }
             musicCodeLater = false;
         }
@@ -975,7 +1096,7 @@ public sealed class MainViewModel : Observable, IDisposable
     async Task EnterMusicCodeAsync(ModCard card)
     {
         if (IsBusy || askingCode || confirming || installer is null) return;
-        var unlocked = await MusicCodeAsync(askedByPlayer: true);
+        var unlocked = await MusicCodeAsync(MusicAsk.Card);
         if (unlocked is not { Count: > 0 }) return;
         var todo = unlocked.Where(c => c.HasUpdate || (c.Required && !c.Disabled && c.State == ModState.NotInstalled)).ToList();
         if (todo.Count > 0) await InstallAsync(todo, latest: true);
@@ -1093,6 +1214,7 @@ public sealed class MainViewModel : Observable, IDisposable
     {
         watch.Stop();
         github.Dispose();
+        redeemer.Dispose();
     }
 }
 

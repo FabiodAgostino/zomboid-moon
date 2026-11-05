@@ -20,7 +20,8 @@ public sealed record PackManifest(string CatalogVersion, string PackageVersion, 
 ///   - the public catalogue (a zip) goes to everyone: with it a player enters Moon even without the music;
 ///   - the music is one .jbm per album, a zip encrypted with AES-256-GCM. The key is in Zomboid/Lua/JukeboxMoon_key.txt:
 ///     the game writes it when the player enters the server, and from 1.0.4 the launcher writes it from the player's
-///     code (Core/MusicCode.cs), asked once before the game starts, so the music is there from the first time.
+///     code, asked once before the game starts, so the music is there from the first time (from 1.0.5 the code is
+///     good once and ZomBOT gives the key for it: Core/MusicCode.cs).
 /// The files become part of the mod's plan, like the repo's: the same byte-by-byte check, and the mirror keeps them.
 /// Only what is missing or different is downloaded, checked, opened and checked again before it is installed.
 /// </summary>
@@ -72,6 +73,7 @@ public static partial class Packs
         Directory.CreateDirectory(folder);
         var manifestPath = Path.Combine(folder, "manifest.json");
         string? trouble = null;
+        var notPublished = false;
         try
         {
             if (localFolder is not null)
@@ -89,12 +91,19 @@ public static partial class Packs
         catch (HttpRequestException e) when (e.StatusCode == HttpStatusCode.NotFound)
         {
             trouble = "Gli asset del Jukebox non sono ancora pubblicati.";
+            notPublished = true;
         }
         catch (Exception e) when (e is HttpRequestException or TaskCanceledException or IOException)
         {
             trouble = "Non riesco a scaricare l'elenco degli asset del Jukebox: uso quello dell'ultima volta.";
         }
-        if (!File.Exists(manifestPath)) return Unresolved(plan, trouble ?? "Gli asset del Jukebox non sono ancora pubblicati.");
+        // never read before: nothing of the last time to use (1.0.4 said «uso quello dell'ultima volta» anyway)
+        if (!File.Exists(manifestPath))
+            return Unresolved(plan, notPublished
+                ? "Gli asset del Jukebox non sono ancora pubblicati."
+                : offline && localFolder is null
+                    ? "Sono senza connessione e non ho ancora l'elenco degli asset del Jukebox."
+                    : "Non riesco a scaricare l'elenco degli asset del Jukebox da GitHub.");
 
         PackManifest m;
         try
@@ -172,7 +181,7 @@ public static partial class Packs
             ? trouble
             : key is null
                 ? "Per la musica mi serve il tuo codice: è nella tua scheda dal vivo, alla voce «Musica» (su Discord: /scheda)."
-                : "La chiave della musica è cambiata: mi serve il codice nuovo, dalla tua scheda dal vivo («Musica»).";
+                : "La chiave della musica è cambiata: arriva dal gioco quando entri su Moon, o con un codice nuovo da un admin.";
 
         async Task Fetch(IProgress<Step> progress, CancellationToken token)
         {
@@ -313,6 +322,18 @@ public static partial class Packs
         }
     }
 
+    /// <summary>
+    /// Throws when WriteKey could not write the key there: its folder made, the file next to it written and deleted.
+    /// From 1.0.5 a code is good once and ZomBOT spends it when it gives the key: this is asked before the code goes.
+    /// </summary>
+    public static void CheckKeyWritable(string path)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        var temp = path + ".tmp";
+        File.WriteAllBytes(temp, []);
+        File.Delete(temp);
+    }
+
     public static string KeyId(byte[] key) => Convert.ToHexString(SHA256.HashData(key))[..16].ToLowerInvariant();
 
     static string FileSha(string path)
@@ -337,7 +358,7 @@ public static partial class Packs
         }
         catch (CryptographicException e)
         {
-            throw new InvalidDataException("Un asset del Jukebox non si apre con la tua chiave: riprova; se succede ancora, copia di nuovo il codice dalla tua scheda dal vivo.", e);
+            throw new InvalidDataException("Un asset del Jukebox non si apre con la tua chiave: riprova; se succede ancora, dillo a un admin.", e);
         }
         return plain;
     }

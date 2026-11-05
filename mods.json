@@ -1,5 +1,5 @@
 {
-  "launcher": "1.0.4",
+  "launcher": "1.0.5",
   "mods": [
     {
       "id": "zombot-moon",
@@ -47,7 +47,10 @@
       "install": [
         { "from": "mods/JukeboxMoon", "to": "{zomboid}/mods/JukeboxMoon", "mirror": true }
       ],
-      "pack": { "release": "jukebox", "to": "{zomboid}/mods/JukeboxMoon", "keyFile": "{zomboid}/Lua/JukeboxMoon_key.txt" }
+      "pack": {
+        "release": "jukebox", "to": "{zomboid}/mods/JukeboxMoon", "keyFile": "{zomboid}/Lua/JukeboxMoon_key.txt",
+        "redeem": "https://zombot.cirene.eu/api/musica/riscatta"
+      }
     },
     {
       "id": "zombot",

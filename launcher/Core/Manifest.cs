@@ -163,8 +163,9 @@ public sealed class ModDef
 /// A package published as the assets of a pre-release of the repo (the launcher never takes a pre-release for its own):
 /// manifest.json, a public zip and encrypted .jbm files, made by tools/jukebox. Its files are installed in the mod's own
 /// folder with the repo's (To, the folder of the mod's mirror entry). The key that opens the .jbm files is in KeyFile:
-/// written by the game when the player enters the server, or (from 1.0.4) by the launcher from the player's code.
-/// A launcher older than 1.0.3 does not know this field.
+/// written by the game when the player enters the server, or (from 1.0.4) by the launcher from the player's code,
+/// which from 1.0.5 ZomBOT redeems at Redeem. A launcher older than 1.0.3 does not know this field, and one older than
+/// 1.0.5 skips Redeem (System.Text.Json leaves out the fields a class does not have).
 /// </summary>
 public sealed class PackDef
 {
@@ -174,6 +175,11 @@ public sealed class PackDef
     public string To { get; set; } = "";
     /// <summary>Where the key is: «{zomboid}/Lua/JukeboxMoon_key.txt», written by the game or by the launcher.</summary>
     public string KeyFile { get; set; } = "";
+    /// <summary>Where ZomBOT redeems the codes of the music (from 1.0.5): https only, see RedeemUri.</summary>
+    public string? Redeem { get; set; }
+    /// <summary>Redeem when it is an https address; null otherwise: then the launcher does not ask for the code.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public Uri? RedeemUri => MusicRedeemer.Address(Redeem);
 }
 
 public sealed class VersionProbe
@@ -277,7 +283,7 @@ public sealed class ModPlan
     /// <summary>The id of the key that opens the package's music (manifest.json, keyId); null when it was not read.</summary>
     public string? MusicKeyId { get; init; }
     /// <summary>The package has music that this computer cannot open: no key in pack.keyFile, or the key of before.
-    /// Before the game starts the launcher asks for the player's code (Core/MusicCode.cs).</summary>
+    /// Before the game starts the launcher asks for the player's code and ZomBOT redeems it (Core/MusicCode.cs).</summary>
     public bool NeedsMusicKey { get; init; }
 
     HashSet<string>? targets;
