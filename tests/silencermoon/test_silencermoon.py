@@ -111,6 +111,15 @@ function newWeapon(fullType, range, low, high)
         if SilencerMoon.onDetach then SilencerMoon.onDetach(nil, self, part) end
         return part
     end
+    -- HandWeapon.detachWeaponPart(character, part): the game's own modifiers off (0 for ours), then OnDetach
+    function w:detachWeaponPart(owner, part)
+        for t, p in pairs(self.parts) do if p == part then self.parts[t] = nil end end
+        DETACHED_BY = owner
+        if SilencerMoon.onDetach then SilencerMoon.onDetach(owner, self, part) end
+    end
+    function w:getContainer() return self.container end
+    function w:getWorldItem() return self.world end
+    function w:hasModData() return next(self.modData) ~= nil end
     return w
 end
 

@@ -4,5 +4,7 @@
   "Tooltip_SilencerMoon_ScavengedOilFilter": "An oil filter taken out of a vehicle. Makes an improvised suppressor.",
   "Tooltip_SilencerMoon_Suppressor": "Attach it to a compatible firearm with 'Add Weapon Upgrade' and take it off with 'Remove Weapon Upgrade'; both need a screwdriver. It muffles the shot but costs range and damage, and wears out as you fire.",
   "Tooltip_SilencerMoon_Smelt": "The pump shotgun may be broken, but it must be empty (nothing chambered, no spent shells) and have no parts attached.",
-  "Tooltip_SilencerMoon_MakeSuppressor": "Learned from the magazine on homemade suppressors."
+  "Tooltip_SilencerMoon_MakeSuppressor": "Learned from the magazine on homemade suppressors.",
+  "Tooltip_SilencerMoon_RestoreStart": "Do this before removing SilencerMoon from the server. From then on nobody can attach a SilencerMoon suppressor and the server takes it off every weapon, which gets its own range and damage back; the suppressor stays next to the weapon. It does so at once with the weapons of the players online and of the loaded vehicles, then every ten game minutes (also with whoever logs in later) and with containers, items on the ground and corpses as soon as their area loads. Keep it on until everyone has logged in at least once and the bases have been visited: a weapon left with a suppressor would vanish once the mod is removed.",
+  "Tooltip_SilencerMoon_RestoreStop": "The restore is on: %1 weapons fixed so far. Turn it off only if SilencerMoon stays on the server."
 }

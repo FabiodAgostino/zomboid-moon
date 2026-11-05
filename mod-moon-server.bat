@@ -8,17 +8,20 @@ rem                    game's media\lua folder (ZomBotGioco.lua, ZomBotMenu.lua,
 rem                    ZomBotData.lua, Moon-ZomBOT.version and Moon-Admin-Scorte.version) are loaded by the game on
 rem                    every server, and a server that checks the Lua files (DoLuaChecksum, on by default) kicks
 rem                    whoever has them: option 1 also removes exactly those files, nothing else.
-rem    Silenziatori  - the suppressor mod (a fixed, Italian copy of Kiidxatlas' Simple Suppressors), copied into
-rem                    %UserProfile%\Zomboid\mods. DISABLED for now (the user, 28/10/2026): shown as «Disattivata»,
-rem                    not installed, but still removed by option 3 for whoever has it. To turn it back on, empty
-rem                    SIL_DISABLED below: one line.
+rem    SilencerMoon  - the homemade suppressors (id SilencerMoon), copied into %UserProfile%\Zomboid\mods. It takes
+rem                    the place of Silenziatori. IN TESTING for now (05/11/2026): shown as «In prova», not
+rem                    installed, but removed by option 3 for whoever has it. To make it installable, empty
+rem                    SM_DISABLED below: one line.
+rem    Silenziatori  - the old suppressor mod (a fixed, Italian copy of Kiidxatlas' Simple Suppressors), replaced by
+rem                    SilencerMoon: never installed any more; shown only to whoever still has it, and removed by
+rem                    option 3.
 rem  Double click it. If the game is not in a Steam library, drag the ProjectZomboid folder onto this file.
 rem  The file must keep Windows line endings (CRLF): see .gitattributes. Colours need Windows 10 or later.
 rem ==============================================================================================================
 setlocal EnableExtensions DisableDelayedExpansion
 
-rem Silenziatori: 1 = disabled («Disattivata», never installed), empty = installable again
-set "SIL_DISABLED=1"
+rem SilencerMoon: 1 = in testing («In prova», never installed), empty = installable
+set "SM_DISABLED=1"
 
 rem the old files of ZomBOT and Admin-Scorte in the game's media\lua: exactly these, nothing else
 set "OLDFILES=client\ZomBotGioco.lua client\ZomBotMenu.lua client\ZomBotStockUI.lua client\ZomBotGravesUI.lua shared\ZomBotData.lua Moon-ZomBOT.version Moon-Admin-Scorte.version"
@@ -40,32 +43,33 @@ set "KO=%R%×%N%"
 
 set "HERE=%~dp0"
 set "ZBSRC=%HERE%mods\ZomBOTMoon"
-set "SILSRC=%HERE%mods\Silenziatori"
+set "SMSRC=%HERE%mods\SilencerMoon"
 if not exist "%ZBSRC%\42\mod.info" goto not_extracted
-if not exist "%SILSRC%\42\mod.info" goto not_extracted
+if not exist "%SMSRC%\42\mod.info" goto not_extracted
 if not defined USERPROFILE goto no_profile
 
 set "ZOMBOID=%USERPROFILE%\Zomboid"
 set "ZBDEST=%ZOMBOID%\mods\ZomBOTMoon"
+set "SMDEST=%ZOMBOID%\mods\SilencerMoon"
 set "SILDEST=%ZOMBOID%\mods\Silenziatori"
 call :read_version "%ZBSRC%\42\mod.info" ZBVER
-call :read_version "%SILSRC%\42\mod.info" SILVER
+call :read_version "%SMSRC%\42\mod.info" SMVER
 if not defined ZBVER set "ZBVER=?"
-if not defined SILVER set "SILVER=?"
+if not defined SMVER set "SMVER=?"
 call :count_files "%ZBSRC%" ZBFILES
-call :count_files "%SILSRC%" SILFILES
+call :count_files "%SMSRC%" SMFILES
 
 rem the versions in a column 15 wide, for the menu's table
 set "ZBVERP=%ZBVER%               "
 set "ZBVERP=%ZBVERP:~0,15%"
-set "SILVERP=%SILVER%               "
-set "SILVERP=%SILVERP:~0,15%"
+set "SMVERP=%SMVER%               "
+set "SMVERP=%SMVERP:~0,15%"
 
-rem what the menu shows, with Silenziatori on or off
-set "SILKIND=%G%Installabile%N%"
-set "BANNERLINE=ZomBOT (Moon) %ZBVER%  ·  Silenziatori %SILVER%"
-if defined SIL_DISABLED set "SILKIND=%D%Disattivata %N%"
-if defined SIL_DISABLED set "BANNERLINE=ZomBOT (Moon) %ZBVER%  ·  Silenziatori disattivata"
+rem what the menu shows, with SilencerMoon installable or in testing
+set "SMKIND=%G%Installabile%N%"
+set "BANNERLINE=ZomBOT (Moon) %ZBVER%  ·  SilencerMoon %SMVER%"
+if defined SM_DISABLED set "SMKIND=%D%In prova    %N%"
+if defined SM_DISABLED set "BANNERLINE=ZomBOT (Moon) %ZBVER%  ·  SilencerMoon in prova"
 
 rem the game: the folder dragged onto this file, then Steam's own folder, then every Steam library
 set "GAME="
@@ -86,7 +90,8 @@ echo   %B%Le mod di Moon%N%
 echo.
 echo     %D%                  stato          versione        sul tuo computer%N%
 echo     ZomBOT (Moon)     %C%Obbligatoria%N%   %ZBVERP% %ZBSTATE%
-echo     Silenziatori      %SILKIND%   %SILVERP% %SILSTATE%
+echo     SilencerMoon      %SMKIND%   %SMVERP% %SMSTATE%
+if defined SILINST echo     Silenziatori      %D%Sostituita  %N%   %SILINSTP% %SILSTATE%
 echo.
 echo     Project Zomboid   %GAMESTATE%
 if defined DRAGGED_WRONG echo     %Y%La cartella che hai trascinato non contiene Project Zomboid.%N%
@@ -97,8 +102,8 @@ if defined OLDN echo.
 echo   %B%Cosa vuoi fare?%N%
 echo.
 echo     %C%[1]%N%  Installa o aggiorna ZomBOT (Moon)   %D%%ZBHINT%%N%
-echo     %C%[2]%N%  Installa o aggiorna Silenziatori    %D%%SILHINT%%N%
-echo     %C%[3]%N%  Togli Silenziatori
+echo     %C%[2]%N%  Installa o aggiorna SilencerMoon    %D%%SMHINT%%N%
+echo     %C%[3]%N%  Togli SilencerMoon e Silenziatori
 echo     %C%[0]%N%  Esci
 echo.
 echo   %D%ZomBOT e Admin-Scorte ora sono dentro la mod ZomBOT (Moon): serve per giocare su Moon,%N%
@@ -150,12 +155,12 @@ goto back_to_menu
 
 rem ==============================================================================================================
 :install
-if defined SIL_DISABLED goto install_off
+if defined SM_DISABLED goto install_off
 set "STEP=0"
 set "STEPS=3"
 cls
 call :banner
-echo   %B%Installo Silenziatori%N%
+echo   %B%Installo SilencerMoon%N%
 echo.
 set /a STEP+=1
 echo   %C%[%STEP%/%STEPS%]%N% Controllo che Project Zomboid sia chiuso
@@ -163,7 +168,7 @@ echo         %D%i file di una mod non si possono cambiare mentre il gioco li sta
 call :wait_game_closed
 echo         %OK% il gioco è chiuso
 call :prepare_mods || goto failed_mods
-call :install_sil || goto failed_mods
+call :install_sm || goto failed_mods
 echo.
 echo   %G%╔════════════════════════════════════════════════════════╗%N%
 echo   %G%║%N%  %B%Tutto pronto.%N%                                         %G%║%N%
@@ -175,22 +180,23 @@ goto back_to_menu
 
 :install_off
 echo.
-echo   %Y%Silenziatori per ora è disattivata: non si installa.%N%
+echo   %Y%SilencerMoon è in prova: per ora non si installa.%N%
 goto back_to_menu
 
 rem ==============================================================================================================
 :uninstall
 set "STEP=0"
-set "STEPS=2"
+set "STEPS=3"
 cls
 call :banner
-echo   %B%Tolgo Silenziatori%N%
+echo   %B%Tolgo SilencerMoon e Silenziatori%N%
 echo.
 set /a STEP+=1
 echo   %C%[%STEP%/%STEPS%]%N% Controllo che Project Zomboid sia chiuso
 call :wait_game_closed
 echo         %OK% il gioco è chiuso
-call :uninstall_sil || goto failed_mods
+call :uninstall_mod "SilencerMoon" "%SMDEST%" || goto failed_mods
+call :uninstall_mod "Silenziatori" "%SILDEST%" || goto failed_mods
 echo.
 echo   %G%╔════════════════════════════════════════════════════════╗%N%
 echo   %G%║%N%  %B%Fatto.%N%                                                %G%║%N%
@@ -253,30 +259,37 @@ exit /b 0
 rem what is on this computer now, as the menu shows it: «aggiornata» when the files are the ones of this pack
 call :read_version "%ZBDEST%\42\mod.info" ZBINST
 if exist "%ZBDEST%\" if not defined ZBINST set "ZBINST=?"
+call :read_version "%SMDEST%\42\mod.info" SMINST
+if exist "%SMDEST%\" if not defined SMINST set "SMINST=?"
 call :read_version "%SILDEST%\42\mod.info" SILINST
 if exist "%SILDEST%\" if not defined SILINST set "SILINST=?"
 set "ZBHINT=%ZBVER%, serve per giocare su Moon"
 set "ZBSTATE=%Y%non installata%N% %D%· senza non entri su Moon: premi 1%N%"
-if not defined ZBINST goto status_sil
+if not defined ZBINST goto status_sm
 if not "%ZBINST%"=="%ZBVER%" goto status_zb_old
 rem the same version: «aggiornata» only when the files are this pack's, byte for byte
 call :compare_zb
 if not defined ZBSAME goto status_zb_changed
 set "ZBSTATE=%G%aggiornata%N%"
-goto status_sil
+goto status_sm
 :status_zb_old
 set "ZBSTATE=%Y%vecchia%N% %D%· hai la %ZBINST%: premi 1 per aggiornarla%N%"
-goto status_sil
+goto status_sm
 :status_zb_changed
 set "ZBSTATE=%Y%da aggiornare%N% %D%· i file non sono quelli di questa versione: premi 1%N%"
+:status_sm
+if defined SM_DISABLED goto status_sm_off
+if not defined SMINST (set "SMSTATE=%D%non installata%N%") else if "%SMINST%"=="%SMVER%" (set "SMSTATE=%G%aggiornata%N%") else set "SMSTATE=%Y%vecchia%N% %D%· hai la %SMINST%: premi 2 per aggiornarla%N%"
+set "SMHINT=%SMVER%"
+goto status_sil
+:status_sm_off
+if defined SMINST (set "SMSTATE=%Y%installata%N% %D%· hai la %SMINST%, ma è in prova: puoi toglierla con 3%N%") else set "SMSTATE=%D%non installata%N%"
+set "SMHINT=in prova: per ora non si installa"
 :status_sil
-if defined SIL_DISABLED goto status_sil_off
-if not defined SILINST (set "SILSTATE=%D%non installata%N%") else if "%SILINST%"=="%SILVER%" (set "SILSTATE=%G%aggiornata%N%") else set "SILSTATE=%Y%vecchia%N% %D%· hai la %SILINST%%N%"
-set "SILHINT=%SILVER%"
-goto status_game
-:status_sil_off
-if defined SILINST (set "SILSTATE=%Y%installata%N% %D%· hai la %SILINST%: non serve, puoi toglierla con 3%N%") else set "SILSTATE=%D%non installata%N%"
-set "SILHINT=disattivata: per ora non si installa"
+rem the old Silenziatori: shown only to whoever still has it, to take it away
+set "SILINSTP=%SILINST%               "
+set "SILINSTP=%SILINSTP:~0,15%"
+set "SILSTATE=%Y%da togliere%N% %D%· ora c'è SilencerMoon: premi 3%N%"
 :status_game
 rem the old files of ZomBOT and Admin-Scorte that are still in the game's folder
 set "OLDN="
@@ -352,30 +365,32 @@ if errorlevel 8 exit /b 1
 echo         %OK% ZomBOT (Moon) installata
 exit /b 0
 
-:install_sil
+:install_sm
 echo.
 set /a STEP+=1
-echo   %C%[%STEP%/%STEPS%]%N% Installo %B%Silenziatori%N% %D%%SILVER%%N%
-echo         %D%i silenziatori per le armi, in italiano e senza i bug dell'originale%N%
-if defined SILINST echo         %D%» sostituisco la versione %SILINST% che hai già%N%
-echo         %D%» copio %SILFILES% file in %SILDEST%%N%
-robocopy "%SILSRC%" "%SILDEST%" /MIR /R:1 /W:1 /NFL /NDL /NJH /NJS /NP >nul
+echo   %C%[%STEP%/%STEPS%]%N% Installo %B%SilencerMoon%N% %D%%SMVER%%N%
+echo         %D%i silenziatori artigianali di Moon%N%
+if defined SMINST echo         %D%» sostituisco la versione %SMINST% che hai già%N%
+echo         %D%» copio %SMFILES% file in %SMDEST%%N%
+rem /IS /IT: every file, also the ones with the same size and date, so that afterwards they are the same byte for byte
+robocopy "%SMSRC%" "%SMDEST%" /MIR /IS /IT /R:1 /W:1 /NFL /NDL /NJH /NJS /NP >nul
 if errorlevel 8 exit /b 1
-echo         %OK% Silenziatori installata
+echo         %OK% SilencerMoon installata
 exit /b 0
 
-:uninstall_sil
+:uninstall_mod
+rem %1 = the mod's name, %2 = its folder in Zomboid\mods
 echo.
 set /a STEP+=1
-echo   %C%[%STEP%/%STEPS%]%N% Tolgo %B%Silenziatori%N%
-echo         %D%» %SILDEST%%N%
-if not exist "%SILDEST%\" goto uninstall_sil_none
-rmdir /s /q "%SILDEST%"
-if exist "%SILDEST%\" exit /b 1
-echo         %OK% Silenziatori tolta
+echo   %C%[%STEP%/%STEPS%]%N% Tolgo %B%%~1%N%
+echo         %D%» %~2%N%
+if not exist "%~2\" goto uninstall_mod_none
+rmdir /s /q "%~2"
+if exist "%~2\" exit /b 1
+echo         %OK% %~1 tolta
 exit /b 0
-:uninstall_sil_none
-echo         %OK% Silenziatori non c'era
+:uninstall_mod_none
+echo         %OK% %~1 non c'era
 exit /b 0
 
 :try_game

@@ -3,5 +3,7 @@
   "ContextMenu_SilencerMoon_NeedMechanics": "Needs Mechanics %1.",
   "ContextMenu_SilencerMoon_NeedWrench": "Needs a wrench.",
   "ContextMenu_SilencerMoon_EngineRunning": "Turn the engine off first.",
-  "ContextMenu_SilencerMoon_FilterTaken": "This vehicle's oil filter has already been taken out."
+  "ContextMenu_SilencerMoon_FilterTaken": "This vehicle's oil filter has already been taken out.",
+  "ContextMenu_SilencerMoon_RestoreStart": "SilencerMoon: take the suppressors off every weapon",
+  "ContextMenu_SilencerMoon_RestoreStop": "SilencerMoon: stop taking the suppressors off"
 }

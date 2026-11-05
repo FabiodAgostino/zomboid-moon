@@ -50,13 +50,13 @@ Cosa fa e come si pubblica una versione: [launcher/README.md](launcher/README.md
      ╔════════════════════════════════════════════════════════╗
      ║  MOON  ·  le mod per giocare sul server Moon           ║
      ╚════════════════════════════════════════════════════════╝
-     ZomBOT (Moon) 2.0.0  ·  Silenziatori disattivata
+     ZomBOT (Moon) 2.0.0  ·  SilencerMoon in prova
 
      Le mod di Moon
 
                          stato          versione        sul tuo computer
        ZomBOT (Moon)     Obbligatoria   2.0.0           non installata · senza non entri su Moon: premi 1
-       Silenziatori      Disattivata    1.5.31-moon.1   non installata
+       SilencerMoon      In prova       0.1.0           non installata
 
        Project Zomboid   C:\Program Files (x86)\Steam\steamapps\common\ProjectZomboid
 
@@ -66,14 +66,14 @@ Cosa fa e come si pubblica una versione: [launcher/README.md](launcher/README.md
      Cosa vuoi fare?
 
        [1]  Installa o aggiorna ZomBOT (Moon)   2.0.0, e tolgo 7 vecchi file
-       [2]  Installa o aggiorna Silenziatori    disattivata: per ora non si installa
-       [3]  Togli Silenziatori
+       [2]  Installa o aggiorna SilencerMoon    in prova: per ora non si installa
+       [3]  Togli SilencerMoon e Silenziatori
        [0]  Esci
    ```
 
    - **`1`** installa o aggiorna ZomBOT (Moon), dopo aver controllato che il gioco sia chiuso. Se nella cartella del gioco ci sono ancora i vecchi file di ZomBOT e Admin-Scorte, li toglie e dice quali. Quando esce una versione nuova, riscarica lo ZIP e premi di nuovo `1`;
-   - **`2`** installa Silenziatori, quando non sarà più disattivata;
-   - **`3`** toglie Silenziatori, se l'avevi installata.
+   - **`2`** installa o aggiorna SilencerMoon, quando non sarà più in prova;
+   - **`3`** toglie SilencerMoon e la vecchia Silenziatori, se le avevi installate. Silenziatori non si installa più: nel menu compare solo a chi ce l'ha ancora, come «Sostituita», per toglierla.
 
 Il file trova da solo il gioco nelle librerie di Steam, anche su un altro disco. Se non ci riesce te lo dice: in quel caso **trascina la cartella `ProjectZomboid` sopra `mod-moon-server.bat`**.
 
@@ -134,11 +134,21 @@ ZomBOT conta le scorte delle basi (cibo, munizioni, medicine, libri...) e le mos
 - **Armi:** per le pistole la Pistola, la Pistola M1911 e la Pistola D-E; per i fucili il Fucile d'assalto M16, il Fucile Varmint, il Fucile JS-14, il Fucile M14, il Fucile da caccia, il Fucile tattico MSR7T, il Fucile L94 e anche la Carabina da cacciatore e la Carabina L92 (munizioni da pistola, ma armi da spalla). Niente fucili a pompa né revolver. Il silenziatore a filtro dell'olio va su tutte.
 - **Si monta** con «Aggiungi miglioria» e **si smonta** con «Rimuovi miglioria», con un cacciavite. Il rumore è la distanza da cui gli zombie sentono lo sparo; gittata e danno calano finché il silenziatore è montato e funziona. Si consuma sparando, a caso: a condizione 0 resta montato ma non fa più niente. Le barre nel riquadro dell'oggetto mostrano i tre valori.
 
+### Togliere SilencerMoon dal server
+
+**Prima di togliere la mod dal server, un admin deve togliere i silenziatori da tutte le armi.** Un'arma salva la sua gittata e il suo danno, quindi resterebbe penalizzata per sempre; e un'arma con montato un pezzo che non esiste più **sparisce** quando il gioco la ricarica (verificato nel codice del gioco 42.21). Per questo:
+
+1. un admin, nel gioco: **tasto destro, ovunque → «SilencerMoon: togli i silenziatori da tutte le armi»**. Da quel momento nessuno può montarne uno e il server toglie il silenziatore da ogni arma che raggiunge, ridandole gittata e danno; il silenziatore resta accanto all'arma. Subito: le armi dei giocatori collegati e quelle nei veicoli caricati. Poi ogni dieci minuti di gioco, anche con chi entra dopo, e con contenitori, oggetti a terra e cadaveri appena la loro zona si carica. Sopra la testa dell'admin compare quante armi ha sistemato. Resta acceso anche dopo un riavvio del server;
+2. lascialo acceso **finché tutti i giocatori sono entrati almeno una volta e le basi e i posti dove ci sono armi sono stati visitati**: quello che nessuno carica non viene raggiunto;
+3. togli la mod dal server; i giocatori la tolgono con il launcher o con `3` di `mod-moon-server.bat`.
+
+Se ci ripensi, la stessa voce diventa **«SilencerMoon: smetti di togliere i silenziatori»**: i silenziatori tolti si rimontano a mano.
+
 Il progetto completo, con le scelte e le verifiche fatte sui file del gioco 42.21, è nell'analisi v1.2 (non in questo repository). Le prove del Lua: `python -m pytest -q tests/silencermoon` con un Python che ha `pytest` e `lupa` (per esempio quello di ZomBOT). Gli script in `tools/silencermoon` rifanno le icone ramate, la texture e il poster.
 
 ## Silenziatori (disattivata)
 
-**Per ora Silenziatori è disattivata**: il server non la usa, per entrare non serve, e il launcher e `mod-moon-server.bat` non la installano (compare «Disattivata»). Se l'avevi installata prima te lo dicono: nel launcher premi **TOGLI** nella sua scheda, nel bat **`3`**.
+**Silenziatori è disattivata e sarà sostituita da SilencerMoon**: il server non la usa, per entrare non serve, e il launcher e `mod-moon-server.bat` non la installano. Se l'avevi installata prima te lo dicono: nel launcher premi **TOGLI** nella sua scheda, nel bat **`3`**.
 
 Il codice resta nel pacchetto, nella cartella `mods/Silenziatori`, con le correzioni descritte sotto. Chi la vuole in una partita in single player può copiare a mano quella cartella in `C:\Users\<il tuo nome>\Zomboid\mods\`, poi dal menu principale: **Mod**, attiva **«Silenziatori»**, e crea una nuova partita (non insieme alla mod originale Simple Suppressors).
 

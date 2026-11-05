@@ -4,5 +4,7 @@
   "Tooltip_SilencerMoon_ScavengedOilFilter": "Un filtro dell'olio smontato da un veicolo. Serve per un silenziatore improvvisato.",
   "Tooltip_SilencerMoon_Suppressor": "Si monta con 'Aggiungi miglioria' su un'arma compatibile e si smonta con 'Rimuovi miglioria'; per tutte e due serve un cacciavite. Attutisce lo sparo ma riduce gittata e danno, e si consuma sparando.",
   "Tooltip_SilencerMoon_Smelt": "Il fucile a pompa va bene anche rotto, ma deve essere scarico (niente colpo in canna, niente bossoli) e senza accessori montati.",
-  "Tooltip_SilencerMoon_MakeSuppressor": "Si impara dalla rivista sui silenziatori artigianali."
+  "Tooltip_SilencerMoon_MakeSuppressor": "Si impara dalla rivista sui silenziatori artigianali.",
+  "Tooltip_SilencerMoon_RestoreStart": "Da fare prima di togliere SilencerMoon dal server. Da quel momento nessuno può montare un silenziatore di SilencerMoon e il server lo toglie da ogni arma, che torna con la sua gittata e il suo danno; il silenziatore resta accanto all'arma. Lo fa subito con le armi dei giocatori collegati e dei veicoli caricati, poi ogni dieci minuti di gioco (anche con chi entra dopo) e con contenitori, oggetti a terra e cadaveri appena la loro zona si carica. Lascialo acceso finché tutti sono entrati almeno una volta e le basi sono state visitate: un'arma che resta col silenziatore sparirebbe quando la mod viene tolta.",
+  "Tooltip_SilencerMoon_RestoreStop": "Il ripristino è acceso: %1 armi sistemate finora. Spegnilo solo se SilencerMoon resta sul server."
 }

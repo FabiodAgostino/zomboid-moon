@@ -46,7 +46,8 @@ module SilencerMoon
 	}
 
 	/* The suppressors. Every stat modifier stays 0: the game adds them as fixed numbers (and shows them in its
-	   tooltip), while the mod's percentages are applied by SilencerMoon.Stats on the server. OnAttach and OnDetach
+	   tooltip), while the mod's percentages are applied by SilencerMoon.Stats on the server. CanAttach is the game's
+	   screwdriver check, refused while the restore is on (SilencerMoon.Restore). OnAttach and OnDetach
 	   run wherever the game attaches the part (the server in multiplayer), for the game's own menu too. */
 	item Suppressor_Pistol_Copper
 	{
@@ -65,7 +66,7 @@ module SilencerMoon
 		PartType = Suppressor,
 		Tooltip = Tooltip_SilencerMoon_Suppressor,
 		MetalValue = 18.0,
-		CanAttach = ItemCodeOnTest.hasScrewdriver,
+		CanAttach = SilencerMoon.canAttach,
 		CanDetach = ItemCodeOnTest.hasScrewdriver,
 		OnAttach = SilencerMoon.onAttach,
 		OnDetach = SilencerMoon.onDetach,
@@ -88,7 +89,7 @@ module SilencerMoon
 		PartType = Suppressor,
 		Tooltip = Tooltip_SilencerMoon_Suppressor,
 		MetalValue = 24.0,
-		CanAttach = ItemCodeOnTest.hasScrewdriver,
+		CanAttach = SilencerMoon.canAttach,
 		CanDetach = ItemCodeOnTest.hasScrewdriver,
 		OnAttach = SilencerMoon.onAttach,
 		OnDetach = SilencerMoon.onDetach,
@@ -111,7 +112,7 @@ module SilencerMoon
 		PartType = Suppressor,
 		Tooltip = Tooltip_SilencerMoon_Suppressor,
 		MetalValue = 18.0,
-		CanAttach = ItemCodeOnTest.hasScrewdriver,
+		CanAttach = SilencerMoon.canAttach,
 		CanDetach = ItemCodeOnTest.hasScrewdriver,
 		OnAttach = SilencerMoon.onAttach,
 		OnDetach = SilencerMoon.onDetach,
@@ -134,7 +135,7 @@ module SilencerMoon
 		PartType = Suppressor,
 		Tooltip = Tooltip_SilencerMoon_Suppressor,
 		MetalValue = 24.0,
-		CanAttach = ItemCodeOnTest.hasScrewdriver,
+		CanAttach = SilencerMoon.canAttach,
 		CanDetach = ItemCodeOnTest.hasScrewdriver,
 		OnAttach = SilencerMoon.onAttach,
 		OnDetach = SilencerMoon.onDetach,
@@ -158,7 +159,7 @@ module SilencerMoon
 		PartType = Suppressor,
 		Tooltip = Tooltip_SilencerMoon_Suppressor,
 		MetalValue = 8.0,
-		CanAttach = ItemCodeOnTest.hasScrewdriver,
+		CanAttach = SilencerMoon.canAttach,
 		CanDetach = ItemCodeOnTest.hasScrewdriver,
 		OnAttach = SilencerMoon.onAttach,
 		OnDetach = SilencerMoon.onDetach,
