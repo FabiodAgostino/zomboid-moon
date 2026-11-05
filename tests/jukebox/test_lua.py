@@ -541,7 +541,7 @@ def test_the_file_for_zombot_says_the_cd_is_waiting():
     lua = unique_game()
     lua.execute('fire("OnInitGlobalModData", false)')
     assert lua.eval(UNIQUE_FILE) == ('{"v":1,"unique":[{"key":"5","name":"CD: Love storii...","artist":"Prince",'
-                                     '"since":100,"found":null}]}\n')
+                                     '"from":"runner","since":100,"found":null}]}\n')
 
 
 def test_only_a_runner_killed_by_a_player_rolls_and_the_cd_drops_once():
@@ -650,6 +650,7 @@ def test_the_lines_stay_for_ever_and_a_new_unique_cd_enters_after_the_last_found
     lua.execute(unique_catalog(extra=True, without_first=True))     # a new catalogue: 6 added, 5 taken out
     lua.execute("NOW = NOW + 3600000; fire('OnInitGlobalModData', false)")
     assert [line["key"] for line in lines(lua)] == ["5", "6"] and lines(lua)[0]["name"] == "CD: Love storii..."
+    assert [line["from"] for line in lines(lua)] == ["runner", "runner"]   # kept for the album taken out too
     assert lines(lua)[0]["found"]["user"] == "anna" and in_play(lua) == ["6"] and lines(lua)[1]["since"] == 3700
 
 

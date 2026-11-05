@@ -209,10 +209,11 @@ e nel Lua della 42.21:
   cambiamento. Il contratto è di ZomBOT (zomboid-discord, `zombot.jukebox`): non cambiarlo da una parte sola.
 
   ```json
-  {"v":1,"unique":[{"key":"62","name":"CD: Love storii...","artist":"Prince","since":1762300000,"found":null}]}
+  {"v":1,"unique":[{"key":"62","name":"CD: Love storii...","artist":"Prince","from":"runner","since":1762300000,"found":null}]}
   ```
 
-  Una riga per ogni CD unico di sempre, per numero dell'album, per sempre. `since`: quando è entrato in gioco,
+  Una riga per ogni CD unico di sempre, per numero dell'album, per sempre. `from`: dove si nasconde (`unique.from`
+  di `album.json`, oggi `runner`). `since`: quando è entrato in gioco,
   `null` finché aspetta il suo turno; al massimo una riga ha `since` e non `found` (quello in gioco).
 
   Da trovato, `found` è `{"user":"<account>","character":"<nome e cognome>","at":<secondi unix>,"from":"runner","test":false}`.

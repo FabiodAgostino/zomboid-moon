@@ -22,12 +22,14 @@
 --     new roll, would make a second copy.
 --
 -- Saved in the world (global ModData "JukeboxMoon".unique, by album key):
---   { state = "waiting" | "dropped" | "found", since, name, artist, x, y, z, at, hours,
+--   { state = "waiting" | "dropped" | "found", since, name, artist, from, x, y, z, at, hours,
 --     found = { user, character, at, from, test } }
 -- name and artist are kept from the catalogue: an album taken out of it later keeps its line in the file.
 -- Zomboid/Lua/jukeboxmoon_unique.json, rewritten whole at the start and at every change, is what ZomBOT reads (the
 -- contract is ZomBOT's, zomboid-discord: do not change it on one side only). Every unique CD ever, by album number:
---   {"v":1,"unique":[{"key":"62","name":"CD: Love storii...","artist":"Prince","since":1762300000,"found":null}]}
+--   {"v":1,"unique":[{"key":"62","name":"CD: Love storii...","artist":"Prince","from":"runner","since":1762300000,
+--                     "found":null}]}
+--   from: where it hides (album.json unique.from: "runner", the running zombies)
 --   since: null while it waits its turn; at most one line has since and no found (the one in play)
 --   found: {"user":"<account>","character":"<name surname>","at":<unix s>,"from":"runner","test":false}
 -- test is true in single player and in a game started with -debug (where the CD drops from the first runner, to try
@@ -88,6 +90,7 @@ function Unique.entry(album)
 	if type(all[key]) ~= "table" then all[key] = { state = "waiting" } end
 	local e = all[key]
 	e.name, e.artist = album.unique.jsonName or e.name, album.unique.jsonArtist or e.artist
+	e.from = album.unique.from or e.from
 	return e
 end
 
@@ -164,7 +167,8 @@ function Unique.json()
 		end
 		-- name and artist come already escaped from the catalogue (tools/jukebox, generate.json_text)
 		list[#list + 1] = "{\"key\":\"" .. tostring(key) .. "\",\"name\":\"" .. tostring(e.name or "")
-			.. "\",\"artist\":\"" .. tostring(e.artist or "") .. "\",\"since\":" .. (e.since and whole(e.since) or "null")
+			.. "\",\"artist\":\"" .. tostring(e.artist or "") .. "\",\"from\":\"" .. Unique.esc(e.from or "runner")
+			.. "\",\"since\":" .. (e.since and whole(e.since) or "null")
 			.. ",\"found\":" .. found .. "}"
 	end
 	return "{\"v\":1,\"unique\":[" .. table.concat(list, ",") .. "]}\n"
