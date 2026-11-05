@@ -68,7 +68,9 @@ public sealed class ModCard : Observable
     public string Name => Def.Name;
     public string Initial => Def.Name.Length > 0 ? Def.Name[..1].ToUpperInvariant() : "?";
     public string Summary => Def.Summary ?? "";
-    public string Note => Def.Note ?? "";
+    public string Note => Plan.Notice is { Length: > 0 } notice
+        ? (Def.Note is { Length: > 0 } note ? $"{note} {notice}" : notice)
+        : Def.Note ?? "";
     public string Audience => (Def.Audience ?? (Def.Required ? "Per tutti" : "Facoltativa")).ToUpperInvariant();
     public bool Required => Def.Required;
     public ImageSource? Image { get; }

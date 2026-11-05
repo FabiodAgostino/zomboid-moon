@@ -1,0 +1,121 @@
+# Jukebox (Moon): aggiungere un CD in 5 passaggi
+
+La musica dei jukebox la scegli tu, fuori dal gioco. Il builder la prepara, la cifra e la pubblica; il launcher di
+ogni giocatore la scarica da solo. Non si scrive Lua e non si fa una mod nuova.
+
+**Cosa serve sul PC** (una volta): Python con Pillow, numpy e cryptography (`python -m pip install pillow numpy
+cryptography`), ffmpeg (`winget install Gyan.FFmpeg.Essentials`), `gh` collegato a GitHub (`gh auth login`) e `ssh`
+verso cirene (`ssh m900-remote` deve funzionare). I comandi si lanciano dalla radice del repo zomboid-moon.
+
+**La cartella della musica** sta fuori dal repo, per esempio `C:\Users\<te>\Moon\musica`. Lì il builder tiene anche
+`jukebox.lock.json` (i numeri di album e brani: non cancellarlo) e `jukebox.key` (la chiave della musica: non
+pubblicarla, non perderla). Fanne una copia di sicurezza ogni tanto.
+
+## 1. Metti l'album nella cartella
+
+Una cartella per album dentro `albums`, con i brani (mp3, flac, ogg, wav, m4a, opus), una copertina facoltativa (png
+o jpg, quadrata è meglio) e `album.json`:
+
+```text
+musica/
+  albums/
+    estate-1993/
+      album.json
+      cover.jpg
+      01.mp3
+      02.flac
+```
+
+```json
+{
+  "id": "estate-1993",
+  "title": "Estate 1993",
+  "artist": "Artisti vari",
+  "year": 1993,
+  "cover": "cover.jpg",
+  "lootWeight": 1.0,
+  "tracks": [
+    { "id": "primo-brano", "title": "Primo brano", "artist": "Artista A", "file": "01.mp3" },
+    { "id": "secondo-brano", "title": "Secondo brano", "artist": "Artista B", "file": "02.flac" }
+  ]
+}
+```
+
+- `id` di album e brani: minuscole, cifre e trattini, al massimo 40. **Non cambiarli più**: sono il CD nei salvataggi.
+- `title` e `artist` come li vuoi vedere nel gioco (accenti compresi), al massimo 80 caratteri. `artist` del brano è
+  facoltativo: senza, si usa quello dell'album.
+- `lootWeight` da 0 a 10: quanto spesso si trova rispetto agli altri album (0: mai nel bottino, solo dagli admin).
+- `archived: true` toglie l'album dal bottino e dalla finestra degli admin, ma i CD già trovati continuano a suonare.
+- Un brano dura da 5 secondi a 30 minuti.
+
+## 2. Controlla
+
+```bash
+python -m tools.jukebox validate --source C:\Users\<te>\Moon\musica
+```
+
+Dice cosa non va e dove (file mancanti, formati, id doppi, titoli troppo lunghi, file fuori dalla cartella). Per
+vedere cosa cambierebbe senza scrivere niente:
+
+```bash
+python -m tools.jukebox build --source C:\Users\<te>\Moon\musica --out C:\Users\<te>\Moon\dist --dry-run
+```
+
+## 3. Costruisci il pacchetto
+
+```bash
+python -m tools.jukebox build --source C:\Users\<te>\Moon\musica --out C:\Users\<te>\Moon\dist
+```
+
+Converte ogni brano in OGG con il volume uniforme, lo taglia in pezzi da 10 secondi, fa icone e copertine, cifra
+l'audio album per album e scrive `dist\<versione>` (la versione è un'impronta del contenuto). I brani già convertiti
+non si rifanno. Se qualcosa va storto non scrive niente e il pacchetto di prima resta com'era.
+
+Il builder si ferma, apposta, quando:
+- **l'audio di un brano è cambiato**: se è lo stesso brano rifatto, `--replace estate-1993/primo-brano`; se è un altro
+  brano, dagli un id nuovo;
+- **manca un album o un brano che c'era**: i CD possono essere nei salvataggi. Rimettilo (anche con `"archived": true`),
+  oppure, se sei sicuro, `--forget estate-1993` o `--forget estate-1993/primo-brano`: quei CD diventano oggetti
+  sconosciuti.
+
+## 4. Provalo in single player (facoltativo)
+
+```bash
+python -m tools.jukebox install --package C:\Users\<te>\Moon\dist\<versione> --source C:\Users\<te>\Moon\musica
+```
+
+Installa la mod con musica e chiave in `%UserProfile%\Zomboid\mods\JukeboxMoon`. Nel gioco: Mod, attiva «Jukebox
+(Moon)», nuova partita, trova un jukebox con la corrente, tasto destro, «Jukebox». I CD li crei dalla finestra di
+ZomBOT, pulsante «Jukebox» (in single player sei admin).
+
+## 5. Pubblica
+
+```bash
+python -m tools.jukebox publish --package C:\Users\<te>\Moon\dist\<versione> --source C:\Users\<te>\Moon\musica
+```
+
+- Carica su GitHub, nella pre-release `jukebox` del repo, solo i file nuovi, e per ultimo l'elenco: i launcher prendono
+  la versione nuova al prossimo avvio e scaricano solo gli album cambiati.
+- Copia sul server (cirene) motore ed elenco dei CD in `Zomboid/mods/JukeboxMoon`, e la chiave.
+- **Poi riavvia il server, a server vuoto**: il gioco carica i CD nuovi solo all'avvio. I giocatori devono riaprire il
+  launcher (GIOCA aggiorna da solo) prima di entrare.
+
+`--dry-run` mostra i comandi senza eseguirli; `--no-github` o `--no-server` fanno una parte sola; `--prune` toglie da
+GitHub i file che nessuno degli ultimi tre elenchi usa.
+
+## Domande
+
+**Un giocatore nuovo non sente niente.** È normale la prima volta: la chiave della musica gliela dà il server quando
+entra. Dalla volta dopo il launcher scarica la musica da solo.
+
+**La chiave è finita in giro.** `build --new-key` ne fa una nuova e ricifra tutto; poi `publish`. I giocatori
+riceveranno la nuova entrando, e il launcher riscaricherà la musica.
+
+**Tornare indietro.** Ogni versione resta in `dist`: `publish` di quella vecchia la rimette (GitHub tiene i file
+degli ultimi elenchi; con `--prune` solo gli ultimi tre).
+
+**La musica di prova.** `python -m tools.jukebox demo --out C:\Users\<te>\Moon\musica-demo` scrive due album e tre
+brani fatti con dei numeri (liberi, di nessuno): per provare tutto senza musica vera.
+
+**Le licenze dei brani** sono responsabilità di chi li pubblica: il repo non contiene mai musica, e la release di
+GitHub ha solo l'audio cifrato.

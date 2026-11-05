@@ -7,6 +7,7 @@ Le mod per giocare a **Project Zomboid** (Build 42) sul server **Moon**.
 | Mod | Stato | Come arriva | Cos'è |
 | --- | --- | --- | --- |
 | **ZomBOT (Moon)** | **Obbligatoria** | il launcher la installa e la aggiorna da solo, in `%UserProfile%\Zomboid\mods\ZomBOTMoon`; sugli altri server non si carica | ZomBOT e Admin-Scorte insieme: le domande a ZomBOT dalla chat del gioco, il contenitore che lampeggia, le casse colorate e, per gli admin, le finestre delle basi e delle scorte. Vedi [ZomBOT: cosa fa](#zombot-cosa-fa) e [Admin-Scorte: cosa fa](#admin-scorte-cosa-fa). |
+| **Jukebox (Moon)** | **In prova** | per ora a nessuno | I jukebox del mondo suonano i CD di Moon, scelti dall'admin; chi ascolta vicino si annoia e si stressa meno. Vedi [Jukebox (Moon) (in prova)](#jukebox-moon-in-prova). |
 | **Silenziatori** | **Disattivata** | per ora a nessuno | I silenziatori per le armi: la mod Simple Suppressors di Kiidxatlas, tradotta in italiano e corretta. Vedi [Silenziatori (disattivata)](#silenziatori-disattivata). |
 
 ---
@@ -117,6 +118,16 @@ ZomBOT conta le scorte delle basi (cibo, munizioni, medicine, libri...) e le mos
 - nella finestra delle basi ci sono anche «Casse colorate» e le domande e risposte di ZomBOT.
 
 **Chi non è admin** non vede le finestre, ma ha **il riquadro delle scorte sotto gli oggetti**: passando il mouse su un oggetto, sotto il riquadro del gioco compare «ZomBOT - scorte» con le basi in cui quell'oggetto manca o scarseggia («Scarseggia a ... (300 su 1.000)», «Manca a ...» per un libro o una VHS). Il server rifiuta comunque ogni modifica che non arrivi da un admin.
+
+## Jukebox (Moon) (in prova)
+
+**Per ora il server non la usa**: il launcher la mostra «Disattivata». Quando sarà accesa la installa e la aggiorna il launcher, come ZomBOT (Moon), insieme alla musica.
+
+- **Nel gioco**: tasto destro su un jukebox con la corrente, «Jukebox». I CD di Moon si mettono e si tolgono dalla finestra del bottino del jukebox; la finestra «Jukebox» ha Riproduci, Ferma, Precedente, Successiva, la riproduzione casuale e il volume, che vale solo per te. Chi è vicino sente lo stesso brano nello stesso punto.
+- **La musica** la sceglie l'admin. Il launcher la scarica da solo: la prima volta che entri su Moon il gioco ti dà la chiave, e dalla volta dopo il launcher scarica i CD (solo quelli nuovi). La prima sessione è senza musica.
+- **Senza il launcher** (bat, Mac, Linux) la musica non arriva.
+
+Per gli admin, come aggiungere un CD: [docs/jukebox/README_ADMIN.md](docs/jukebox/README_ADMIN.md). Come è fatta: [docs/jukebox/TECHNICAL_DESIGN.md](docs/jukebox/TECHNICAL_DESIGN.md).
 
 ## Silenziatori (disattivata)
 

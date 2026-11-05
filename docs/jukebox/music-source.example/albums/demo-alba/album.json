@@ -1,0 +1,12 @@
+{
+  "id": "demo-alba",
+  "title": "Alba su Moon",
+  "artist": "Orchestra di prova",
+  "year": 1993,
+  "cover": "cover.png",
+  "lootWeight": 1.0,
+  "tracks": [
+    { "id": "risveglio", "title": "Risveglio", "file": "01-risveglio.wav" },
+    { "id": "strada-vuota", "title": "Strada vuota", "artist": "Ospite", "file": "02-strada-vuota.wav" }
+  ]
+}

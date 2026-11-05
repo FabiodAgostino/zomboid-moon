@@ -113,6 +113,9 @@ public sealed class Installer(IReadOnlyList<ModPlan> plans, Roots roots, Store s
             throw new InstallerException($"Non trovo Project Zomboid: {name} non è installata.",
                 "Scegli la cartella del gioco (o trascinala sul launcher) e riprova.", false);
 
+        // a package's files (Jukebox (Moon)'s music) are downloaded and checked first
+        plan.Fetch?.Invoke(progress, ct).GetAwaiter().GetResult();
+
         var title = $"Installo {name}";
         var where = Where(plan);
         var previous = IsPresent(plan) ? InstalledVersion(plan) : null;
@@ -169,6 +172,8 @@ public sealed class Installer(IReadOnlyList<ModPlan> plans, Roots roots, Store s
             At = DateTimeOffset.Now,
         };
         store.SaveState();
+        plan.Cleanup?.Invoke();
+        HashCache.Save();
         progress.Report(new(1, $"{name} installata",
             copied == 0 ? "era già tutto a posto" : $"{copied} file copiati in {where}"));
     }

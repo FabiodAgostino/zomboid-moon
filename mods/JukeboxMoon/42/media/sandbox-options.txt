@@ -1,0 +1,120 @@
+VERSION = 1,
+
+option JukeboxMoon.Enabled
+{
+    type = boolean,
+    default = true,
+    page = JukeboxMoon,
+    translation = JukeboxMoon_Enabled,
+}
+
+option JukeboxMoon.MaxCDsPerJukebox
+{
+    type = integer,
+    min = 1,
+    max = 100,
+    default = 20,
+    page = JukeboxMoon,
+    translation = JukeboxMoon_MaxCDsPerJukebox,
+}
+
+option JukeboxMoon.ShuffleAllowed
+{
+    type = boolean,
+    default = true,
+    page = JukeboxMoon,
+    translation = JukeboxMoon_ShuffleAllowed,
+}
+
+option JukeboxMoon.EnableCDLoot
+{
+    type = boolean,
+    default = true,
+    page = JukeboxMoon,
+    translation = JukeboxMoon_EnableCDLoot,
+}
+
+option JukeboxMoon.LootRarity
+{
+    type = enum,
+    numValues = 3,
+    default = 1,
+    page = JukeboxMoon,
+    translation = JukeboxMoon_LootRarity,
+}
+
+option JukeboxMoon.MoodEffectsEnabled
+{
+    type = boolean,
+    default = true,
+    page = JukeboxMoon,
+    translation = JukeboxMoon_MoodEffectsEnabled,
+}
+
+option JukeboxMoon.BenefitRadiusTiles
+{
+    type = integer,
+    min = 1,
+    max = 30,
+    default = 10,
+    page = JukeboxMoon,
+    translation = JukeboxMoon_BenefitRadiusTiles,
+}
+
+option JukeboxMoon.BoredomReductionPerGameHour
+{
+    type = double,
+    min = 0.0,
+    max = 100.0,
+    default = 4.0,
+    page = JukeboxMoon,
+    translation = JukeboxMoon_BoredomReductionPerGameHour,
+}
+
+option JukeboxMoon.StressReductionPerGameHour
+{
+    type = double,
+    min = 0.0,
+    max = 1.0,
+    default = 0.02,
+    page = JukeboxMoon,
+    translation = JukeboxMoon_StressReductionPerGameHour,
+}
+
+option JukeboxMoon.MoodEvaluationMinutes
+{
+    type = integer,
+    min = 1,
+    max = 60,
+    default = 10,
+    page = JukeboxMoon,
+    translation = JukeboxMoon_MoodEvaluationMinutes,
+}
+
+option JukeboxMoon.DeafBenefitMultiplier
+{
+    type = double,
+    min = 0.0,
+    max = 1.0,
+    default = 0.0,
+    page = JukeboxMoon,
+    translation = JukeboxMoon_DeafBenefitMultiplier,
+}
+
+option JukeboxMoon.HardOfHearingBenefitMultiplier
+{
+    type = double,
+    min = 0.0,
+    max = 1.0,
+    default = 0.5,
+    page = JukeboxMoon,
+    translation = JukeboxMoon_HardOfHearingBenefitMultiplier,
+}
+
+option JukeboxMoon.AllowCrossFloorBenefits
+{
+    type = boolean,
+    default = false,
+    page = JukeboxMoon,
+    translation = JukeboxMoon_AllowCrossFloorBenefits,
+}

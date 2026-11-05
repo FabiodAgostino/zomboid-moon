@@ -56,6 +56,7 @@ public sealed class MainViewModel : Observable, IDisposable
     {
         this.options = options;
         store = new Store(options.DataFolder);
+        HashCache.Use(store.CacheFolder);
         github = new GitHub(options.ApiBase, store.CacheFolder);
         sources = new Sources(github, store.CacheFolder, options.SourceFolder);
         PlayCommand = new Command(PlayAsync, () => PlayEnabled);
@@ -220,6 +221,9 @@ public sealed class MainViewModel : Observable, IDisposable
                 StringComparer.OrdinalIgnoreCase);
             var root = source;
             plans = await Task.Run(() => ModPlan.Build(root.Manifest, root.Root).Where(p => !replaced.Contains(p.Def.Id)).ToList());
+            // the files of a mod that are not in the repo (Jukebox (Moon)'s catalogue and music)
+            plans = await Task.Run(() => Packs.AttachAsync(plans, github, store.CacheFolder,
+                new Roots(options.ZomboidFolder, gameFolder), options.PackFolder, Offline, CancellationToken.None));
             Mods.Clear();
             // the mods that Moon needs first
             foreach (var plan in plans.OrderByDescending(p => p.Def.Required))
@@ -639,13 +643,17 @@ public sealed class MainViewModel : Observable, IDisposable
                       ?? throw new InvalidOperationException($"Non so da quale release prendere {card.Name} {version}.");
         var root = await sources.RootAsync(release, Offline, reporter, CancellationToken.None)
                    ?? throw new InvalidOperationException($"Non riesco a scaricare {card.Name} {version}: GitHub non risponde.");
-        return await Task.Run(() =>
+        var plan = await Task.Run(() =>
         {
             var def = Manifest.Load(Path.Combine(root, "mods.json")).Mods
                           .FirstOrDefault(m => m.Id.Equals(card.Def.Id, StringComparison.OrdinalIgnoreCase))
                       ?? throw new InvalidDataException($"Nella release {release.Tag} non c'è {card.Name}.");
             return ModPlan.Build(def, root);
         });
+        return plan.Def.Pack is null
+            ? plan
+            : await Packs.AttachAsync(plan, github, store.CacheFolder, new Roots(options.ZomboidFolder, gameFolder),
+                options.PackFolder, Offline, CancellationToken.None);
     }
 
     /// <summary>Installs the cards: their latest version, or the one chosen in their menu.</summary>

@@ -1,5 +1,5 @@
 {
-  "launcher": "1.0.2",
+  "launcher": "1.0.3",
   "mods": [
     {
       "id": "zombot-moon",
@@ -30,6 +30,25 @@
           "{game}/media/lua/Moon-Admin-Scorte.version"
         ]
       }
+    },
+    {
+      "id": "jukebox-moon",
+      "name": "Jukebox (Moon)",
+      "versionFile": "mods/JukeboxMoon/42/mod.info",
+      "versionKey": "modversion",
+      "state": "disattivata",
+      "stateNote": "In prova: il server non la usa ancora.",
+      "required": true,
+      "audience": "Per tutti",
+      "summary": "I jukebox del mondo suonano i CD di Moon: trovali, mettili in un jukebox con la corrente e chi ascolta vicino si annoia e si stressa meno.",
+      "note": "La musica la sceglie l'admin; la scarico io, solo quella nuova.",
+      "afterInstall": "Nel gioco: tasto destro su un jukebox, «Jukebox». I CD si mettono dalla finestra del bottino.",
+      "image": "mods/JukeboxMoon/42/poster.png",
+      "installedVersion": { "file": "{zomboid}/mods/JukeboxMoon/42/mod.info", "key": "modversion" },
+      "install": [
+        { "from": "mods/JukeboxMoon", "to": "{zomboid}/mods/JukeboxMoon", "mirror": true }
+      ],
+      "pack": { "release": "jukebox", "to": "{zomboid}/mods/JukeboxMoon", "keyFile": "{zomboid}/Lua/JukeboxMoon_key.txt" }
     },
     {
       "id": "zombot",

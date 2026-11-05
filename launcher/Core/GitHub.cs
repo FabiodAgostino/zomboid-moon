@@ -105,6 +105,11 @@ public sealed class GitHub : IDisposable
         return await http.GetStringAsync(url, timeout.Token);
     }
 
+    /// <summary>An asset of a release by its tag and name, without the API: github.com serves it from its CDN.</summary>
+    public string ReleaseFileUrl(string tag, string name) => api == "https://api.github.com"
+        ? $"https://github.com/{Repo}/releases/download/{Uri.EscapeDataString(tag)}/{Uri.EscapeDataString(name)}"
+        : $"{api}/releases/download/{Uri.EscapeDataString(tag)}/{Uri.EscapeDataString(name)}";
+
     /// <summary>Downloads into a .part file and renames it at the end; checks size and SHA-256 when GitHub gives them.</summary>
     public async Task DownloadAsync(string url, string dest, IProgress<double>? progress, CancellationToken ct,
         long? expectedSize = null, string? digest = null)

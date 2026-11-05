@@ -60,6 +60,18 @@ public sealed class Manifest
                         $"mods.json: «{mod.Name}» chiede di rendere identica la cartella {e.To}: si può solo per una cartella sua dentro {{zomboid}}, come {{zomboid}}/mods/{mod.Name}.");
             }
         }
+        foreach (var mod in m.Mods.Where(x => x.Pack is not null))
+        {
+            var pack = mod.Pack!;
+            if (string.IsNullOrWhiteSpace(pack.Release) || pack.Release.Any(c => !char.IsAsciiLetterOrDigit(c) && c is not '-' and not '_' and not '.'))
+                throw new InvalidDataException($"mods.json: il pacchetto di «{mod.Name}» deve dire la sua release, come \"jukebox\".");
+            pack.To = Target.Normalize(pack.To, mod.Name);
+            pack.KeyFile = Target.Normalize(pack.KeyFile, mod.Name);
+            if (Target.IsGame(pack.To) || Target.Depth(pack.To) < 2 || Target.IsGame(pack.KeyFile))
+                throw new InvalidDataException($"mods.json: il pacchetto di «{mod.Name}» va in una cartella sua dentro {{zomboid}}.");
+            if (!mod.Install.Any(e => e.Mirror && e.To.Equals(pack.To, StringComparison.OrdinalIgnoreCase)))
+                throw new InvalidDataException($"mods.json: il pacchetto di «{mod.Name}» va nella cartella della mod ({pack.To}), installata con mirror.");
+        }
         foreach (var mod in m.Mods.Where(x => x.Replaces is not null))
         {
             var files = mod.Replaces!.Files;
@@ -121,6 +133,24 @@ public sealed class ModDef
     public List<InstallEntry> Install { get; set; } = [];
     /// <summary>The mods this one replaces and their old files to remove (ZomBOT (Moon): ZomBOT and Admin-Scorte).</summary>
     public ReplacesDef? Replaces { get; set; }
+    /// <summary>Files of the mod that are not in the repo: Jukebox (Moon)'s catalogue and music (Core/Pack.cs).</summary>
+    public PackDef? Pack { get; set; }
+}
+
+/// <summary>
+/// A package published as the assets of a pre-release of the repo (the launcher never takes a pre-release for its own):
+/// manifest.json, a public zip and encrypted .jbm files, made by tools/jukebox. Its files are installed in the mod's own
+/// folder with the repo's (To, the folder of the mod's mirror entry). The key that opens the .jbm files is written by
+/// the game, when the player enters the server, in KeyFile. A launcher older than 1.0.3 does not know this field.
+/// </summary>
+public sealed class PackDef
+{
+    /// <summary>The tag of the pre-release, «jukebox».</summary>
+    public string Release { get; set; } = "";
+    /// <summary>Where the files go: the mod's folder, «{zomboid}/mods/JukeboxMoon».</summary>
+    public string To { get; set; } = "";
+    /// <summary>Where the game writes the key: «{zomboid}/Lua/JukeboxMoon_key.txt».</summary>
+    public string KeyFile { get; set; } = "";
 }
 
 public sealed class VersionProbe
@@ -209,6 +239,12 @@ public sealed class ModPlan
     public required IReadOnlyList<PlannedFile> Files { get; init; }
     public required IReadOnlyList<string> Mirrors { get; init; }
     public string? ImagePath { get; init; }
+    /// <summary>Downloads what the plan needs before installing (a package's files): null when it has everything.</summary>
+    public Func<IProgress<Step>, CancellationToken, Task>? Fetch { get; init; }
+    /// <summary>After a good install: what can go (the package's downloads).</summary>
+    public Action? Cleanup { get; init; }
+    /// <summary>A word for the mod's card (the music that will come).</summary>
+    public string? Notice { get; init; }
 
     HashSet<string>? targets;
     public HashSet<string> Targets => targets ??= new HashSet<string>(Files.Select(f => f.Target), Target.Comparer);
@@ -257,9 +293,5 @@ public sealed class ModPlan
         return new PlannedFile(source, target, info.Length, Hash(source));
     }
 
-    public static string Hash(string path)
-    {
-        using var s = File.OpenRead(path);
-        return Convert.ToHexString(SHA256.HashData(s));
-    }
+    public static string Hash(string path) => HashCache.Of(path);
 }
