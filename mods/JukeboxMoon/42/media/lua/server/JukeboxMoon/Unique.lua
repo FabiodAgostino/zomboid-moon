@@ -2,6 +2,10 @@
 -- server's whole story: never in the loot, never made by admins (Catalog.activeAlbums leaves it out). It is on a
 -- running zombie that a player kills: every such kill rolls 1 in `oneIn` while the CD is waiting.
 --
+-- One at a time (the user's choice): only one unique CD is in play, the first by album number (the order albums enter
+-- the catalogue) not found yet. It enters play (`since`, unix seconds) at the server's start or when the one before is
+-- found; the others wait their turn. A CD back from a corpse nobody looted keeps its `since`.
+--
 -- What the server sees (42.21, read in projectzomboid.jar):
 --   - IsoZombie.onKilled runs on the server: it fills the zombie's inventory, fires OnZombieDead, then makes the corpse
 --     from that inventory (DoDeath): a CD added during the event lies on the corpse. getAttackedBy() is the killer.
@@ -18,10 +22,13 @@
 --     new roll, would make a second copy.
 --
 -- Saved in the world (global ModData "JukeboxMoon".unique, by album key):
---   { state = "waiting" | "dropped" | "found", x, y, z, at, hours, found = { user, character, at, from, test } }
+--   { state = "waiting" | "dropped" | "found", since, name, artist, x, y, z, at, hours,
+--     found = { user, character, at, from, test } }
+-- name and artist are kept from the catalogue: an album taken out of it later keeps its line in the file.
 -- Zomboid/Lua/jukeboxmoon_unique.json, rewritten whole at the start and at every change, is what ZomBOT reads (the
--- contract is ZomBOT's, zomboid-discord: do not change it on one side only):
---   {"v":1,"unique":[{"key":"62","name":"CD: Love storii...","artist":"Prince","found":null}]}
+-- contract is ZomBOT's, zomboid-discord: do not change it on one side only). Every unique CD ever, by album number:
+--   {"v":1,"unique":[{"key":"62","name":"CD: Love storii...","artist":"Prince","since":1762300000,"found":null}]}
+--   since: null while it waits its turn; at most one line has since and no found (the one in play)
 --   found: {"user":"<account>","character":"<name surname>","at":<unix s>,"from":"runner","test":false}
 -- test is true in single player and in a game started with -debug (where the CD drops from the first runner, to try
 -- it): ZomBOT announces nothing for it.
@@ -74,11 +81,41 @@ function Unique.data()
 	return root.unique
 end
 
+-- The saved entry of a catalogue's unique album, with its names (already escaped for JSON, generate.json_text).
 function Unique.entry(album)
 	local all = Unique.data()
 	local key = tostring(album.key)
 	if type(all[key]) ~= "table" then all[key] = { state = "waiting" } end
-	return all[key]
+	local e = all[key]
+	e.name, e.artist = album.unique.jsonName or e.name, album.unique.jsonArtist or e.artist
+	return e
+end
+
+-- The catalogue's unique albums by number: the order they entered the catalogue.
+function Unique.albums()
+	local out = {}
+	for _, album in ipairs(Catalog.uniqueAlbums()) do out[#out + 1] = album end
+	table.sort(out, function(a, b) return a.key < b.key end)
+	return out
+end
+
+-- The unique CD in play, or nil: since set and not found. When none is, the next by number enters play (since =
+-- now) and the file says so.
+function Unique.current()
+	local upcoming = nil
+	for _, album in ipairs(Unique.albums()) do
+		local e = Unique.entry(album)
+		if e.state ~= "found" then
+			if e.since then return album, e end
+			upcoming = upcoming or album
+		end
+	end
+	if not upcoming then return nil, nil end
+	local e = Unique.entry(upcoming)
+	e.since = seconds()
+	Core.warn("the unique CD of album " .. tostring(upcoming.key) .. " is now in play")
+	Unique.write()
+	return upcoming, e
 end
 
 ------------------------------------------------------------------------------------------------- the file for ZomBOT
@@ -103,20 +140,32 @@ function Unique.esc(text)
 	return table.concat(out)
 end
 
+local function whole(value)
+	return string.format("%d", math.floor(tonumber(value) or 0))
+end
+
+-- Every unique CD ever (the saved entries, also of albums taken out of the catalogue later), by album number.
 function Unique.json()
+	for _, album in ipairs(Unique.albums()) do Unique.entry(album) end
+	local keys = {}
+	for key in pairs(Unique.data()) do
+		if tonumber(key) then keys[#keys + 1] = tonumber(key) end
+	end
+	table.sort(keys)
 	local list = {}
-	for _, album in ipairs(Catalog.uniqueAlbums()) do
-		local e = Unique.entry(album)
+	for _, key in ipairs(keys) do
+		local e = Unique.data()[tostring(key)]
 		local found = "null"
 		local f = e.found
 		if e.state == "found" and type(f) == "table" then
 			found = "{\"user\":\"" .. Unique.esc(f.user) .. "\",\"character\":\"" .. Unique.esc(f.character)
-				.. "\",\"at\":" .. string.format("%d", math.floor(tonumber(f.at) or 0))
-				.. ",\"from\":\"" .. Unique.esc(f.from) .. "\",\"test\":" .. (f.test == true and "true" or "false") .. "}"
+				.. "\",\"at\":" .. whole(f.at) .. ",\"from\":\"" .. Unique.esc(f.from) .. "\",\"test\":"
+				.. (f.test == true and "true" or "false") .. "}"
 		end
 		-- name and artist come already escaped from the catalogue (tools/jukebox, generate.json_text)
-		list[#list + 1] = "{\"key\":\"" .. tostring(album.key) .. "\",\"name\":\"" .. tostring(album.unique.jsonName or "")
-			.. "\",\"artist\":\"" .. tostring(album.unique.jsonArtist or "") .. "\",\"found\":" .. found .. "}"
+		list[#list + 1] = "{\"key\":\"" .. tostring(key) .. "\",\"name\":\"" .. tostring(e.name or "")
+			.. "\",\"artist\":\"" .. tostring(e.artist or "") .. "\",\"since\":" .. (e.since and whole(e.since) or "null")
+			.. ",\"found\":" .. found .. "}"
 	end
 	return "{\"v\":1,\"unique\":[" .. table.concat(list, ",") .. "]}\n"
 end
@@ -150,20 +199,18 @@ function Unique.expired(e)
 	return worldHours() - (tonumber(e.hours) or 0) >= hours
 end
 
--- Can this album's CD fall now?
-function Unique.open(album)
-	if album.unique.from ~= "runner" then return false end
-	local e = Unique.entry(album)
-	return e.state == "waiting" or (e.state == "dropped" and Unique.expired(e))
+-- The unique CD that can fall from a runner now, or nil: the one in play, waiting or back from an unlooted corpse.
+function Unique.open()
+	local album, e = Unique.current()
+	if not album or album.unique.from ~= "runner" then return nil end
+	if e.state == "waiting" or (e.state == "dropped" and Unique.expired(e)) then return album end
+	return nil
 end
 
 function Unique.onZombieDead(zombie)
 	if not zombie then return end
-	local open = {}
-	for _, album in ipairs(Catalog.uniqueAlbums()) do
-		if Unique.open(album) then open[#open + 1] = album end
-	end
-	if #open == 0 then return end
+	local album = Unique.open()
+	if not album then return end
 	-- a burning zombie leaves a burning corpse: it would take the CD with it
 	if try(function() return zombie:isOnFire() end, false) then return end
 	local killer = try(function() return zombie:getAttackedBy() end)
@@ -177,26 +224,21 @@ function Unique.onZombieDead(zombie)
 	for _, z in ipairs(old) do Unique.recent[z] = nil end
 	if Unique.recent[zombie] then return end
 	Unique.recent[zombie] = t
-	for _, album in ipairs(open) do
-		if ZombRand(Unique.oneIn(album)) == 0 then
-			local item = zombie:getInventory():AddItem(album.item)
-			if item then
-				local e = Unique.entry(album)
-				if e.state == "dropped" then
-					Core.warn("the unique CD of album " .. tostring(album.key) .. " fell at " .. tostring(e.x) .. ","
-						.. tostring(e.y) .. "," .. tostring(e.z) .. " and nobody took it before the corpses' removal time")
-				end
-				e.state = "dropped"
-				e.x, e.y, e.z = math.floor(zombie:getX()), math.floor(zombie:getY()), math.floor(zombie:getZ())
-				e.at = seconds()
-				e.hours = worldHours()
-				Core.warn("the unique CD of album " .. tostring(album.key) .. " dropped from a runner at " .. e.x .. ","
-					.. e.y .. "," .. e.z .. " killed by " .. tostring(try(function() return killer:getUsername() end, "?")))
-				Unique.write()
-			end
-			return                                                 -- one unique CD per zombie at most
-		end
+	if ZombRand(Unique.oneIn(album)) ~= 0 then return end
+	local item = zombie:getInventory():AddItem(album.item)
+	if not item then return end
+	local e = Unique.entry(album)
+	if e.state == "dropped" then
+		Core.warn("the unique CD of album " .. tostring(album.key) .. " fell at " .. tostring(e.x) .. "," .. tostring(e.y)
+			.. "," .. tostring(e.z) .. " and nobody took it before the corpses' removal time")
 	end
+	e.state = "dropped"
+	e.x, e.y, e.z = math.floor(zombie:getX()), math.floor(zombie:getY()), math.floor(zombie:getZ())
+	e.at = seconds()
+	e.hours = worldHours()
+	Core.warn("the unique CD of album " .. tostring(album.key) .. " dropped from a runner at " .. e.x .. "," .. e.y .. ","
+		.. e.z .. " killed by " .. tostring(try(function() return killer:getUsername() end, "?")))
+	Unique.write()
 end
 
 ------------------------------------------------------------------------------------------------- taken
@@ -240,6 +282,7 @@ function Unique.found(album, e, player)
 	}
 	Core.warn("the unique CD of album " .. tostring(album.key) .. " was found by " .. tostring(e.found.user))
 	Unique.write()
+	Unique.current()                                           -- the next one, if any, enters play
 end
 
 -- "taken {album, item}" from the mod of a player who moved the CD (client/JukeboxMoon/Finder.lua): checked once.
@@ -261,6 +304,10 @@ Events.OnZombieDead.Add(function(zombie)
 	local ok, err = pcall(Unique.onZombieDead, zombie)
 	if not ok then Core.warn("unique CD: " .. tostring(err)) end
 end)
-Events.OnInitGlobalModData.Add(function() Unique.write() end)
+-- at the start: the first unique CD not found enters play if none is, and the file is written for ZomBOT
+Events.OnInitGlobalModData.Add(function()
+	Unique.current()
+	Unique.write()
+end)
 
 return Unique

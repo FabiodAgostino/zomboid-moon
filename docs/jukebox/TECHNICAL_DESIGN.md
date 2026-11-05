@@ -169,6 +169,11 @@ Un album con `"unique": {"from": "runner", "oneIn": 300}` in `album.json` è un 
 (decisione dell'utente, `DECISIONI.md` 18; oggi «Love storii...»). Non è nel bottino e gli admin non lo creano
 (`Catalog.activeAlbums` lo lascia fuori): un secondo esemplare non sarebbe unico. Il builder scrive nel catalogo
 `unique = { from, oneIn, jsonName, jsonArtist }`, con nome del CD e artista già pronti per il JSON (ASCII, `\uXXXX`).
+**Uno alla volta** (scelta dell'utente, `DECISIONI.md` 18): in gioco c'è un solo CD unico, il primo per numero
+d'album (l'ordine in cui gli album entrano nel catalogo) non ancora trovato. Entra in gioco (`since`, secondi unix)
+all'avvio del server o quando quello di prima viene trovato; gli altri aspettano il loro turno, ognuno con il suo
+`oneIn`. Un CD che torna da tirare perché nessuno ha saccheggiato il cadavere tiene il suo `since`.
+
 Il lavoro è in `server/JukeboxMoon/Unique.lua` e, per dire al server chi lo prende, in `client/JukeboxMoon/Finder.lua`.
 Il server non fa niente da solo: nessun controllo periodico (scelta dell'utente, `DECISIONI.md` 18). Verificato nel jar
 e nel Lua della 42.21:
@@ -198,16 +203,22 @@ e nel Lua della 42.21:
   da quel tempo e da un nuovo tiro fortunato, farebbe una seconda copia. Le strade del gioco per prendere un oggetto
   da un cadavere o da terra sono quelle due.
 - **Salvato** nel mondo (ModData globale `JukeboxMoon.unique`, per numero dell'album): `state` (`waiting`, `dropped`,
-  `found`), dove, quando (secondi e ore del mondo) è caduto, chi l'ha trovato.
+  `found`), `since`, nome e artista (un album tolto dal catalogo tiene la sua riga), dove e quando (secondi e ore del
+  mondo) è caduto, chi l'ha trovato.
 - **Per ZomBOT**, `Zomboid/Lua/jukeboxmoon_unique.json`, riscritto intero all'avvio (`OnInitGlobalModData`) e a ogni
   cambiamento. Il contratto è di ZomBOT (zomboid-discord, `zombot.jukebox`): non cambiarlo da una parte sola.
 
   ```json
-  {"v":1,"unique":[{"key":"62","name":"CD: Love storii...","artist":"Prince","found":null}]}
+  {"v":1,"unique":[{"key":"62","name":"CD: Love storii...","artist":"Prince","since":1762300000,"found":null}]}
   ```
 
+  Una riga per ogni CD unico di sempre, per numero dell'album, per sempre. `since`: quando è entrato in gioco,
+  `null` finché aspetta il suo turno; al massimo una riga ha `since` e non `found` (quello in gioco).
+
   Da trovato, `found` è `{"user":"<account>","character":"<nome e cognome>","at":<secondi unix>,"from":"runner","test":false}`.
-  ZomBOT annuncia in #zombot una volta per `key` («è stato trovato un CD unico…»), mai con `test: true`: in single
+  ZomBOT annuncia in #zombot ogni CD che entra in gioco («oggetto unico», senza dire quale; non quelli già in gioco
+  la prima volta che legge il file) e una volta per `key` quello trovato («è stato trovato un CD unico…»), mai con
+  `test: true`: in single
   player e in un gioco avviato con `-debug`, dove per provarlo il CD cade dal primo corridore.
 
 ### Opzioni (sandbox, pagina «Jukebox (Moon)»)
