@@ -90,19 +90,28 @@ end
 
 ---------------------------------------------------------------- wear
 
--- One fired round (single player, or the server on the shooter's report). Answers true when the suppressor or the
--- weapon changed and must be sent to the owner.
+-- One fired round (single player, or the server on the shooter's report). Answers whether the suppressor or the
+-- weapon changed and must be sent to the owner, and whether the suppressor broke with this round. A broken
+-- suppressor is never removed: it stays on the weapon, doing nothing, and taken off it goes to the inventory.
 function Shot.wear(weapon)
 	local tier, part = Core.activeTier(weapon)
-	if not tier then return false end
-	local changed = false
+	if not tier then return false, false end
+	local changed, broke = false, false
 	if Core.wears(tier, ZombRand) then
 		part:setCondition(math.max(0, part:getCondition() - 1))
 		changed = true
+		broke = part:getCondition() <= 0
 	end
 	-- a worn-out suppressor stops costing range and damage at once; another part may have changed them too
 	if SilencerMoon.Stats.refresh(weapon) then changed = true end
-	return changed
+	return changed, broke
+end
+
+-- The words over the head of a player whose suppressor just broke (05/11/2026, the user: it must say so): only in
+-- that player's own game, never on the dedicated server.
+function Shot.sayBroken(player)
+	if isServer() or not player or not HaloTextHelper or not HaloTextHelper.addBadText then return end
+	HaloTextHelper.addBadText(player, getText("IGUI_SilencerMoon_Broken"))
 end
 
 -- The shooter's game: is this a round actually fired through our working suppressor?
@@ -133,12 +142,16 @@ function Shot.keep(player)
 	Shot.applyNoise(weapon)
 end
 
--- The server says another player's suppressor wore out: our copy of that weapon learns it (the shooter's own copy
--- comes with syncHandWeaponFields).
+-- The server says a suppressor wore out. Ours: the words over our head (the weapon itself comes with
+-- syncHandWeaponFields). Another player's: our copy of that weapon learns it.
 function Shot.onWorn(args)
 	if type(args) ~= "table" or not args.player or not args.id then return end
 	local player = getPlayerByOnlineID(args.player)
-	if not player or player:isLocalPlayer() then return end
+	if not player then return end
+	if player:isLocalPlayer() then
+		Shot.sayBroken(player)
+		return
+	end
 	local weapon = player:getPrimaryHandItem()
 	if not weapon or not instanceof(weapon, "HandWeapon") or weapon:getID() ~= args.id then return end
 	local part = Core.suppressor(weapon)
@@ -167,7 +180,8 @@ local function onHitPoint(character, weapon)
 	if isClient() then
 		sendClientCommand(character, Shot.COMMAND_MODULE, Shot.COMMAND_SHOT, { id = weapon:getID() })
 	else
-		Shot.wear(weapon)
+		local _, broke = Shot.wear(weapon)
+		if broke then Shot.sayBroken(character) end
 	end
 end
 

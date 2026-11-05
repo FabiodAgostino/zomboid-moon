@@ -176,15 +176,17 @@ def same(lua, a, b):
 
 
 def test_no_suppressor_can_be_attached_while_the_restore_is_on():
+    """And no tool is needed to attach or take one off (05/11/2026, the user's choice)."""
     lua = restore_runtime()
     can = lua.eval("SilencerMoon.canAttach")
     assert can(None, None, None) is True
-    lua.execute("SCREWDRIVER = false")
-    assert can(None, None, None) is False
-    lua.execute("SCREWDRIVER = true; ModData.getOrCreate('SilencerMoon').restoring = true")
+    lua.execute("SCREWDRIVER = false")  # no screwdriver: still allowed
+    assert can(None, None, None) is True
+    lua.execute("ModData.getOrCreate('SilencerMoon').restoring = true")
     assert can(None, None, None) is False
     assert "CanAttach = SilencerMoon.canAttach" in script_text()
     assert "CanAttach = ItemCodeOnTest" not in script_text()
+    assert "CanDetach =" not in script_text()  # no callback: the game lets anyone take it off
 
 
 def test_turning_it_on_fixes_the_weapons_of_the_players_online_at_once():
@@ -420,9 +422,9 @@ def test_the_values_table_comes_from_the_tiers():
     lua = admin_runtime()
     admin, core = lua.eval("SilencerMoon.Admin"), lua.eval("SilencerMoon.Core")
     rows = {tid: admin.valuesRow(core.TIERS[tid]) for tid in ("oilfilter", "copper", "ballistic")}
-    assert [rows["oilfilter"][i] for i in (1, 2, 3)] == ["-30%", "-40%", "-25%"]
-    assert [rows["copper"][i] for i in (1, 2, 3)] == ["-40%", "-30%", "-20%"]
-    assert [rows["ballistic"][i] for i in (1, 2, 3)] == ["-65%", "-20%", "-12,5%"]
+    assert [rows["oilfilter"][i] for i in (1, 2, 3)] == ["-65%", "-40%", "-25%"]
+    assert [rows["copper"][i] for i in (1, 2, 3)] == ["-80%", "-30%", "-20%"]
+    assert [rows["ballistic"][i] for i in (1, 2, 3)] == ["-90%", "-20%", "-12,5%"]
     assert rows["ballistic"][4] == "IGUI_SilencerMoon_Shots|1000"
     assert rows["copper"].name == "IGUI_SilencerMoon_TierName_copper"
 

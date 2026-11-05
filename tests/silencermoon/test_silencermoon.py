@@ -221,11 +221,11 @@ def f32(x: float) -> float:
 
 
 TIERS = {
-    "SilencerMoon.Suppressor_OilFilter": (0.70, 0.60, 0.75, 5),
-    "SilencerMoon.Suppressor_Pistol_Copper": (0.60, 0.70, 0.80, 10),
-    "SilencerMoon.Suppressor_Rifle_Copper": (0.60, 0.70, 0.80, 10),
-    "SilencerMoon.Suppressor_Pistol_Ballistic": (0.35, 0.80, 0.875, 100),
-    "SilencerMoon.Suppressor_Rifle_Ballistic": (0.35, 0.80, 0.875, 100),
+    "SilencerMoon.Suppressor_OilFilter": (0.35, 0.60, 0.75, 5),
+    "SilencerMoon.Suppressor_Pistol_Copper": (0.20, 0.70, 0.80, 10),
+    "SilencerMoon.Suppressor_Rifle_Copper": (0.20, 0.70, 0.80, 10),
+    "SilencerMoon.Suppressor_Pistol_Ballistic": (0.10, 0.80, 0.875, 100),
+    "SilencerMoon.Suppressor_Rifle_Ballistic": (0.10, 0.80, 0.875, 100),
 }
 
 
@@ -288,7 +288,7 @@ def test_a_worn_out_suppressor_gives_the_weapon_back_its_values(lua):
     w.attach(w, part)
     assert w.range == pytest.approx(9, rel=1e-6)
     lua.execute("RAND = function(n) return 0 end")  # the next round wears it
-    assert lua.eval("SilencerMoon.Shot").wear(w) is True
+    assert lua.eval("SilencerMoon.Shot").wear(w) == (True, True)  # changed, and broke with this round
     assert part.condition == 0
     assert (w.range, w.low, w.high) == (f32(15), f32(0.6), f32(1.0))
 
@@ -369,6 +369,37 @@ def test_the_dedicated_server_ignores_its_own_hit_event(lua):
     assert part.condition == 10
 
 
+def test_the_best_suppressor_keeps_a_rifle_shot_under_20_tiles(lua):
+    """05/11/2026, the user's test: with the old 35% a rifle with the best suppressor still drew zombies from 30
+    tiles and more. The Hunting Rifle's 170 now become 17 (halved again indoors by the game)."""
+    lua.execute('FRESH["Base.HuntingRifle"] = { radius = 170, swing = "HuntingRifleShoot", flash = "flash_key" }')
+    w = lua.eval('newWeapon("Base.HuntingRifle", 40, 1.2, 2.0)')
+    w.parts["Suppressor"] = lua.eval('newPart("SilencerMoon.Suppressor_Rifle_Ballistic", 100)')
+    lua.eval("SilencerMoon.Shot").applyNoise(w)
+    assert w.radius == 17
+
+
+def test_a_suppressor_that_breaks_says_so_and_stays_on_the_weapon(lua):
+    """05/11/2026, the user: when it breaks it must say «Silenziatore rotto», and never disappear."""
+    lua.execute("HALO = {}; HaloTextHelper = { addBadText = function(p, t) table.insert(HALO, t) end }")
+    lua.execute("function getText(key) return key end")
+    lua.execute("RAND = function(n) return 0 end")
+    on_hit = lua.eval("EVENTS.OnWeaponSwingHitPoint.list[1]")
+    w = lua.eval('newWeapon("Base.Pistol", 15, 0.6, 1.0)')
+    part = lua.eval('newPart("SilencerMoon.Suppressor_OilFilter", 2, 5)')
+    w.attach(w, part)
+    player = lua.eval("newPlayer()")
+    on_hit(player, w)
+    assert part.condition == 1 and len(lua.eval("HALO")) == 0
+    on_hit(player, w)
+    assert part.condition == 0
+    assert list(lua.eval("HALO").values()) == ["IGUI_SilencerMoon_Broken"]
+    assert lua.eval("function(w, p) return rawequal(w.parts.Suppressor, p) end")(w, part) is True  # still on
+    assert (w.range, w.low, w.high) == (f32(15), f32(0.6), f32(1.0))
+    on_hit(player, w)  # broken: no longer a working suppressor, nothing more is said
+    assert len(lua.eval("HALO")) == 1
+
+
 def test_single_player_wears_on_the_spot(lua):
     lua.execute("RAND = function(n) return 0 end")
     on_hit = lua.eval("EVENTS.OnWeaponSwingHitPoint.list[1]")
@@ -445,9 +476,9 @@ def test_a_worn_out_suppressor_is_announced_to_every_game_once(server):
 @pytest.mark.parametrize(
     "part_type,radius,sound,flash",
     [
-        ("SilencerMoon.Suppressor_OilFilter", 70, "M9Shoot", "flash_key"),
-        ("SilencerMoon.Suppressor_Pistol_Copper", 60, "SilencerMoon_Suppressed9mm", None),
-        ("SilencerMoon.Suppressor_Pistol_Ballistic", 35, "SilencerMoon_Suppressed9mm", None),
+        ("SilencerMoon.Suppressor_OilFilter", 35, "M9Shoot", "flash_key"),
+        ("SilencerMoon.Suppressor_Pistol_Copper", 20, "SilencerMoon_Suppressed9mm", None),
+        ("SilencerMoon.Suppressor_Pistol_Ballistic", 10, "SilencerMoon_Suppressed9mm", None),
     ],
 )
 def test_the_shot_noise_of_each_tier_and_back(lua, part_type, radius, sound, flash):
@@ -488,7 +519,7 @@ def test_another_players_shot_is_suppressed_on_my_screen_too(lua):
     w = lua.eval('newWeapon("Base.Pistol", 15, 0.6, 1.0)')
     w.parts["Suppressor"] = lua.eval('newPart("SilencerMoon.Suppressor_Pistol_Ballistic", 10)')
     lua.eval("EVENTS.OnWeaponSwing.list[1]")(remote, w)
-    assert (w.radius, w.swing, w.flash) == (35, "SilencerMoon_Suppressed9mm", None)
+    assert (w.radius, w.swing, w.flash) == (10, "SilencerMoon_Suppressed9mm", None)
     lua.execute("CLIENT = true")
     lua.eval("EVENTS.OnWeaponSwingHitPoint.list[1]")(remote, w)
     assert len(lua.eval("SENT")) == 0  # only the shooter's own game reports the round
@@ -502,7 +533,7 @@ def ballistic_pistol(lua):
     return w
 
 
-SUPPRESSED = (35, "SilencerMoon_Suppressed9mm", None)
+SUPPRESSED = (10, "SilencerMoon_Suppressed9mm", None)
 VANILLA = (100, "M9Shoot", "flash_key")
 
 
@@ -520,7 +551,7 @@ def test_the_weapon_in_hand_is_ready_before_the_first_shot(lua):
     w.radius = 77  # nothing changed in hand: nothing is set again
     update(player)
     assert w.radius == 77
-    w.radius = 35
+    w.radius = 10
     w.parts["Suppressor"].condition = 0  # worn out: the game's values before the next trigger pull
     update(player)
     assert noise(w) == VANILLA
@@ -650,9 +681,9 @@ def test_the_tooltip_bars():
     runtime = lua_runtime("shared/SilencerMoon/Core.lua", "client/SilencerMoon/Tooltip.lua")
     tooltip, core = runtime.eval("SilencerMoon.Tooltip"), runtime.eval("SilencerMoon.Core")
     expected = {
-        "oilfilter": ([6, 8, 5], ["30%", "-40%", "-25%"]),
-        "copper": ([8, 6, 4], ["40%", "-30%", "-20%"]),
-        "ballistic": ([13, 4, 2.5], ["65%", "-20%", "-12,5%"]),
+        "oilfilter": ([13, 8, 5], ["65%", "-40%", "-25%"]),
+        "copper": ([16, 6, 4], ["80%", "-30%", "-20%"]),
+        "ballistic": ([18, 4, 2.5], ["90%", "-20%", "-12,5%"]),
     }
     for tier_id, (ticks, values) in expected.items():
         rows = tooltip.rows(core.TIERS[tier_id])

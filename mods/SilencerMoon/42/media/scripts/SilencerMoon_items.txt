@@ -46,8 +46,9 @@ module SilencerMoon
 	}
 
 	/* The suppressors. Every stat modifier stays 0: the game adds them as fixed numbers (and shows them in its
-	   tooltip), while the mod's percentages are applied by SilencerMoon.Stats on the server. CanAttach is the game's
-	   screwdriver check, refused while the restore is on (SilencerMoon.Restore). OnAttach and OnDetach
+	   tooltip), while the mod's percentages are applied by SilencerMoon.Stats on the server. No tool to attach or take
+	   off (05/11/2026, the user's choice): CanAttach only refuses while the restore is on (SilencerMoon.Restore), and
+	   there is no CanDetach. OnAttach and OnDetach
 	   run wherever the game attaches the part (the server in multiplayer), for the game's own menu too. */
 	item Suppressor_Pistol_Copper
 	{
@@ -67,7 +68,6 @@ module SilencerMoon
 		Tooltip = Tooltip_SilencerMoon_Suppressor,
 		MetalValue = 18.0,
 		CanAttach = SilencerMoon.canAttach,
-		CanDetach = ItemCodeOnTest.hasScrewdriver,
 		OnAttach = SilencerMoon.onAttach,
 		OnDetach = SilencerMoon.onDetach,
 	}
@@ -90,7 +90,6 @@ module SilencerMoon
 		Tooltip = Tooltip_SilencerMoon_Suppressor,
 		MetalValue = 24.0,
 		CanAttach = SilencerMoon.canAttach,
-		CanDetach = ItemCodeOnTest.hasScrewdriver,
 		OnAttach = SilencerMoon.onAttach,
 		OnDetach = SilencerMoon.onDetach,
 	}
@@ -113,7 +112,6 @@ module SilencerMoon
 		Tooltip = Tooltip_SilencerMoon_Suppressor,
 		MetalValue = 18.0,
 		CanAttach = SilencerMoon.canAttach,
-		CanDetach = ItemCodeOnTest.hasScrewdriver,
 		OnAttach = SilencerMoon.onAttach,
 		OnDetach = SilencerMoon.onDetach,
 	}
@@ -136,7 +134,6 @@ module SilencerMoon
 		Tooltip = Tooltip_SilencerMoon_Suppressor,
 		MetalValue = 24.0,
 		CanAttach = SilencerMoon.canAttach,
-		CanDetach = ItemCodeOnTest.hasScrewdriver,
 		OnAttach = SilencerMoon.onAttach,
 		OnDetach = SilencerMoon.onDetach,
 	}
@@ -160,7 +157,6 @@ module SilencerMoon
 		Tooltip = Tooltip_SilencerMoon_Suppressor,
 		MetalValue = 8.0,
 		CanAttach = SilencerMoon.canAttach,
-		CanDetach = ItemCodeOnTest.hasScrewdriver,
 		OnAttach = SilencerMoon.onAttach,
 		OnDetach = SilencerMoon.onDetach,
 	}

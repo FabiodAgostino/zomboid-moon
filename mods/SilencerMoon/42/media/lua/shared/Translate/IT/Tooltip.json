@@ -2,7 +2,7 @@
   "Tooltip_SilencerMoon_CopperSteelIngot": "Lega artigianale ottenuta da acciaio recuperato e rame. Adatta a silenziatori di durata contenuta.",
   "Tooltip_SilencerMoon_BallisticAlloyIngot": "Materiale metallico rinforzato ottenuto da componenti di armi e metalli rifusi. Adatto a silenziatori durevoli.",
   "Tooltip_SilencerMoon_ScavengedOilFilter": "Un filtro dell'olio smontato da un veicolo. Serve per un silenziatore improvvisato.",
-  "Tooltip_SilencerMoon_Suppressor": "Si monta su un'arma compatibile con 'Migliora' e si smonta con 'Rimuovi miglioramento'; per tutte e due serve un cacciavite. Attutisce lo sparo ma riduce gittata e danno, e si consuma sparando.",
+  "Tooltip_SilencerMoon_Suppressor": "Si monta su un'arma compatibile con 'Migliora' e si smonta con 'Rimuovi miglioramento', senza attrezzi. Attutisce lo sparo ma riduce gittata e danno, e si consuma sparando: rotto resta montato ma non fa più niente.",
   "Tooltip_SilencerMoon_Smelt": "Il fucile a pompa va bene anche rotto, ma deve essere scarico (niente colpo in canna, niente bossoli) e senza accessori montati.",
   "Tooltip_SilencerMoon_MakeSuppressor": "Si impara dalla rivista sui silenziatori artigianali."
 }

@@ -13,16 +13,17 @@ SilencerMoon.Core = Core
 Core.MODULE = "SilencerMoon"
 Core.PART_TYPE = "Suppressor"
 
--- What remains of the unsuppressed value (0.60 = 60%): radius = the noise radius towards zombies, range = the
+-- What remains of the unsuppressed value (0.60 = 60%): radius = the noise radius towards zombies (05/11/2026,
+-- the user's test: with 0.35 a rifle still drew zombies from 30 tiles and more; now 0.35, 0.20, 0.10), range = the
 -- maximum range, damage = minimum and maximum damage. oneIn: one chance in N, per shot, to lose a condition point.
 -- conditionMax matches ConditionMax in SilencerMoon_items.txt. suppressedSound: the shot plays the calibre's
 -- suppressed sound and hides the muzzle flash (the alloys); the oil filter keeps the game's sound and flash.
 Core.TIERS = {
-	oilfilter = { id = "oilfilter", radius = 0.70, range = 0.60, damage = 0.75, oneIn = 5, conditionMax = 5,
+	oilfilter = { id = "oilfilter", radius = 0.35, range = 0.60, damage = 0.75, oneIn = 5, conditionMax = 5,
 		suppressedSound = false },
-	copper = { id = "copper", radius = 0.60, range = 0.70, damage = 0.80, oneIn = 10, conditionMax = 10,
+	copper = { id = "copper", radius = 0.20, range = 0.70, damage = 0.80, oneIn = 10, conditionMax = 10,
 		suppressedSound = true },
-	ballistic = { id = "ballistic", radius = 0.35, range = 0.80, damage = 0.875, oneIn = 100, conditionMax = 10,
+	ballistic = { id = "ballistic", radius = 0.10, range = 0.80, damage = 0.875, oneIn = 100, conditionMax = 10,
 		suppressedSound = true },
 }
 

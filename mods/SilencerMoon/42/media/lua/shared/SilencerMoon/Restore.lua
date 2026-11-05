@@ -58,12 +58,11 @@ function Restore.isAdmin(player)
 	return ok and admin == true
 end
 
--- CanAttach of every SilencerMoon suppressor (SilencerMoon_items.txt): the game's screwdriver check, and never while
--- the restore is on. The game calls it with (character, weapon, part), on the client for the menu and on the server
--- for the action.
+-- CanAttach of every SilencerMoon suppressor (SilencerMoon_items.txt): never while the restore is on. No tool is
+-- needed (05/11/2026, the user's choice), and taking one off needs none either (no CanDetach). The game calls it with
+-- (character, weapon, part), on the client for the menu and on the server for the action.
 function SilencerMoon.canAttach(character, weapon, part)
-	if Restore.active() then return false end
-	return ItemCodeOnTest.hasScrewdriver(character, weapon, part) == true
+	return not Restore.active()
 end
 
 ---------------------------------------------------------------- fixing weapons (server and single player)
