@@ -13,16 +13,32 @@ MOD = ROOT / "mods" / "JukeboxMoon" / "42"
 LUA = MOD / "media" / "lua"
 
 PRELUDE = r"""
+-- only the game's events the mod uses (checked in 42.21): any other name is nil, and .Add on it fails as in the game
 EVENTS = {}
-Events = setmetatable({}, { __index = function(t, name)
+Events = {}
+for _, name in ipairs({ "OnClientCommand", "OnServerCommand", "OnTick", "EveryOneMinute", "OnGameStart",
+        "OnPreDistributionMerge", "OnFillWorldObjectContextMenu", "OnFillInventoryObjectContextMenu" }) do
     local e = { list = {} }
     function e.Add(f) table.insert(e.list, f) end
-    rawset(t, name, e)
+    Events[name] = e
     EVENTS[name] = e
-    return e
-end })
+end
 function fire(name, ...)
     for _, f in ipairs((EVENTS[name] or { list = {} }).list) do f(...) end
+end
+
+-- MapObjects.OnLoadWithSprite: loadSquare(sq) does what the game does when it loads a square
+LOAD_HOOKS = {}
+MapObjects = { OnLoadWithSprite = function(sprite, fn, priority)
+    assert(type(sprite) == "string" and type(fn) == "function" and type(priority) == "number")
+    LOAD_HOOKS[sprite] = LOAD_HOOKS[sprite] or {}
+    table.insert(LOAD_HOOKS[sprite], fn)
+end }
+function loadSquare(sq)
+    for _, o in ipairs(sq.objects.t) do
+        if o.container then o.container.accept = nil end            -- not saved: gone after a load
+        for _, fn in ipairs(LOAD_HOOKS[o.spriteName] or {}) do fn(o) end
+    end
 end
 
 CLIENT, SERVER, NOW = false, false, 100000
@@ -61,6 +77,8 @@ function sendServerCommand(a, b, c, d)
 end
 function sendClientCommand(player, module, command, args)
     table.insert(TO_SERVER, { player = player, module = module, command = command, args = args })
+    -- single player: the game's own server side gets it (SinglePlayerServer -> OnClientCommand)
+    if not CLIENT and not SERVER then fire("OnClientCommand", module, command, player, args) end
 end
 ADDED = {}
 function sendAddItemToContainer(container, item) table.insert(ADDED, item) end
@@ -115,13 +133,19 @@ end
 POWER = true
 SQUARES = {}
 REMOVED = {}
+-- the chunk's ambient emitters (IsoChunk.hasObjectAmbientEmitter / removeObjectAmbientEmitter)
+CHUNK = { ambient = {} }
+function CHUNK:hasObjectAmbientEmitter(o) return self.ambient[o] == true end
+function CHUNK:removeObjectAmbientEmitter(o) self.ambient[o] = nil end
 function newSquare(x, y, z)
     local sq = { x = x, y = y, z = z, objects = jlist() }
+    function sq:getChunk() return CHUNK end
     function sq:getObjects() return self.objects end
     function sq:transmitRemoveItemFromSquare(o) table.insert(REMOVED, o) self.objects:remove(o) return 1 end
     function sq:AddSpecialObject(o, index)
         o.square = self
         if index then table.insert(self.objects.t, index + 1, o) else self.objects:add(o) end
+        CHUNK.ambient[o] = true                                     -- addToWorld: AmbientSound on the sprite
     end
     function sq:RecalcProperties() end
     function sq:RecalcAllWithNeighbours(b) end

@@ -72,7 +72,9 @@ Jukebox (Moon) ha il motore nel repo e il catalogo dei CD fuori: lo fa `tools/ju
 | `to` | Dove vanno i file: la cartella della mod, quella del suo `install` con `mirror`. |
 | `keyFile` | Dove il gioco scrive la chiave della musica quando il giocatore entra sul server. |
 
-I file del pacchetto entrano nel piano della mod come quelli del repo: lo stesso confronto, e il `mirror` non li toglie. Il catalogo pubblico va a tutti; gli album, cifrati, solo con la chiave giusta. Si scarica solo ciò che manca o è cambiato, e ogni file si verifica prima di installarlo (`Core/Pack.cs`). Le impronte dei file installati si ricordano (`hashes.json` nella cache): la musica non si rilegge a ogni avvio.
+I file del pacchetto entrano nel piano della mod come quelli del repo: lo stesso confronto, e il `mirror` non li toglie. Il catalogo pubblico va a tutti; gli album, cifrati, solo con la chiave giusta. Si scarica solo ciò che manca o è cambiato, e ogni file si verifica prima di installarlo (`Core/Pack.cs`). Le impronte dei file installati si ricordano (`hashes.json` nella cache, salvato dopo ogni controllo): la musica non si rilegge a ogni avvio.
+
+Il pacchetto si rilegge a ogni installazione (`ModPlan.Base`), così togliere e rimettere la mod, o riprovare dopo un errore, funziona nella stessa sessione senza riscaricare ciò che è già pronto. Se il pacchetto non si legge (GitHub irraggiungibile, elenco rovinato, un file bloccato) la mod resta con i file del repo e un avviso sulla scheda, e i file del pacchetto già installati **restano** (`ModPlan.KeepExtras`: il `mirror` non li toglie); le altre mod vanno avanti. L'elenco ha 15 secondi per arrivare, e un album si ferma dopo 30 secondi senza dati. La pre-release `jukebox` non compare fra le novità.
 
 ### Una mod che ne sostituisce altre: `replaces`
 

@@ -15,3 +15,17 @@
 - I CD del gioco suonano nel jukebox: `import-radiovoices` fa un album per ognuno dall'audio di Radio Voices (61 su 69),
   e il jukebox li riconosce dalla registrazione.
 - Il launcher 1.0.3 scarica il catalogo pubblico e, con la chiave che il gioco dà a chi entra su Moon, la musica cifrata.
+- Revisione completa (stesso giorno), verificata nel jar della 42.21:
+  - mod: ogni client suona il pezzo solo per sé (`playSound` lo rimandava agli altri, che lo avrebbero sentito due
+    volte); funziona in single player; la regola «solo CD» torna quando la casella si ricarica; il suono d'ambiente
+    del gioco tace mentre suona la nostra musica; titolo «Jukebox» nella finestra del bottino; un ordine casuale nuovo
+    a ogni accensione; limite su `hello` e `ping`; volume salvato solo quando il cursore si ferma; avvisi nella
+    finestra giusta; voce del menu anche con il controller;
+  - audio mono: metà della memoria del gioco (che tiene ogni pezzo sentito fino alla chiusura) e un quarto in meno da
+    scaricare;
+  - builder: chiave nuova con file nuovi e la vecchia tenuta; numeri e chiave scritti prima del pacchetto, e una
+    cartella che ne ha perso uno si ferma; un album alla volta in memoria; copertine girate, trasparenti e a 16 bit;
+    importatore che lascia stare gli album dell'admin e conta le righe diverse; `publish` che controlla i numeri e i
+    file su GitHub e tiene la copia di riserva fuori da `mods`;
+  - launcher: un pacchetto illeggibile non cancella più catalogo e musica; togliere e rimettere la mod nella stessa
+    sessione; impronte salvate dopo ogni controllo; limiti di attesa sui download; la pre-release non è fra le novità.

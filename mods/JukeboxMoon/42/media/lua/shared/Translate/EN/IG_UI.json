@@ -1,5 +1,6 @@
 {
     "IGUI_JukeboxMoon_Title": "Jukebox",
+    "IGUI_ContainerTitle_jukeboxmoon": "Jukebox",
     "IGUI_JukeboxMoon_Status_NoCatalog": "Music not available: update the launcher",
     "IGUI_JukeboxMoon_Status_Update": "Your music is not the server's: update the launcher",
     "IGUI_JukeboxMoon_Status_Off": "Off: the server turned the jukeboxes off",

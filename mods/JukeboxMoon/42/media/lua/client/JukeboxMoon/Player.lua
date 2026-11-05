@@ -9,11 +9,13 @@
 
 require "JukeboxMoon/Core"
 require "JukeboxMoon/Catalog"
+require "JukeboxMoon/Box"
 
 if JukeboxMoon.Player then return JukeboxMoon.Player end
 
 local Core = JukeboxMoon.Core
 local Catalog = JukeboxMoon.Catalog
+local Box = JukeboxMoon.Box
 local MODULE = Core.MODULE
 
 local Player = {}
@@ -32,6 +34,8 @@ Player.listeners = {}      -- functions called when a state or a notice arrives 
 Player.SAMPLES = 8
 Player.CONTINUE_MS = 1000  -- a piece that follows the one playing may start this late (a slow frame)
 Player.VOLUME_FILE = "JukeboxMoon_volume.txt"
+Player.VOLUME_SAVE_MS = 1000   -- the slider moves many times a second: the file is written once it stops
+Player.volumeChangedAt = nil
 
 ------------------------------------------------------------------------------------------------- clock
 
@@ -78,6 +82,7 @@ function Player.loadVolume()
 	if ok and value and value >= 0 and value <= 1 then Player.volume = value end
 end
 
+-- The sounds follow the slider at once; the file is written by saveVolume, a second after the last change.
 function Player.setVolume(value)
 	value = math.max(0, math.min(1, tonumber(value) or Player.volume))
 	Player.volume = value
@@ -86,9 +91,16 @@ function Player.setVolume(value)
 			pcall(function() sound.emitter:setVolume(sound.id, value) end)
 		end
 	end
+	Player.volumeChangedAt = getTimestampMs()
+end
+
+function Player.saveVolume(force)
+	if not Player.volumeChangedAt then return end
+	if not force and getTimestampMs() - Player.volumeChangedAt < Player.VOLUME_SAVE_MS then return end
+	Player.volumeChangedAt = nil
 	pcall(function()
 		local writer = getFileWriter(Player.VOLUME_FILE, true, false)
-		writer:write(tostring(value))
+		writer:write(tostring(Player.volume))
 		writer:close()
 	end)
 end
@@ -110,9 +122,24 @@ function Player.stopAll()
 	for _, key in ipairs(keys) do Player.stopAudio(key) end
 end
 
+-- The game's own sound of a jukebox: its sprite has AmbientSound = JukeboxAmbiance, and the game gives every object
+-- with that property an ambient emitter when it enters the world (IsoObject.addToWorld, 42.21), the converted one too.
+-- While ours plays it would play under the music: it goes (it comes back when the square is loaded again).
+function Player.quietGameSound(box)
+	pcall(function()
+		local square = getCell():getGridSquare(box.x, box.y, box.z)
+		local object = square and Box.onSquare(square)
+		local chunk = object and square:getChunk()
+		if chunk and Box.isConverted(object) and chunk:hasObjectAmbientEmitter(object) then
+			chunk:removeObjectAmbientEmitter(object)
+		end
+	end)
+end
+
 -- Piece `segment` of the track the jukebox plays, from a free emitter of the world on the jukebox's square. The
 -- piece before keeps playing its last overlapMs, which fade out while this one fades in.
 function Player.startPiece(box, audio, segment)
+	Player.quietGameSound(box)
 	local world = getWorld()
 	local emitter = world and world:getFreeEmitter(box.x + 0.5, box.y + 0.5, box.z)
 	if not emitter then return false end
@@ -307,6 +334,7 @@ Events.OnServerCommand.Add(Player.onServerCommand)
 Events.OnTick.Add(function()
 	Player.everyTick()
 	Player.onTick()
+	Player.saveVolume(false)
 end)
 
 return Player

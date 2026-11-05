@@ -7,7 +7,13 @@ python -m pytest -q tests/jukebox/test_lua.py        # Python con pytest, lupa e
 python -m pytest -q tests/jukebox/test_builder.py    # Python con pytest, Pillow, numpy e cryptography, più ffmpeg
 ```
 
-- **Lua** (72, `lupa`, un Lua vero con il gioco imitato: solo i metodi che la mod usa, con i nomi della 42.21):
+- **Lua** (77, `lupa`, un Lua vero con il gioco imitato: solo i metodi che la mod usa, con i nomi della 42.21, solo
+  gli eventi del gioco che usa, `sendServerCommand` muto in single player come nel gioco, l'emettitore senza
+  `playSound`; dalla revisione del 5 novembre anche: la regola «solo CD» rimessa quando la casella si ricarica, sul
+  server e sul client; la mod che funziona in single player senza rete; il suono d'ambiente del gioco tolto mentre
+  suona la nostra musica; un ordine casuale nuovo a ogni accensione; `hello` e `ping` al massimo uno al secondo; il
+  volume scritto su file solo quando il cursore si ferma; gli avvisi giusti in ogni finestra; la voce del menu con il
+  controller):
   conversione del jukebox una sola volta e solo vicino; solo i CD del catalogo e al massimo `MaxCDsPerJukebox`; la
   funzione di accettazione che sopravvive a `AcceptItemFunction = {}`; play dopo `LEAD_MS` e passaggio da solo al
   brano dopo e al primo; aprire non suona; scelta, avanti, indietro, stop; traccia inventata dal client ignorata;
@@ -21,7 +27,10 @@ python -m pytest -q tests/jukebox/test_builder.py    # Python con pytest, Pillow
   riga di stato; voce del tasto destro e pulsante admin; ogni file compila, ASCII, niente `next`/`xpcall`/
   `table.pack`/`table.unpack`/`os.clock`/`//`; testi IT ed EN; opzioni e predefiniti; `ZomBotMenu.lua` identico; i CD del gioco accettati solo con una registrazione del catalogo, suonati, creati
   dagli admin con la loro registrazione.
-- **Builder** (23): errori della cartella della musica (id, anno, titolo lungo, campi sconosciuti, `../`, file
+- **Builder** (32; dalla revisione anche: pezzi mono, chiave nuova con file nuovi e la vecchia tenuta, cartella che ha
+  perso numeri o chiave fermata, `publish` che rifiuta un numero dato a un altro album e riconosce un file caricato a
+  metà, pacchetto che non scrive fuori dalla mod, cache ripulita, copertine girate, trasparenti, a 16 bit e rotte,
+  importatore che lascia stare gli album dell'admin e conta le righe diverse, copia di riserva fuori da `mods`): errori della cartella della musica (id, anno, titolo lungo, campi sconosciuti, `../`, file
   mancante, formato, id doppi, collegamenti); numeri stabili, `--replace` e `--forget` obbligatori; stringhe Lua con i
   byte UTF-8; zip e cifratura sempre uguali, chiave sbagliata rifiutata; una build vera con ffmpeg (pezzi, catalogo,
   nomi, stesso risultato due volte, versione nuova se cambia un titolo, audio non ricifrato, errore che non tocca il
@@ -31,7 +40,8 @@ python -m pytest -q tests/jukebox/test_builder.py    # Python con pytest, Pillow
 - **Launcher**: compilato (0 avvisi), e il codice dei pacchetti (`Core/Pack.cs`) provato con un programma che usa gli
   stessi file su cartelle finte e il pacchetto demo: senza chiave installa motore ed elenco dei CD e lo dice; con la
   chiave anche l'audio, identico byte per byte; chiave sbagliata, niente audio e l'avviso; dopo l'installazione tutto
-  «Aggiornata» e niente da scaricare.
+  «Aggiornata» e niente da scaricare. Dalla revisione anche: togliere e rimettere la mod nella stessa sessione;
+  elenco illeggibile senza rete, con i file del catalogo e della musica che restano; `hashes.json` salvato.
 
 ## Nel gioco (da fare, nell'ordine)
 
@@ -64,11 +74,16 @@ Single player con la musica demo (`README_ADMIN.md`, passo 4), poi il server con
 | 23 | Carico | salute del server di ZomBOT con e senza jukebox accesi; un giro del server con 2 jukebox |
 | 24 | Log | nessun errore Lua |
 | -- | I CD del gioco | un disco trovato nel mondo (per esempio Every Reason) entra nel jukebox e canta; uno senza audio (Carmina Burana) è rifiutato; l'admin ne crea uno dalla finestra «Jukebox» |
+| -- | Single player | la finestra si apre e la musica parte senza server (prima prova da fare) |
+| -- | Due client vicini, un pezzo solo | ognuno sente il brano una volta, senza eco (`playSoundImpl`, niente suono rimandato dalla rete) |
+| -- | Dopo un riavvio del server | trascinare nel jukebox un'ascia o uno zaino dalla finestra del bottino: rifiutati; il titolo della finestra è «Jukebox» |
+| -- | Suono del gioco | con la nostra musica accesa non si sente sotto il suono d'ambiente del jukebox del gioco |
+| -- | Memoria | un'ora di musica diversa: la memoria del gioco cresce di circa 300 MB e non oltre riascoltando gli stessi brani; torna giù chiudendo il gioco |
 
 **Da guardare per primo**: se fra un pezzo e l'altro si sente un buco o un raddoppio. I pezzi si sovrappongono di
 250 ms con una dissolvenza; se non basta si cambia `OVERLAP_MS` in `tools/jukebox/audio.py` (e si rifà il catalogo),
 o si passa alla strada «brano successivo» di `DECISIONI.md`. Poi il suono d'ambiente del gioco (`JukeboxAmbiance`):
-se il jukebox convertito lo suona ancora sopra la musica.
+la mod lo toglie mentre suona la nostra musica, da sentire che non resti sotto.
 
 **Benchmark (AT-23)**: Moon non ha 8 client. Misura con la salute del server di ZomBOT (`/salute`) un'ora con e una
 senza jukebox accesi, con i giocatori di una sera normale. Il lavoro del server è un controllo ogni 250 ms per jukebox

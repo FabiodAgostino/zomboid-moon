@@ -33,7 +33,7 @@ Una proposta vale finché l'utente non dice altro.
 | 10 | Loot | Acceso e raro, solo aggiunte alle liste dei contenitori adatti (negozi di musica, camere, scaffali), scelti sulle distribuzioni della 42.21 |
 | 11 | Album tolti dal catalogo | Mai tolti dal pacchetto in automatico: l'oggetto resta e diventa «archiviato» (niente loot, niente spawn) |
 | 12 | Lingue | Italiano, con l'inglese di riserva |
-| 13 | Il suono vanilla `JukeboxAmbiance` | Sentirlo nel gioco. Se è musica, zittirlo mentre suona la nostra, se si può senza toccare i file del gioco |
+| 13 | Il suono vanilla `JukeboxAmbiance` | Fatto senza toccare i file del gioco: mentre suona la nostra musica ogni client toglie l'emettitore d'ambiente del jukebox convertito (`IsoChunk.removeObjectAmbientEmitter`, verificato nel jar 42.21). Da sentire nel gioco |
 | 14 | Benchmark con 8 client (AT-23) | Non abbiamo 8 client: misure con le sessioni vere e con la salute del server di ZomBOT, più una prova di carico del Lua in lupa |
 | 15 | ffmpeg | Installato il 5 novembre 2026 con il sì dell'utente (winget, Gyan.FFmpeg.Essentials 9.0.1) |
 | 16 | Il builder | Python (come `tools/kb` e `tools/silencermoon`), con ffmpeg e ffprobe. Musica sorgente fuori dal repo, per esempio in `%UserProfile%\Moon\musica` |

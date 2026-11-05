@@ -16,6 +16,7 @@ Core.HEAR_TILES = 40                  -- beyond this a client plays nothing for 
 Core.LEAD_MS = 1200                   -- a track starts this long after the command, so every client knows in time
 Core.JOIN_MS = 300                    -- a client joining within this much of a piece's start plays that piece
 Core.SPAWN_MAX = 20                   -- CDs an admin can make at once
+Core.ADMIN_NOTICES = { notadmin = true, badcount = true, noalbum = true, spawned = true }   -- for the admin window
 
 -- The options of sandbox-options.txt, with the defaults of the specification when SandboxVars has none.
 Core.DEFAULTS = {

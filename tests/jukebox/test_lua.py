@@ -142,6 +142,21 @@ def test_the_game_wiping_accept_functions_does_not_lose_ours():
     assert lua.eval("type(AcceptItemFunction.JukeboxMoon)") == "function"
 
 
+@pytest.mark.parametrize("side", ["server", "client"])
+def test_a_jukebox_loaded_again_gets_its_cd_only_rule_back(side):
+    # the accept function is not saved: after a restart, or when the square is loaded again, the server would let
+    # anything in, and the loot window would not filter
+    lua = runtime("JukeboxMoon/Box", catalog=catalog(), **{side: True})
+    lua.execute(WORLD + """
+        local o = IsoThumpable.new(nil, SQ, "recreational_01_1", false, {})
+        o:setIsContainer(true); o.container:setType("jukeboxmoon"); SQ:AddSpecialObject(o)
+        loadSquare(SQ)
+    """)
+    assert lua.eval("jukebox().container:getAcceptItemFunction()") == "AcceptItemFunction.JukeboxMoon"
+    assert lua.eval("AcceptItemFunction.JukeboxMoon(jukebox().container, newItem('Base.Axe'))") is False
+    assert lua.eval("VANILLA.container") is None                    # the game's own tile is left alone
+
+
 # ------------------------------------------------------------------------------------------------ playing
 
 
@@ -260,6 +275,46 @@ def test_shuffle_is_the_servers_never_repeats_and_is_the_same_every_time():
     assert all(a != b for a, b in zip(first, first[1:]))
     assert len(set(first)) > 1
     assert lua.eval("jukebox().modData.jbm.shuffle") is True
+
+
+def test_every_switch_on_takes_a_new_random_order():
+    def order(start):
+        lua = opened(server())
+        lua.execute(f"NOW = {start}; put('JukeboxMoon.CD_1'); put('JukeboxMoon.CD_2'); "
+                    f"cmd('shuffle', {{ x = 10, y = 20, z = 0, on = true }}); cmd('play', at())")
+        tracks = [lua.eval("lastAll().args.track")]
+        for _ in range(5):
+            lua.execute("NOW = NOW + 1000; cmd('next', at())")
+            tracks.append(lua.eval("lastAll().args.track"))
+        return tuple(tracks)
+    assert order(200000) == order(200000)                         # the same moment, the same order: testable
+    assert len({order(200000 + k * 7777) for k in range(5)}) > 1  # another moment, another order
+
+
+def test_hello_and_ping_at_most_once_a_second():
+    lua = server()
+    lua.execute("cmd('hello', { t0 = 1 }); cmd('hello', { t0 = 2 }); cmd('ping', { t0 = 3 }); cmd('ping', { t0 = 4 })")
+    assert [c.command for c in lua.eval("TO_ONE").values()] == ["welcome", "pong"]
+    lua.execute("NOW = NOW + 1000; cmd('hello', { t0 = 5 })")
+    assert lua.eval("lastOne().command") == "welcome" and lua.eval("lastOne().args.t0") == 5
+
+
+def test_single_player_works_without_a_network():
+    # in single player sendServerCommand sends nothing: the answers must reach the local game anyway
+    lua = runtime("JukeboxMoon/Server", "JukeboxMoon/Accept", "JukeboxMoon/Player", catalog=catalog())
+    lua.execute(WORLD + """
+        LOCAL = P
+        HEARD = {}
+        table.insert(JukeboxMoon.Player.listeners, function(kind) table.insert(HEARD, kind) end)
+        fire("OnTick")                                              -- hello, answered at once
+        JukeboxMoon.Player.send("open", at())
+    """)
+    heard = list(lua.eval("HEARD").values())
+    assert "welcome" in heard and "opened" in heard and lua.eval("#TO_ALL + #TO_ONE") == 0
+    lua.execute("put('JukeboxMoon.CD_1'); JukeboxMoon.Player.send('play', at()); tick(1200)")
+    assert lua.eval("#PLAYED") == 1 and lua.eval("PLAYED[1].name") == "JukeboxMoon_T1_S0"
+    # the game's own jukebox sound does not play under the music
+    assert lua.eval("CHUNK.ambient[jukebox()]") is None
 
 
 def test_shuffle_off_when_the_server_does_not_allow_it():
@@ -505,8 +560,12 @@ def test_the_key_is_written_for_the_launcher_only_when_it_is_a_key():
 def test_the_local_volume_is_kept_on_this_computer():
     lua = client()
     lua.execute("state(1, 1, serverNow()); tick(0); JukeboxMoon.Player.setVolume(0.3)")
+    assert lua.eval("PLAYED[1].emitter.volumes[PLAYED[1].id]") == pytest.approx(0.3)   # the sound at once
+    assert lua.eval('FILES["JukeboxMoon_volume.txt"]') is None                         # the file once it stops
+    lua.execute("JukeboxMoon.Player.setVolume(0.4); tick(500); JukeboxMoon.Player.setVolume(0.3); tick(500)")
+    assert lua.eval('FILES["JukeboxMoon_volume.txt"]') is None
+    lua.execute("tick(500)")
     assert lua.eval('FILES["JukeboxMoon_volume.txt"]') == "0.3"
-    assert lua.eval("PLAYED[1].emitter.volumes[PLAYED[1].id]") == pytest.approx(0.3)
     lua.execute("JukeboxMoon.Player.volume = 1; JukeboxMoon.Player.loadVolume()")
     assert lua.eval("JukeboxMoon.Player.volume") == pytest.approx(0.3)
 
@@ -544,6 +603,11 @@ def test_the_status_line_says_why_it_does_not_play():
     assert status(enabled=False) == "IGUI_JukeboxMoon_Status_Off"
     assert status(problem="nocatalog", on=True) == "IGUI_JukeboxMoon_Status_NoCatalog"
     assert status(problem="update") == "IGUI_JukeboxMoon_Status_Update"
+    mine = lua.eval("JukeboxMoon.Window.forJukebox")
+    assert mine(lua.table_from({"what": "nopower", "key": "10,20,0"}), "10,20,0")
+    assert not mine(lua.table_from({"what": "nopower", "key": "1,2,0"}), "10,20,0")      # another jukebox
+    assert mine(lua.table_from({"what": "far"}), "10,20,0")
+    assert not mine(lua.table_from({"what": "spawned", "count": 3}), "10,20,0")          # the admin window's
     row = lua.eval("JukeboxMoon.Window.rowText({ cd = 1, track = 2 })")
     assert row == "2. Secondo - Vari  (Estate è qui)"
     assert lua.eval("JukeboxMoon.Window.rowText({ cd = 1, track = 77 })") == "IGUI_JukeboxMoon_UnknownTrack"
@@ -676,3 +740,9 @@ def test_the_right_click_and_the_admin_button_are_registered():
     assert sent.command == "open" and (sent.args.x, sent.args.y, sent.args.z) == (10, 20, 0)
     ids = {(d.kind, d.id) for d in lua.eval("ZomBotMenu.defs").values()}
     assert ("extra", "jukeboxmoon") in ids and ("main", "jukeboxmoon") in ids
+    # a controller first asks whether there is an option: yes on a jukebox (setTest), nothing elsewhere
+    lua.execute("ISWorldObjectContextMenu = { setTest = function() TESTED = true return true end }; OPTIONS = {}")
+    assert lua.eval("JukeboxMoon.Context.onFill(0, MENU, { W }, true)") is True
+    assert lua.eval("TESTED") is True and lua.eval("#OPTIONS") == 0
+    lua.execute("TESTED = nil; SQ2 = newSquare(50, 50, 0); W2 = newObject(SQ2, 'walls', nil)")
+    assert lua.eval("JukeboxMoon.Context.onFill(0, MENU, { W2 }, true)") is None and lua.eval("TESTED") is None

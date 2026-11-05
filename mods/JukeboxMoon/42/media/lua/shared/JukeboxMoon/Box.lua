@@ -106,8 +106,9 @@ function Box.registerAccept()
 end
 Box.registerAccept()
 
--- What a converted jukebox's container must be. The accept function is not saved with the object: set again every
--- time the jukebox is opened or checked.
+-- What a converted jukebox's container must be. The accept function is not saved with the object (ItemContainer.save
+-- keeps type, capacity and items, not acceptItemFunction, 42.21) and without it the server lets anything in: set
+-- again when the jukebox is loaded (Box.onLoad), opened or checked.
 function Box.applyContainer(object)
 	local container = object and object:getContainer()
 	if not container then return end
@@ -118,13 +119,27 @@ function Box.applyContainer(object)
 	if not container:isExplored() then container:setExplored(true) end
 end
 
--- The jukebox's own settings, kept with the object: { shuffle = bool, rand = number }.
+-- The game's jukebox tiles (east and south), the same sprites the converted jukebox keeps.
+Box.SPRITES = { "recreational_01_0", "recreational_01_1" }
+
+-- Every time the game loads a square with one of them (a chunk loaded after a restart or when somebody comes near),
+-- on the server and on every client: a converted jukebox gets its accept function back. The game calls these hooks
+-- only for objects with those sprites (MapObjects.loadGridSquare from IsoChunk.doLoadGridsquare): nothing else costs.
+function Box.onLoad(object)
+	if Box.isConverted(object) then Box.applyContainer(object) end
+end
+
+if MapObjects and MapObjects.OnLoadWithSprite then
+	for _, sprite in ipairs(Box.SPRITES) do MapObjects.OnLoadWithSprite(sprite, Box.onLoad, 5) end
+end
+
+-- The jukebox's own settings, kept with the object: { shuffle = bool }. The random order is not kept: every
+-- switch-on takes a new one (Server.stateFor).
 function Box.settings(object)
 	local md = object:getModData()
 	if type(md.jbm) ~= "table" then md.jbm = {} end
 	local s = md.jbm
 	if type(s.shuffle) ~= "boolean" then s.shuffle = false end
-	if type(s.rand) ~= "number" then s.rand = 12345 end
 	return s
 end
 

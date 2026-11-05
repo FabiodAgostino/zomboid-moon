@@ -17,9 +17,12 @@ Niente di questo è stato fatto: ogni passo sul server, su GitHub e nel launcher
    - le opzioni, se vuoi cambiarle, in `amici_SandboxVars.lua`, sezione `JukeboxMoon` (sotto); senza, valgono quelle
      della specifica;
    - riavvia il server.
-5. **Accendi la mod nel launcher**: in `mods.json` sul ramo `main`, `"state": "installabile"` (togli `stateNote`).
-   Basta il commit: i launcher lo leggono all'avvio. Da quel momento GIOCA la installa a tutti, perché è
-   `required`: chi non ce l'ha riceverebbe dal server CD che il suo gioco non conosce.
+5. **Accendi la mod nel launcher**, solo quando tutti hanno il launcher 1.0.3: in `mods.json` sul ramo `main`,
+   `"state": "installabile"` (togli `stateNote`). Basta il commit: i launcher lo leggono all'avvio. Da quel momento
+   GIOCA la installa a tutti, perché è `required`: chi non ce l'ha riceverebbe dal server CD che il suo gioco non
+   conosce. **Un launcher 1.0.2 non conosce `pack`**: installerebbe solo il motore, senza l'elenco dei CD, e il server
+   non lo farebbe entrare (controllo dei file). Il launcher vecchio propone l'aggiornamento ma non lo impone: avvisa
+   i giocatori di aggiornarlo prima di questo passo. Dopo l'aggiornamento si sistema da solo.
 
 Chi usa `mod-moon-server.bat`, un Mac o Linux non ha il launcher: deve copiare a mano `mods/JukeboxMoon` del repo e
 il catalogo pubblico (lo zip `catalog-*.zip` della pre-release `jukebox`, scompattato nella stessa cartella). Senza
@@ -64,8 +67,9 @@ motore sul server) e riavvio. Il catalogo dice per quale motore è stato fatto (
 
 - **Catalogo**: `publish` di una versione vecchia di `dist`, riavvio. Se il catalogo vecchio non ha un album che è
   già nei salvataggi, quei CD diventano sconosciuti: torna indietro solo a cataloghi che li hanno.
-- **Motore**: la versione precedente si sceglie nel launcher; sul server, `Zomboid/mods/JukeboxMoon.old` è la copia
-  di prima dell'ultimo `publish`.
+- **Motore**: la versione precedente si sceglie nel launcher; sul server, `Zomboid/JukeboxMoon-publish/old` è la
+  copia di prima dell'ultimo `publish` (fuori da `mods`: due cartelle con lo stesso id in `mods` e il gioco potrebbe
+  caricare quella sbagliata).
 - **Togliere la mod**: togli `JukeboxMoon` da `Mods=`, riavvia, rimetti `"state": "disattivata"`. I jukebox
   convertiti restano jukebox con un contenitore: i CD dentro diventano oggetti sconosciuti.
 
@@ -75,10 +79,11 @@ motore sul server) e riavvio. Il catalogo dice per quale motore è stato fatto (
 |---|---|
 | Repo, `mods/JukeboxMoon` | Il motore |
 | Repo, `tools/jukebox` | Il builder |
-| PC dell'admin, cartella della musica | Brani, `album.json`, `jukebox.lock.json`, `jukebox.key`, la cache dei pezzi |
+| PC dell'admin, cartella della musica | Brani, `album.json`, `jukebox.lock.json`, `jukebox.key` (e `jukebox.key.<id>`, le chiavi di prima), la cache dei pezzi |
 | PC dell'admin, `dist/<versione>` | I pacchetti costruiti |
 | GitHub, pre-release `jukebox` | `manifest.json`, `manifest-<versione>.json`, `catalog-*.zip`, `a*-*.jbm` (cifrati) |
 | cirene, `~/server/zomboid/live/Zomboid/mods/JukeboxMoon` | Motore + elenco dei CD, senza audio |
+| cirene, `~/server/zomboid/live/Zomboid/JukeboxMoon-publish/old` | La copia di prima dell'ultimo `publish` |
 | cirene, `~/server/zomboid/live/Zomboid/Lua/JukeboxMoon_server_key.txt` | La chiave (solo il proprietario la legge) |
 | PC di un giocatore, `%UserProfile%\Zomboid\mods\JukeboxMoon` | Motore, elenco dei CD e audio, dal launcher |
 | PC di un giocatore, `%UserProfile%\Zomboid\Lua\JukeboxMoon_key.txt` | La chiave, scritta dal gioco |

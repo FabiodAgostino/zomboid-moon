@@ -46,7 +46,6 @@ function Context.onChoose(worldobjects, object, playerNum)
 end
 
 function Context.onFill(playerNum, context, worldobjects, test)
-	if test then return true end
 	local found = nil
 	for _, object in ipairs(worldobjects or {}) do
 		if Box.isJukebox(object) then found = object end
@@ -58,6 +57,8 @@ function Context.onFill(playerNum, context, worldobjects, test)
 		if found then break end
 	end
 	if not found then return end
+	-- a controller asks first whether there is anything to show (the game reads ISWorldObjectContextMenu.Test)
+	if test then return ISWorldObjectContextMenu.setTest() end
 	context:addOption(getText("ContextMenu_JukeboxMoon_Open"), worldobjects, Context.onChoose, found, playerNum)
 end
 

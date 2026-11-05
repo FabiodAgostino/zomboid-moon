@@ -31,8 +31,16 @@ gioco nominato qui è verificato nel jar della 42.21 (`javap`) o nel suo Lua.
   niente copie: contro i doppioni lavora il gioco.
 - Un jukebox con CD dentro non si raccoglie (il gioco rifiuta un contenitore non vuoto,
   `isObjectNoContainerOrEmpty`). Se sparisce in altro modo, la musica si ferma.
-- La funzione di accettazione non si salva con l'oggetto: la registriamo dopo `server/Items/AcceptItemFunction.lua`
-  (che la svuota) e la rimettiamo sul contenitore a ogni apertura e a ogni controllo del server.
+- La funzione di accettazione non si salva con l'oggetto (`ItemContainer.save` tiene tipo, capacità e oggetti, non
+  `acceptItemFunction`), e senza il server lascia entrare qualsiasi cosa. La registriamo dopo
+  `server/Items/AcceptItemFunction.lua` (che la svuota) e la rimettiamo sul contenitore ogni volta che il gioco carica
+  la casella, sul server e su ogni client (`MapObjects.OnLoadWithSprite` sulle due sprite: il gioco chiama l'aggancio
+  solo per gli oggetti con quelle sprite, niente scansioni), a ogni apertura e a ogni controllo del server.
+- Il titolo nella finestra del bottino è `IGUI_ContainerTitle_jukeboxmoon` («Jukebox»).
+- Il suono d'ambiente del gioco: la sprite ha `AmbientSound = JukeboxAmbiance`, e il gioco dà un emettitore d'ambiente
+  a ogni oggetto con quella proprietà quando entra nel mondo (`IsoObject.addToWorld`), anche al jukebox convertito.
+  Mentre suona la nostra musica ogni client lo toglie (`IsoChunk.removeObjectAmbientEmitter`; il gioco ferma ciò che
+  non è più nell'elenco, `ObjectAmbientEmitters.stopNotPlaying`); torna quando la casella si ricarica.
 
 ### Lo stato
 
@@ -42,8 +50,13 @@ del suo orologio (`getTimestampMs`), casuale e stato del generatore. A ogni camb
 `state {key, x, y, z, on, seq, track, cd, start, ends, reason}` (`sendServerCommand`); a chi entra, alla richiesta
 `hello`, la lista intera. Niente scansioni della mappa: i client conoscono i jukebox dal server.
 
+In single player non c'è rete e `sendServerCommand` non manda niente (solo con `GameServer.server`, 42.21): il server
+dà i messaggi al gioco locale con `triggerEvent("OnServerCommand", …)`, come fanno i file del gioco con
+`if isServer() then … else … end`. Nell'altro verso il gioco li porta da solo (`SinglePlayerServer`).
+
 - Avanti, indietro, scelta, casuale: comandi al server, controllati (vivo, stesso piano, entro `USE_TILES` caselle,
-  oggetto giusto, CD e traccia presenti nel contenitore, al massimo 8 comandi ogni 4 s a giocatore).
+  oggetto giusto, CD e traccia presenti nel contenitore, al massimo 8 comandi ogni 4 s a giocatore; `hello` e `ping`
+  al massimo uno al secondo ciascuno).
 - Fine del brano: la decide il server dalla durata scritta nel catalogo, mai un client.
 - Ogni brano parte `LEAD_MS` (1,2 s) dopo il comando o la fine del precedente, perché la notizia arrivi a tutti prima.
 - Ogni secondo, per i jukebox accesi con la casella caricata sul server: oggetto ancora lì, corrente, contenuto. Un CD
@@ -52,10 +65,10 @@ del suo orologio (`getTimestampMs`), casuale e stato del generatore. A ogni camb
   (`ObjectAmbientEmitters$AmbientSoundLogic`). Senza, stop («Nessuna alimentazione») e niente ripartenza.
 - Casella non caricata sul server (nessuno vicino): il jukebox continua a suonare per conto suo con la playlist che
   conosce; i controlli riprendono quando la casella torna.
-- Riavvio: lo stato non si salva (V1), quindi dopo un riavvio i jukebox sono spenti. Restano nell'oggetto (modData
-  `jbm`) solo casuale e generatore.
-- Casuale deterministico: un generatore Park-Miller (16807, modulo 2^31 - 1) che sta nello stato del server; il
-  brano dopo non è mai lo stesso.
+- Riavvio: lo stato non si salva (V1), quindi dopo un riavvio i jukebox sono spenti. Resta nell'oggetto (modData
+  `jbm`) solo la scelta «casuale».
+- Casuale: un generatore Park-Miller (16807, modulo 2^31 - 1) che sta nello stato del server, con un seme nuovo a
+  ogni accensione (dall'ora del server e dalla posizione del jukebox); il brano dopo non è mai lo stesso.
 
 ### Il suono: pezzi da 10 s
 
@@ -79,10 +92,14 @@ stereo arriva comunque da un punto solo. Decodificare un pezzo da 10 s richiede 
 
 Il client (`client/JukeboxMoon/Player.lua`), a ogni tick, per ogni jukebox acceso entro `HEAR_TILES` (40 caselle):
 calcola l'ora del server (`getTimestampMs() + offset`), il pezzo del momento e lo fa partire
-(`getWorld():getFreeEmitter(x, y, z)`, `playSound`, `set3D`, `setVolume`). Se arriva a metà di un pezzo aspetta il
-successivo (al massimo 10 s di silenzio): così chi arriva tardi, chi si riavvicina e chi rientra sente lo stesso
-punto degli altri (FR-03, AT-07, AT-08). Fuori dal raggio non suona niente e non decide niente (AT-09). Il volume è
-del giocatore (cursore della finestra, salvato solo sul suo PC).
+(`getWorld():getFreeEmitter(x, y, z)`, `playSoundImpl(nome, false, nil)`, `set3D`, `setVolume`). **Non
+`playSound`**: su un client manda il suono anche agli altri client vicini (`GameClient.PlayWorldSound` per un
+emettitore senza oggetto, 42.21), che suonano già il loro pezzo e lo sentirebbero due volte, in ritardo.
+`playSoundImpl` a tre argomenti è l'unica versione con quel numero di argomenti (nessuna scelta ambigua per Kahlua) e
+suona solo qui. Se arriva a metà di un pezzo aspetta il successivo (al massimo 10 s di silenzio): così chi arriva
+tardi, chi si riavvicina e chi rientra sente lo stesso punto degli altri (FR-03, AT-07, AT-08). Fuori dal raggio non
+suona niente e non decide niente (AT-09). Il volume è del giocatore (cursore della finestra, salvato solo sul suo PC
+un secondo dopo l'ultimo movimento).
 
 L'orologio: il client chiede `ping {t0}`, il server risponde con il suo `getTimestampMs()`; l'offset è quello del
 campione con il viaggio più breve fra gli ultimi otto (cinque all'ingresso, poi uno ogni 5 minuti).

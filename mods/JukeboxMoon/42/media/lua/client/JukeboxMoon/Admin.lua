@@ -132,7 +132,7 @@ end
 
 table.insert(Player.listeners, function(kind, data)
 	local window = Admin.instance
-	if not window or kind ~= "notice" then return end
+	if not window or kind ~= "notice" or type(data) ~= "table" or not Core.ADMIN_NOTICES[data.what] then return end
 	if data.what == "spawned" then
 		window.noticeText = getText("IGUI_JukeboxMoon_Notice_spawned", tostring(data.count or 0))
 	else

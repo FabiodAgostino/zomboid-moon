@@ -27,6 +27,7 @@ JukeboxMoon.Window = Window
 Window.WIDTH = 540
 Window.HEIGHT = 470
 Window.NOTICE_MS = 5000
+Window.SHUFFLE_HOLD_MS = 1500
 
 local PAD = 10
 
@@ -211,7 +212,8 @@ function JukeboxMoonWindow:update()
 	local converted = Box.isConverted(object)
 	local state = Player.boxes[self.key]
 	local shuffle = (state and state.on and state.shuffle) or (converted and Box.settings(object).shuffle) or false
-	self.shuffleBox:setSelected(1, shuffle == true)
+	-- after a click the tick waits for the server's answer instead of jumping back for a moment
+	if t >= (self.shuffleHoldUntil or 0) then self.shuffleBox:setSelected(1, shuffle == true) end
 	self.shuffleBox:setVisible(Core.option("ShuffleAllowed") == true)
 	local ready = converted and Player.problem() == nil and Core.option("Enabled")
 	self.playButton:setEnable(ready)
@@ -306,6 +308,7 @@ function JukeboxMoonWindow:onPrev() Player.send("prev", self:args()) end
 function JukeboxMoonWindow:onNext() Player.send("next", self:args()) end
 
 function JukeboxMoonWindow:onShuffle(index, selected)
+	self.shuffleHoldUntil = getTimestampMs() + Window.SHUFFLE_HOLD_MS
 	Player.send("shuffle", self:args({ on = selected == true }))
 end
 
@@ -319,6 +322,7 @@ function JukeboxMoonWindow:notice(what)
 end
 
 function JukeboxMoonWindow:close()
+	Player.saveVolume(true)
 	ISCollapsableWindow.close(self)
 	self:removeFromUIManager()
 	if Window.instance == self then Window.instance = nil end
@@ -343,10 +347,15 @@ function Window.open(bx, by, bz)
 	return window
 end
 
+-- The notices of this jukebox, and "far" (which has no jukebox); never the admin window's.
+function Window.forJukebox(data, key)
+	if type(data) ~= "table" or Core.ADMIN_NOTICES[data.what] then return false end
+	return data.key == key or (data.key == nil and data.what == "far")
+end
+
 table.insert(Player.listeners, function(kind, data)
 	local window = Window.instance
-	if not window then return end
-	if kind == "notice" and (data.key == nil or data.key == window.key) then
+	if window and kind == "notice" and Window.forJukebox(data, window.key) then
 		window:notice(data.what)
 	end
 end)
