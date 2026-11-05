@@ -72,17 +72,18 @@ def build(music: Path, dist: Path, replace: set[str] = frozenset(), forget: set[
                                                 artist=track.artist, ms=cut.ms, segments=len(cut.pieces)))
         outs.append(generate.AlbumOut(key=entry["key"], id=album.id, title=album.title, artist=album.artist,
                                       year=album.year, loot=album.loot, archived=album.archived, tracks=track_outs,
-                                      cover=album.cover.read_bytes() if album.cover else None))
+                                      cover=album.cover.read_bytes() if album.cover else None, media=album.media))
         audio_by_album.append((entry["key"], album.id, files))
         all_audio.update(files)
     outs.sort(key=lambda a: a.key)
     audio_by_album.sort()
 
     metadata = [{"key": a.key, "id": a.id, "title": a.title, "artist": a.artist, "year": a.year, "loot": a.loot,
-                 "archived": a.archived,
+                 "archived": a.archived, "media": a.media,
                  "tracks": [vars(t) for t in a.tracks]} for a in outs]
     placeholder = generate.public_files("", outs)
-    version = package.version_of(placeholder, all_audio, {"albums": metadata, "engine": engine_version()})
+    version = package.version_of(placeholder, all_audio,
+                                 {"albums": metadata, "engine": engine_version(), "generator": generate.VERSION})
     public = generate.public_files(version, outs)
 
     key_path = music / package.KEY_FILE

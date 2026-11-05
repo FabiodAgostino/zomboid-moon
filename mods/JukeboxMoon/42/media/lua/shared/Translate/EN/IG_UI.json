@@ -37,5 +37,6 @@
     "IGUI_JukeboxMoon_AdminPick": "Pick an album:",
     "IGUI_JukeboxMoon_Count": "How many: %1",
     "IGUI_JukeboxMoon_Make": "Make the CDs",
-    "IGUI_JukeboxMoon_Tracks": "%1 tracks"
+    "IGUI_JukeboxMoon_Tracks": "%1 tracks",
+    "IGUI_JukeboxMoon_GameCD": "the game's CD"
 }

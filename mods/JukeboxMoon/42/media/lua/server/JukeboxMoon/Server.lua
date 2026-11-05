@@ -482,11 +482,19 @@ function Commands.spawn(player, args)
 		if a.key == tonumber(args.album) then album = a end
 	end
 	if not album then return notice(player, "noalbum") end
+	-- a CD of the game: the game's disc with that recording
+	local media = nil
+	if album.media then
+		local ok, found = pcall(function() return getZomboidRadio():getRecordedMedia():getMediaData(album.media) end)
+		media = ok and found or nil
+		if not media then return notice(player, "noalbum") end
+	end
 	local inventory = player:getInventory()
 	local made = 0
 	for _ = 1, count do
-		local item = inventory:AddItem(album.item)
+		local item = inventory:AddItem(album.item or Catalog.GAME_CD)
 		if item then
+			if media then item:setRecordedMediaData(media) end
 			made = made + 1
 			if isServer() then sendAddItemToContainer(inventory, item) end
 		end

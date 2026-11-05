@@ -29,7 +29,9 @@ function Admin.albumText(album)
 	local text = tostring(album.title)
 	if album.artist and album.artist ~= "" then text = text .. " - " .. tostring(album.artist) end
 	if album.year then text = text .. " (" .. tostring(album.year) .. ")" end
-	return text .. ", " .. getText("IGUI_JukeboxMoon_Tracks", tostring(#album.tracks))
+	text = text .. ", " .. getText("IGUI_JukeboxMoon_Tracks", tostring(#album.tracks))
+	if album.media then text = text .. " - " .. getText("IGUI_JukeboxMoon_GameCD") end
+	return text
 end
 
 JukeboxMoonAdminWindow = ISCollapsableWindow:derive("JukeboxMoonAdminWindow")

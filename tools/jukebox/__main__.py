@@ -6,6 +6,7 @@
     python -m tools.jukebox install  --package <dist>/<versione> --source <musica> [--zomboid <cartella>]
     python -m tools.jukebox publish  --package <dist>/<versione> --source <musica> [--no-github] [--no-server]
     python -m tools.jukebox demo     --out <cartella>
+    python -m tools.jukebox import-radiovoices --radiovoices <mod Radio Voices> --out <musica> [--game <gioco>]
 
 Servono Python con Pillow, numpy (solo demo) e cryptography, e ffmpeg con ffprobe. La guida è README_ADMIN.md.
 """
@@ -17,7 +18,7 @@ import json
 import sys
 from pathlib import Path
 
-from . import build, demo, package, publish
+from . import build, demo, package, publish, radiovoices
 from .source import SourceError
 
 
@@ -76,6 +77,11 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("demo", help="scrive una cartella di musica di prova (due album, tre brani)")
     p.add_argument("--out", required=True, type=Path)
 
+    p = sub.add_parser("import-radiovoices", help="i CD del gioco con l'audio di Radio Voices, nella cartella della musica")
+    p.add_argument("--radiovoices", required=True, type=Path, help="la cartella della mod Radio Voices")
+    p.add_argument("--out", required=True, type=Path, help="la cartella della musica (fuori dal repo)")
+    p.add_argument("--game", type=Path, default=radiovoices.STEAM_GAME, help="la cartella di Project Zomboid")
+
     args = parser.parse_args(argv)
     try:
         if args.command == "validate":
@@ -113,6 +119,11 @@ def main(argv: list[str] | None = None) -> int:
                 publish.github(args.package, args.dry_run, args.prune, _log)
             if not args.no_server:
                 publish.server(args.package, args.source, args.host, args.mods, args.lua, args.dry_run, _log)
+        elif args.command == "import-radiovoices":
+            plans = radiovoices.import_cds(args.radiovoices, args.out, args.game, _log)
+            done = [p for p in plans if p.songs or p.read]
+            _log(f"{len(done)} CD del gioco su {len(plans)} in {args.out / 'albums'} (cartelle cd-*): "
+                 f"{sum(len(p.songs) for p in done)} canzoni, {sum(1 for p in done if p.read)} letture.")
         elif args.command == "demo":
             out = demo.make(args.out)
             _log(f"Musica di prova in {out}.")

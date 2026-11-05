@@ -14,6 +14,7 @@ import json
 import math
 import shutil
 import subprocess
+import time
 import wave
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
@@ -51,6 +52,19 @@ def run(args: list[str]) -> subprocess.CompletedProcess:
         tail = "\n".join(result.stderr.strip().splitlines()[-5:])
         raise SourceError(f"{Path(args[0]).name} non è riuscito:\n{tail}")
     return result
+
+
+def rename(source: Path, target: Path, attempts: int = 20) -> None:
+    """Rename a file or folder, trying again for a few seconds: on Windows an antivirus that is still reading the
+    files just written makes the rename fail with «Accesso negato»."""
+    for attempt in range(attempts):
+        try:
+            Path(source).replace(target)
+            return
+        except PermissionError:
+            if attempt == attempts - 1:
+                raise
+            time.sleep(0.5)
 
 
 def probe(path: Path) -> float:
@@ -124,5 +138,5 @@ def cut(source: Path, source_sha: str, music: Path, workers: int = 4) -> Cut:
     wav.unlink()
     (tmp / "meta.json").write_text(json.dumps({"ms": ms, "segments": count, "settings": SETTINGS}), encoding="utf-8")
     shutil.rmtree(folder, ignore_errors=True)
-    tmp.replace(folder)
+    rename(tmp, folder)
     return Cut(ms=ms, pieces=[folder / f"s{k:03d}.ogg" for k in range(count)])

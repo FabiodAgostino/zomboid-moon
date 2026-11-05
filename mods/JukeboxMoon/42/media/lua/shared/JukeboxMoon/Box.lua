@@ -74,7 +74,8 @@ function Box.keyOf(object)
 	return Core.key(object:getX(), object:getY(), object:getZ())
 end
 
--- The CDs in the container, in its order: { { id, type, item } }. Anything else is skipped (nothing else gets in).
+-- The CDs in the container, in its order: { { id, album, item } } (album: the catalogue's key). Anything else is
+-- skipped (nothing else gets in).
 function Box.cds(object)
 	local out = {}
 	local container = object and object:getContainer()
@@ -82,15 +83,16 @@ function Box.cds(object)
 	local items = container:getItems()
 	for i = 0, items:size() - 1 do
 		local item = items:get(i)
-		if Catalog.isCD(item) then
-			out[#out + 1] = { id = item:getID(), type = item:getFullType(), item = item }
+		local album = Catalog.albumOf(item)
+		if album then
+			out[#out + 1] = { id = item:getID(), album = album.key, item = item }
 		end
 	end
 	return out
 end
 
--- The game calls AcceptItemFunction.JukeboxMoon(container, item) for every item put in: only CDs of the catalogue,
--- and no more than the server's limit.
+-- The game calls AcceptItemFunction.JukeboxMoon(container, item) for every item put in: only CDs of the catalogue
+-- (ours, and the game's whose recording it has), and no more than the server's limit.
 function Box.accepts(container, item)
 	if not Catalog.isCD(item) then return false end
 	local ok, count = pcall(function() return container:getItems():size() end)

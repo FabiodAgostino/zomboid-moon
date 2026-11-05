@@ -7,6 +7,7 @@
 | Poster, icona, icone dei CD e copertine disegnate | Moon | Fatti con forme e numeri (`tools/jukebox/art.py`, `generate.py`) |
 | Musica demo | nessuno: libera | Fatta con dei numeri da `tools/jukebox/demo.py`, nessuna registrazione |
 | Modello del CD nel mondo (`WorldStaticModel = Disk`) | The Indie Stone | Il modello del gioco, solo nominato: nessun file copiato |
+| Audio dei CD del gioco (`import-radiovoices`) | Espaidi, Radio Voices (Workshop 3828360540); voci ElevenLabs, canzoni Suno e alcune canzoni vere dei loro autori | Il permesso lo chiede l'admin (decisione dell'utente). Mai in git; su GitHub solo cifrato |
 | La musica dei cataloghi | i suoi autori | Responsabilità di chi la pubblica. Il repo non contiene brani; GitHub solo l'audio cifrato |
 
 ## True Moozic B42+

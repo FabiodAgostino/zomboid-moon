@@ -12,4 +12,6 @@
   per ora di gioco), niente per chi è sordo, metà per chi sente poco.
 - CD nel bottino (raro) e creati dagli admin dalla finestra di ZomBOT.
 - Il builder dei CD (`tools/jukebox`): validate, build, manifest, install, publish, demo.
+- I CD del gioco suonano nel jukebox: `import-radiovoices` fa un album per ognuno dall'audio di Radio Voices (61 su 69),
+  e il jukebox li riconosce dalla registrazione.
 - Il launcher 1.0.3 scarica il catalogo pubblico e, con la chiave che il gioco dà a chi entra su Moon, la musica cifrata.

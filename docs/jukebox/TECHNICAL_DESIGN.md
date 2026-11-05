@@ -105,6 +105,21 @@ legge la prima volta che serve. Senza catalogo, o con una versione diversa da qu
 Gli id numerici (`key`) di album e tracce li assegna il builder e li ricorda in `jukebox.lock.json`, nella cartella
 della musica: non cambiano mai, e un album tolto diventa «archiviato» (resta l'oggetto, niente bottino né spawn).
 
+### I CD del gioco
+
+Il gioco ha un solo oggetto CD, `Base.Disc_Retail`, con una registrazione (`item:getMediaData():getId()`, uno dei
+69 `RecMedia` di categoria `CDs`). Un album del catalogo con `media` invece di `item` è un CD del gioco:
+`Catalog.albumOf` lo riconosce dalla registrazione, e il jukebox lo accetta solo se il catalogo ce l'ha. Per questi
+album il builder non scrive oggetti, icone né nomi; non entrano nel bottino (ci sono già); l'admin li crea come
+`Base.Disc_Retail` con `item:setRecordedMediaData(getZomboidRadio():getRecordedMedia():getMediaData(id))`.
+
+L'audio viene da Radio Voices (`tools/jukebox/radiovoices.py`): ogni riga del gioco ha la sua chiave (il testo
+inglese normalizzato come fa `RadioVoices.normalize`); le canzoni (`RadioVoices.songs`) elencano le righe che cantano
+e hanno la canzone intera in un suono (`starts[1]`, `RV_s_<id>_0`). Le tracce di un CD sono le canzoni che coprono
+almeno tre delle sue righe, la più ampia per prima (due versioni di una canzone hanno le prime righe in comune), in
+ordine di inizio; un CD senza canzoni ma con le righe lette (audiolibri, Bibbia, storia) è una traccia sola, le frasi
+una dopo l'altra con 0,6 s di pausa.
+
 ### Bottino e spawn
 
 - `server/JukeboxMoon/Distributions.lua`, `OnPreDistributionMerge`: i CD si aggiungono alle liste del gioco che hanno

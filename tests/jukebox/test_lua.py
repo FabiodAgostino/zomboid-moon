@@ -22,6 +22,7 @@ from tools.jukebox import generate  # noqa: E402
 from tools.jukebox.generate import AlbumOut, TrackOut  # noqa: E402
 
 KEY = "ab" * 32
+GAME_MEDIA = "89108e07-fc70-4eec-a267-790d6f4b9831"
 KEY_ID = "0123456789abcdef"
 
 
@@ -34,6 +35,9 @@ def catalog() -> str:
                  tracks=[TrackOut(4, "d", 1, "Quarto", "D", 30000, 3)], cover=None),
         AlbumOut(key=3, id="vecchio", title="Vecchio", artist="", year=None, loot=2.0, archived=True,
                  tracks=[TrackOut(5, "e", 1, "Quinto", "", 15000, 2)], cover=None),
+        AlbumOut(key=4, id="cd-89108e07", title="Your Smile. Your Kiss.", artist="Every Reason", year=1993, loot=0.0,
+                 archived=False, tracks=[TrackOut(6, "s-1", 1, "I don't know", "", 20000, 2)], cover=None,
+                 media=GAME_MEDIA),
     ]
     return generate.catalog_lua("v1test", albums)
 
@@ -103,6 +107,32 @@ def test_only_catalogue_cds_get_in_up_to_the_limit():
     assert lua.eval("accept(newItem('JukeboxMoon.CD_99'))") is False
     lua.execute("SandboxVars.JukeboxMoon.MaxCDsPerJukebox = 2; put('JukeboxMoon.CD_1'); put('JukeboxMoon.CD_2')")
     assert lua.eval("accept(newItem('JukeboxMoon.CD_1'))") is False
+
+
+def test_the_games_cds_get_in_only_when_the_catalogue_has_their_recording():
+    lua = opened(server())
+    lua.execute('C = jukebox().container; accept = function(item) return AcceptItemFunction.JukeboxMoon(C, item) end')
+    assert lua.eval(f'accept(newItem("Base.Disc_Retail", "{GAME_MEDIA}"))') is True
+    assert lua.eval('accept(newItem("Base.Disc_Retail", "00000000-0000-0000-0000-000000000000"))') is False
+    assert lua.eval('accept(newItem("Base.Disc_Retail", nil))') is False
+
+
+def test_a_game_cd_plays_its_album():
+    lua = opened(server())
+    lua.execute(f'D = newItem("Base.Disc_Retail", "{GAME_MEDIA}"); jukebox().container.items:add(D); put("JukeboxMoon.CD_2")')
+    lua.execute("cmd('play', at())")
+    state = lua.eval("lastAll().args")
+    assert state.track == 6 and state.cd == lua.eval("D.id") and state.count == 2 and state.ends == 101200 + 20000
+
+
+def test_admins_make_the_games_cds_with_their_recording():
+    lua = server()
+    lua.execute('P.admin = true; cmd("spawn", { album = 4, count = 2 })')
+    assert lua.eval("lastOne().args.what") == "noalbum"            # the game does not know the recording here
+    lua.execute(f'RECORDINGS["{GAME_MEDIA}"] = newMedia("{GAME_MEDIA}"); NOW = NOW + 5000; cmd("spawn", {{ album = 4, count = 2 }})')
+    assert lua.eval("P.inventory.items:size()") == 2
+    item = lua.eval("P.inventory.items:get(0)")
+    assert item.fullType == "Base.Disc_Retail" and item.media.id == GAME_MEDIA
 
 
 def test_the_game_wiping_accept_functions_does_not_lose_ours():
@@ -619,7 +649,8 @@ def test_the_generated_catalogue_is_ascii_and_loads():
     assert lua.eval("JukeboxMoon.Catalog.track(1).album.title") == "Estate è qui"
     assert lua.eval("JukeboxMoon.Catalog.soundName(12, 3)") == "JukeboxMoon_T12_S3"
     assert lua.eval("JukeboxMoon.Catalog.clock(187000)") == "3:07"
-    assert lua.eval("#JukeboxMoon.Catalog.activeAlbums()") == 2 and lua.eval("#JukeboxMoon.Catalog.albums()") == 3
+    assert lua.eval("#JukeboxMoon.Catalog.activeAlbums()") == 3 and lua.eval("#JukeboxMoon.Catalog.albums()") == 4
+    assert lua.eval("JukeboxMoon.Catalog.albumByKey(4).item") is None
 
 
 @pytest.mark.parametrize("path", lua_files(), ids=lambda p: p.name)

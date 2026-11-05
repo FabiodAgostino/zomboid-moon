@@ -36,9 +36,13 @@ Loot.BASE = {
 -- LootRarity: 1 rare, 2 normal, 3 common
 Loot.RARITY = { 1, 2.5, 5 }
 
--- { { item, weight } } for one list: its total shared by the albums.
+-- { { item, weight } } for one list: its total shared by the albums. The game's CDs (albums with `media`) are
+-- already in the loot as the game's discs.
 function Loot.weights(base)
-	local albums = Catalog.activeAlbums()
+	local albums = {}
+	for _, album in ipairs(Catalog.activeAlbums()) do
+		if album.item then albums[#albums + 1] = album end
+	end
 	local total = 0
 	for _, album in ipairs(albums) do total = total + math.max(0, tonumber(album.loot) or 1) end
 	local out = {}

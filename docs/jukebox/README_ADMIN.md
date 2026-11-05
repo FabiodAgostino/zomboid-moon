@@ -103,6 +103,31 @@ python -m tools.jukebox publish --package C:\Users\<te>\Moon\dist\<versione> --s
 `--dry-run` mostra i comandi senza eseguirli; `--no-github` o `--no-server` fanno una parte sola; `--prune` toglie da
 GitHub i file che nessuno degli ultimi tre elenchi usa.
 
+## I CD del gioco, con l'audio di Radio Voices
+
+I 69 CD che il gioco mette nel mondo non hanno audio: sono righe di testo. La mod Radio Voices (Steam Workshop
+3828360540, di Espaidi) li canta e li legge. L'importatore ne fa un album della tua cartella della musica per ogni CD
+del gioco che Radio Voices copre, e da lì quei dischi suonano nel jukebox: quelli che i giocatori trovano nel mondo,
+senza oggetti nuovi.
+
+1. Procurati la mod (per esempio iscrivendoti dal Workshop: la cartella è
+   `steamapps\workshop\content\108600\3828360540`). **Il permesso di Espaidi lo chiedi tu.**
+2. Importa:
+
+   ```bash
+   python -m tools.jukebox import-radiovoices --radiovoices <cartella di Radio Voices> --out C:\Users\<te>\Moon\musica
+   ```
+
+   Scrive (e riscrive) solo le cartelle `albums\cd-*`: i tuoi album non li tocca. Con la versione 1.1.2 di Radio
+   Voices sono 61 CD su 69, 37 canzoni e 24 letture, circa 89 minuti e 63 MB. Restano muti Carmina Burana, Constant
+   Worship 1 e 2, You're Gone, Who's Better?, Sarcastic, Raps for Christ e Reasons for War: Radio Voices non li canta.
+3. Poi come sempre `build` e `publish` (passi 3 e 5). Questi album non finiscono nel bottino (i dischi ci sono già)
+   e dalla finestra degli admin si creano come i CD del gioco, con la loro registrazione.
+
+Se Radio Voices si aggiorna e una canzone cambia, il builder si ferma come per ogni brano cambiato: `--replace
+cd-xxxxxxxx/s-xxxxxxxx`. Alcune canzoni sono vere (dei loro autori): la musica resta fuori da git, e su GitHub va solo
+cifrata.
+
 ## Domande
 
 **Un giocatore nuovo non sente niente.** È normale la prima volta: la chiave della musica gliela dà il server quando

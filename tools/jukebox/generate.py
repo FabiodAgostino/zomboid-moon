@@ -19,6 +19,7 @@ from PIL import Image, ImageDraw
 from .audio import OVERLAP_MS, SEGMENT_MS
 
 MODULE = "JukeboxMoon"
+VERSION = 2          # of these files: part of the catalogue's version, so a change here makes a new one
 DISTANCE_MIN = 3
 DISTANCE_MAX = 40
 ICON = 32
@@ -47,10 +48,11 @@ class AlbumOut:
     archived: bool
     tracks: list[TrackOut]
     cover: bytes | None      # the source image, or None for a drawn one
+    media: str | None = None  # a CD of the game: the game's disc (Base.Disc_Retail) with this recording plays it
 
     @property
-    def item(self) -> str:
-        return f"{MODULE}.CD_{self.key}"
+    def item(self) -> str | None:
+        return None if self.media else f"{MODULE}.CD_{self.key}"
 
 
 def lua_string(text: str) -> str:
@@ -82,7 +84,8 @@ def catalog_lua(version: str, albums: list[AlbumOut]) -> str:
     ]
     for a in albums:
         lines.append("\t\t{")
-        lines.append(f"\t\t\tkey = {a.key}, id = {lua_string(a.id)}, item = {lua_string(a.item)},")
+        source = f"media = {lua_string(a.media)}" if a.media else f"item = {lua_string(a.item)}"
+        lines.append(f"\t\t\tkey = {a.key}, id = {lua_string(a.id)}, {source},")
         lines.append(f"\t\t\ttitle = {lua_string(a.title)}, artist = {lua_string(a.artist)},")
         lines.append(f"\t\t\tyear = {a.year if a.year is not None else 'nil'}, loot = {_number(a.loot)}, "
                      f"archived = {'true' if a.archived else 'false'},")
@@ -99,7 +102,7 @@ def catalog_lua(version: str, albums: list[AlbumOut]) -> str:
 
 def items_script(albums: list[AlbumOut]) -> str:
     lines = ["module JukeboxMoon", "{", "    imports", "    {", "        Base", "    }", ""]
-    for a in albums:
+    for a in (a for a in albums if not a.media):
         lines += [
             f"    item CD_{a.key}",
             "    {",
@@ -143,7 +146,7 @@ def sounds_script(albums: list[AlbumOut]) -> str:
 
 
 def item_names(albums: list[AlbumOut]) -> str:
-    names = {a.item: f"CD: {a.title}" for a in albums}
+    names = {a.item: f"CD: {a.title}" for a in albums if not a.media}
     return json.dumps(names, ensure_ascii=False, indent=4, sort_keys=True) + "\n"
 
 
@@ -200,5 +203,6 @@ def public_files(version: str, albums: list[AlbumOut]) -> dict[str, bytes]:
     for a in albums:
         cover = cover_image(a)
         files[f"42/media/textures/JukeboxMoon/Cover_{a.key}.png"] = _png(cover)
-        files[f"42/media/textures/Item_JukeboxMoon_CD_{a.key}.png"] = _png(icon_image(cover))
+        if not a.media:
+            files[f"42/media/textures/Item_JukeboxMoon_CD_{a.key}.png"] = _png(icon_image(cover))
     return files

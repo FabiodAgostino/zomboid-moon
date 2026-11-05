@@ -14,11 +14,11 @@ JukeboxMoon.Playlist = Playlist
 Playlist.MODULUS = 2147483647
 Playlist.SEED = 12345
 
--- cds: { { id = number, type = "JukeboxMoon.CD_1" }, ... } in the container's order. Unknown items are skipped.
+-- cds: { { id = number, album = album key }, ... } in the container's order (Box.cds). Unknown albums are skipped.
 function Playlist.build(cds)
 	local entries = {}
 	for _, cd in ipairs(cds or {}) do
-		local album = Catalog.album(cd.type)
+		local album = Catalog.albumByKey(cd.album)
 		if album then
 			for _, track in ipairs(album.tracks) do
 				entries[#entries + 1] = { cd = cd.id, track = track.key, album = album.key, n = track.n }

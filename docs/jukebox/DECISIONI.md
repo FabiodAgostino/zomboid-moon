@@ -14,6 +14,7 @@ Una proposta vale finché l'utente non dice altro.
 | Chi arriva a brano iniziato | **Pezzi da circa 10 s.** Il builder taglia ogni brano; chi arriva, si riavvicina o rientra entra al pezzo successivo, e tutti sentono lo stesso punto. **Prima una prova nel gioco** con una mod minima che suona tre pezzi di fila: se la pausa fra i pezzi si sente, si passa a «brano successivo» (chi arriva tardi aspetta il brano dopo) |
 | Mod ID | **`JukeboxMoon`**, nome «Jukebox (Moon)». Lo stesso per il modulo degli oggetti |
 | Dove sta l'audio | Prima «su cirene, privato». Poi l'utente: «dobbiamo trovare un modo automatizzato per rendere tutto ciò sicuro» e «discord non deve centrare nulla». **Ora: cifrato (AES-256-GCM) in una pre-release `jukebox` di GitHub; la chiave la dà il server del gioco a chi entra, e il launcher la usa da solo.** Elenco dei CD pubblico, così chi non ha ancora la chiave entra lo stesso (senza musica). La licenza dei brani è dell'admin |
+| I CD del gioco | Richiesta dell'utente (5 novembre 2026): suonare i CD del gioco con l'audio di Radio Voices (Workshop 3828360540, Espaidi). «Per il permesso poi ci penso io, per le canzoni vere puoi tenerle tanto il server è privato... basta che non finisce su git». **Fatto**: importatore nel builder, il jukebox accetta i dischi del gioco dalla loro registrazione; audio solo nella cartella della musica e cifrato su GitHub |
 | Le proposte qui sotto | **Tenute tutte** (risposta dell'utente). Si cambiano quando vuole |
 
 ## Proposte tenute

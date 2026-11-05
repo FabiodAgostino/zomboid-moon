@@ -24,6 +24,8 @@ from pathlib import Path
 
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
+from .audio import rename
+
 MAGIC = b"JBM1"
 AAD = b"JukeboxMoon"
 ZIP_DATE = (2020, 1, 1, 0, 0, 0)
@@ -149,11 +151,11 @@ def write_package(dist: Path, version: str, package_version: str, key: bytes, pu
     if final.exists():
         old = dist / f".{version}.old"
         shutil.rmtree(old, ignore_errors=True)
-        final.replace(old)
-        tmp.replace(final)
+        rename(final, old)
+        rename(tmp, final)
         shutil.rmtree(old, ignore_errors=True)
     else:
-        tmp.replace(final)
+        rename(tmp, final)
     return final
 
 

@@ -23,6 +23,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 ID = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}$")
+MEDIA = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 AUDIO = {".mp3", ".flac", ".ogg", ".wav", ".m4a", ".opus", ".aac"}
 COVER = {".png", ".jpg", ".jpeg"}
 MAX_TITLE = 80
@@ -54,6 +55,7 @@ class Album:
     archived: bool
     folder: Path
     cover: Path | None
+    media: str | None = None      # a CD of the game (its recording's id): no new item, the game's disc plays it
     tracks: list[Track] = field(default_factory=list)
 
 
@@ -99,7 +101,7 @@ def load_album(folder: Path) -> Album:
         raise SourceError(f"{where}: non è un JSON valido in UTF-8 ({e}).") from e
     if not isinstance(data, dict):
         raise SourceError(f"{where}: deve essere un oggetto JSON.")
-    unknown = set(data) - {"id", "title", "artist", "year", "cover", "lootWeight", "archived", "tracks"}
+    unknown = set(data) - {"id", "title", "artist", "year", "cover", "lootWeight", "archived", "tracks", "vanillaMedia"}
     if unknown:
         raise SourceError(f"{where}: campi che non conosco: {', '.join(sorted(unknown))}.")
     album_id = data.get("id")
@@ -114,6 +116,10 @@ def load_album(folder: Path) -> Album:
     archived = data.get("archived", False)
     if not isinstance(archived, bool):
         raise SourceError(f"{where}: «archived» deve essere true o false.")
+    media = data.get("vanillaMedia")
+    if media is not None and (not isinstance(media, str) or not MEDIA.match(media)):
+        raise SourceError(f"{where}: «vanillaMedia» deve essere l'id di una registrazione del gioco "
+                          f"(come 89108e07-fc70-4eec-a267-790d6f4b9831).")
     cover = None
     if data.get("cover") is not None:
         cover = _inside(folder, data["cover"], "cover", where, COVER, MAX_COVER_BYTES)
@@ -126,6 +132,7 @@ def load_album(folder: Path) -> Album:
         archived=archived,
         folder=folder,
         cover=cover,
+        media=media,
     )
     tracks = data.get("tracks")
     if not isinstance(tracks, list) or not 1 <= len(tracks) <= MAX_TRACKS:
@@ -170,8 +177,14 @@ def load(source: Path) -> list[Album]:
     if not albums:
         raise SourceError(f"{source}: in «albums» non c'è nessun album.")
     ids: dict[str, str] = {}
+    media: dict[str, str] = {}
     for album in albums:
         if album.id in ids:
             raise SourceError(f"L'id «{album.id}» è sia in albums/{ids[album.id]} sia in albums/{album.folder.name}.")
         ids[album.id] = album.folder.name
+        if album.media:
+            if album.media in media:
+                raise SourceError(f"Il CD del gioco {album.media} è sia in albums/{media[album.media]} sia in "
+                                  f"albums/{album.folder.name}.")
+            media[album.media] = album.folder.name
     return sorted(albums, key=lambda a: a.id)

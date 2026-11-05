@@ -6,6 +6,9 @@
 --     { key = 1, id = "estate-1993", item = "JukeboxMoon.CD_1", title = "...", artist = "...", year = 1993,
 --       loot = 1.0, archived = false,
 --       tracks = { { key = 1, id = "traccia-01", n = 1, title = "...", artist = "...", ms = 183450, segments = 19 } } } } }
+--
+-- An album with `media` instead of `item` is a CD of the game: the game's disc (Base.Disc_Retail) whose recording
+-- (item:getMediaData():getId()) is that id plays it. No new item for it, and never in the loot: the game has it.
 
 require "JukeboxMoon/Core"
 
@@ -16,18 +19,23 @@ JukeboxMoon.Catalog = Catalog
 
 local indexed = nil   -- the table last indexed: a new JukeboxMoonCatalog (tests, a reload) is indexed again
 
-local byItem, byTrack, albums = {}, {}, {}
+local byItem, byMedia, byKey, byTrack, albums = {}, {}, {}, {}, {}
+
+Catalog.GAME_CD = "Base.Disc_Retail"
 
 local function index()
 	local data = JukeboxMoonCatalog
 	if data == indexed then return end
 	indexed = data
-	byItem, byTrack, albums = {}, {}, {}
+	byItem, byMedia, byKey, byTrack, albums = {}, {}, {}, {}, {}
 	if type(data) ~= "table" or type(data.albums) ~= "table" then return end
 	for _, album in ipairs(data.albums) do
-		if type(album) == "table" and type(album.item) == "string" and type(album.tracks) == "table" then
+		local source = type(album) == "table" and (type(album.item) == "string" or type(album.media) == "string")
+		if source and type(album.key) == "number" and type(album.tracks) == "table" then
 			albums[#albums + 1] = album
-			byItem[album.item] = album
+			byKey[album.key] = album
+			if album.item then byItem[album.item] = album end
+			if album.media then byMedia[album.media] = album end
 			for _, track in ipairs(album.tracks) do
 				if type(track) == "table" and type(track.key) == "number" then
 					track.album = album
@@ -80,16 +88,34 @@ function Catalog.album(fullType)
 	return byItem[fullType]
 end
 
+function Catalog.albumByKey(key)
+	index()
+	return byKey[tonumber(key) or -1]
+end
+
+function Catalog.albumByMedia(id)
+	index()
+	return byMedia[id]
+end
+
 function Catalog.track(key)
 	index()
 	return byTrack[tonumber(key) or -1]
 end
 
--- The album of a CD item, or nil for anything else.
+-- The album of a CD: one of ours by its type, one of the game's by its recording. nil for anything else, a game's
+-- CD of a recording the catalogue does not have included.
 function Catalog.albumOf(item)
 	if not item then return nil end
 	local ok, fullType = pcall(function() return item:getFullType() end)
 	if not ok then return nil end
+	if fullType == Catalog.GAME_CD then
+		local found, id = pcall(function()
+			local media = item:getMediaData()
+			return media and media:getId() or nil
+		end)
+		return found and id and Catalog.albumByMedia(id) or nil
+	end
 	return Catalog.album(fullType)
 end
 

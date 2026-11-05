@@ -80,12 +80,19 @@ end
 
 -- items and containers
 NEXT_ID = 0
-function newItem(fullType)
+function newMedia(id) return { id = id, getId = function(self) return self.id end } end
+function newItem(fullType, mediaId)
     NEXT_ID = NEXT_ID + 1
-    local item = { fullType = fullType, id = NEXT_ID }
+    local item = { fullType = fullType, id = NEXT_ID, media = mediaId and newMedia(mediaId) or nil }
     function item:getFullType() return self.fullType end
     function item:getID() return self.id end
+    function item:getMediaData() return self.media end
+    function item:setRecordedMediaData(m) self.media = m end
     return item
+end
+RECORDINGS = {}   -- the game's recorded media this imitation knows
+function getZomboidRadio()
+    return { getRecordedMedia = function() return { getMediaData = function(_, id) return RECORDINGS[id] end } end }
 end
 function newContainer(kind)
     local c = { kind = kind or "crate", capacity = 0, accept = nil, explored = false, items = jlist() }

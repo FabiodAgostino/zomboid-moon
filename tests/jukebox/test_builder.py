@@ -252,3 +252,156 @@ def test_publish_to_the_server_without_audio(tmp_path):
     publish.stage_mod(report.folder, staged, None)
     assert not (staged / "42" / "media" / "sound").exists()
     assert (staged / "42" / "media" / "scripts" / "JukeboxMoon_sounds.txt").exists()
+
+
+# ------------------------------------------------------------------------------------------------ the game's CDs
+
+MEDIA = "89108e07-fc70-4eec-a267-790d6f4b9831"
+
+
+def test_a_game_cd_album_needs_a_recording_id_once(tmp_path):
+    folder = album(tmp_path, "cd-uno", [("a", 6)], vanillaMedia="not-an-id")
+    with pytest.raises(SourceError, match="vanillaMedia"):
+        source.load(tmp_path)
+    edit(folder, lambda m: m.update(vanillaMedia=MEDIA))
+    album(tmp_path, "cd-due", [("b", 6)], vanillaMedia=MEDIA)
+    with pytest.raises(SourceError, match=MEDIA):
+        source.load(tmp_path)
+
+
+@pytest.mark.skipif(not FFMPEG, reason="ffmpeg is not installed")
+def test_a_game_cd_album_has_no_new_item(tmp_path):
+    music = tmp_path / "music"
+    album(music, "cd-uno", [("a", 6)], vanillaMedia=MEDIA)
+    album(music, "nostro", [("b", 6)])
+    report = build.build(music, tmp_path / "dist")
+    manifest = json.loads((report.folder / "manifest.json").read_text(encoding="utf-8"))
+    catalog = package.read_zip((report.folder / manifest["catalog"]["asset"]).read_bytes())
+    lua = catalog["42/media/lua/shared/JukeboxMoon/CatalogData.lua"].decode("ascii")
+    assert f'id = "cd-uno", media = "{MEDIA}",' in lua and 'id = "nostro", item = "JukeboxMoon.CD_2",' in lua
+    assert "CD_1" not in catalog["42/media/scripts/JukeboxMoon_catalog.txt"].decode("ascii")
+    assert "42/media/textures/Item_JukeboxMoon_CD_1.png" not in catalog
+    assert "42/media/textures/JukeboxMoon/Cover_1.png" in catalog
+    assert json.loads(catalog["42/media/lua/shared/Translate/IT/ItemName.json"]) == {"JukeboxMoon.CD_2": "CD: Album nostro"}
+
+
+def fake_game(root: Path) -> Path:
+    shared = root / "media" / "lua" / "shared"
+    (shared / "RecordedMedia").mkdir(parents=True)
+    (shared / "Translate" / "EN").mkdir(parents=True)
+    media = """-- Category: CDs
+RecMedia["%s"] = {
+\titemDisplayName = "RM_d",
+\ttitle = "RM_t1",
+\tsubtitle = nil,
+\tauthor = "RM_a1",
+\textra = "RM_e1",
+\tspawning = 0,
+\tcategory = "CDs",
+\tlines = {
+\t\t{ text = "RM_l1", r = 0, g = 0, b = 0, codes = "BOR-1" },
+\t\t{ text = "RM_l2", r = 0, g = 0, b = 0, codes = "BOR-1" },
+\t\t{ text = "RM_l3", r = 0, g = 0, b = 0, codes = "BOR-1" },
+\t},
+};
+RecMedia["11111111-2222-3333-4444-555555555555"] = {
+\titemDisplayName = "RM_d",
+\ttitle = "RM_t2",
+\tsubtitle = nil,
+\tauthor = "RM_a2",
+\textra = nil,
+\tspawning = 0,
+\tcategory = "CDs",
+\tlines = {
+\t\t{ text = "RM_r1", r = 0, g = 0, b = 0, codes = "BOR-1" },
+\t\t{ text = "RM_r2", r = 0, g = 0, b = 0, codes = "BOR-1" },
+\t},
+};
+RecMedia["99999999-2222-3333-4444-555555555555"] = {
+\titemDisplayName = "RM_d",
+\ttitle = "RM_t3",
+\tsubtitle = nil,
+\tauthor = "RM_a2",
+\textra = nil,
+\tspawning = 0,
+\tcategory = "CDs",
+\tlines = {
+\t\t{ text = "RM_x1", r = 0, g = 0, b = 0, codes = "BOR-1" },
+\t},
+};
+""" % MEDIA
+    (shared / "RecordedMedia" / "recorded_media.lua").write_text(media, encoding="utf-8")
+    texts = {"RM_t1": "Your Smile. Your Kiss.", "RM_a1": "Every Reason", "RM_e1": "Released February 1993. Potassium.",
+             "RM_l1": "[img=music] I don't know... [img=music]", "RM_l2": "[img=music] if she loves me [img=music]",
+             "RM_l3": "[img=music] Your smile, your kiss! [img=music]",
+             "RM_t2": "Walden - Audio Book", "RM_a2": "Henry David Thoreau", "RM_r1": "I went to the woods.",
+             "RM_r2": "Because I wished to live deliberately.", "RM_t3": "Silent", "RM_x1": "Nothing here."}
+    (shared / "Translate" / "EN" / "Recorded_Media.json").write_text(json.dumps(texts), encoding="utf-8")
+    return root
+
+
+def fake_radio_voices(root: Path) -> Path:
+    mod = root / "mods" / "RadioVoices" / "42"
+    data = mod / "media" / "lua" / "shared" / "RadioVoices"
+    data.mkdir(parents=True)
+    (mod / "media" / "scripts").mkdir(parents=True)
+    sound = mod / "media" / "sound" / "radiovoices"
+    sound.mkdir(parents=True)
+    lua = """RadioVoices = RadioVoices or {}
+RadioVoices.clips = {
+    ["i went to the woods"] = {"RV_r_aaaa000001", 6.000},
+    ["because i wished to live deliberately"] = {"RV_r_aaaa000002", 6.000},
+}
+RadioVoices.clipKind = {
+}
+RadioVoices.songs = {
+    ["s_0000beef"] = {
+        keys = {"img music i don t know img music", "img music if she loves me img music", "img music your smile your kiss img music"},
+        t = {1.0, 2.0, 3.0},
+        stop = 7.0,
+        starts = {[1] = {"RV_s_0000beef_0", 7.000, 0.000}},
+    },
+    ["s_0000cafe"] = {
+        keys = {"img music i don t know img music"},
+        t = {1.0},
+        stop = 6.0,
+        starts = {[1] = {"RV_s_0000cafe_0", 6.000, 0.000}},
+    },
+}
+RadioVoices.songLine = {
+}
+"""
+    (data / "RadioVoiceData.lua").write_text(lua, encoding="utf-8")
+    script = "module Base\n{\n"
+    for name in ("r_aaaa000001", "r_aaaa000002", "s_0000beef_0", "s_0000cafe_0"):
+        script += f"    sound RV_{name}\n    {{\n        clip\n        {{\n            file = media/sound/radiovoices/{name}.ogg,\n        }}\n    }}\n"
+        wav = sound / f"{name}.wav"
+        tone(wav, 7 if name.startswith("s_") else 6)
+        audio.run([shutil.which("ffmpeg"), "-v", "error", "-y", "-i", str(wav), "-c:a", "libvorbis", str(sound / f"{name}.ogg")])
+        wav.unlink()
+    (mod / "media" / "scripts" / "radiovoices_sounds.txt").write_text(script + "}\n", encoding="utf-8")
+    return root
+
+
+@pytest.mark.skipif(not FFMPEG, reason="ffmpeg is not installed")
+def test_the_games_cds_from_radio_voices(tmp_path):
+    from tools.jukebox import radiovoices
+    game = fake_game(tmp_path / "game")
+    rv = fake_radio_voices(tmp_path / "rv")
+    music = tmp_path / "music"
+    album(music, "nostro", [("b", 6)])                              # the admin's own albums are never touched
+    (music / "albums" / "cd-old").mkdir()                            # an old import: rewritten
+    plans = radiovoices.import_cds(rv, music, game, lambda s: None)
+    assert [len(p.songs) for p in plans] == [1, 0, 0] and [bool(p.read) for p in plans] == [False, True, False]
+    sung = json.loads((music / "albums" / "cd-89108e07" / "album.json").read_text(encoding="utf-8"))
+    assert sung["vanillaMedia"] == MEDIA and sung["artist"] == "Every Reason" and sung["year"] == 1993
+    assert sung["tracks"] == [{"id": "s-0000beef", "title": "I don't know", "file": "s_0000beef.ogg"}]  # most lines
+    read = json.loads((music / "albums" / "cd-11111111" / "album.json").read_text(encoding="utf-8"))
+    assert read["tracks"] == [{"id": "lettura", "title": "Walden - Audio Book", "file": "lettura.wav"}]
+    assert audio.probe(music / "albums" / "cd-11111111" / "lettura.wav") == pytest.approx(2 * (6 + radiovoices.PAUSE), abs=0.1)
+    assert not (music / "albums" / "cd-99999999").exists() and not (music / "albums" / "cd-old").exists()
+    assert (music / "albums" / "nostro" / "album.json").exists()
+    albums, _ = build.validate(music)
+    assert {a.id for a in albums} == {"cd-89108e07", "cd-11111111", "nostro"}
+    with pytest.raises(SourceError, match="mai nel repo"):
+        radiovoices.import_cds(rv, ROOT / "dist-prova", game, lambda s: None)
