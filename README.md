@@ -2,14 +2,14 @@
 
 Le mod per giocare a **Project Zomboid** (Build 42) sul server **Moon**.
 
-**Per giocare su Moon serve una mod: «ZomBOT (Moon)»**, cioè ZomBOT e Admin-Scorte insieme. La installa e la aggiorna da solo il **[launcher di Moon](#il-launcher-moonlauncherexe)**; in alternativa c'è [`mod-moon-server.bat`](#in-alternativa-mod-moon-serverbat). Sugli altri server non si carica.
+**Per giocare su Moon servono tre mod: «ZomBOT (Moon)»** (ZomBOT e Admin-Scorte insieme), **«Jukebox (Moon)»** e **«SilencerMoon»** (dal 6 novembre 2026). Le installa e le aggiorna da solo il **[launcher di Moon](#il-launcher-moonlauncherexe)**, dalla versione 1.0.3; in alternativa c'è [`mod-moon-server.bat`](#in-alternativa-mod-moon-serverbat). Sugli altri server non si carica.
 
 | Mod | Stato | Come arriva | Cos'è |
 | --- | --- | --- | --- |
 | **ZomBOT (Moon)** | **Obbligatoria** | il launcher la installa e la aggiorna da solo, in `%UserProfile%\Zomboid\mods\ZomBOTMoon`; sugli altri server non si carica | ZomBOT e Admin-Scorte insieme: le domande a ZomBOT dalla chat del gioco, il contenitore che lampeggia, le casse colorate e, per gli admin, le finestre delle basi e delle scorte. Vedi [ZomBOT: cosa fa](#zombot-cosa-fa) e [Admin-Scorte: cosa fa](#admin-scorte-cosa-fa). |
-| **Jukebox (Moon)** | **In prova** | per ora a nessuno | I jukebox del mondo suonano i CD di Moon, scelti dall'admin; chi ascolta vicino si annoia e si stressa meno. Vedi [Jukebox (Moon) (in prova)](#jukebox-moon-in-prova). |
+| **Jukebox (Moon)** | **Obbligatoria** | il launcher 1.0.3 la installa e la aggiorna da solo, con la musica | I jukebox del mondo suonano i CD di Moon, scelti dall'admin; chi ascolta vicino si annoia e si stressa meno. Vedi [Jukebox (Moon)](#jukebox-moon). |
 | **Silenziatori** | **Disattivata** | per ora a nessuno | I silenziatori per le armi: la mod Simple Suppressors di Kiidxatlas, tradotta in italiano e corretta. Vedi [Silenziatori (disattivata)](#silenziatori-disattivata). |
-| **SilencerMoon** | **In prova** (disattivata) | per ora a nessuno | I silenziatori artigianali che prenderanno il posto di Silenziatori: leghe fuse da un fucile a pompa, silenziatori per pistole e per fucili, il filtro dell'olio come ripiego. Vedi [SilencerMoon (in prova)](#silencermoon-in-prova). |
+| **SilencerMoon** | **Obbligatoria** | il launcher la installa e la aggiorna da solo, in `%UserProfile%\Zomboid\mods\SilencerMoon` | I silenziatori artigianali che prendono il posto di Silenziatori: leghe fuse da un fucile a pompa, silenziatori per pistole e per fucili, il filtro dell'olio come ripiego. Vedi [SilencerMoon](#silencermoon). |
 
 ---
 
@@ -51,13 +51,13 @@ Cosa fa e come si pubblica una versione: [launcher/README.md](launcher/README.md
      ╔════════════════════════════════════════════════════════╗
      ║  MOON  ·  le mod per giocare sul server Moon           ║
      ╚════════════════════════════════════════════════════════╝
-     ZomBOT (Moon) 2.0.0  ·  SilencerMoon in prova
+     ZomBOT (Moon) 2.0.0  ·  SilencerMoon 0.1.1
 
      Le mod di Moon
 
                          stato          versione        sul tuo computer
        ZomBOT (Moon)     Obbligatoria   2.0.0           non installata · senza non entri su Moon: premi 1
-       SilencerMoon      In prova       0.1.0           non installata
+       SilencerMoon      Obbligatoria   0.1.1           non installata
 
        Project Zomboid   C:\Program Files (x86)\Steam\steamapps\common\ProjectZomboid
 
@@ -67,14 +67,16 @@ Cosa fa e come si pubblica una versione: [launcher/README.md](launcher/README.md
      Cosa vuoi fare?
 
        [1]  Installa o aggiorna ZomBOT (Moon)   2.0.0, e tolgo 7 vecchi file
-       [2]  Installa o aggiorna SilencerMoon    in prova: per ora non si installa
+       [2]  Installa o aggiorna SilencerMoon    0.1.1
        [3]  Togli SilencerMoon e Silenziatori
        [0]  Esci
    ```
 
    - **`1`** installa o aggiorna ZomBOT (Moon), dopo aver controllato che il gioco sia chiuso. Se nella cartella del gioco ci sono ancora i vecchi file di ZomBOT e Admin-Scorte, li toglie e dice quali. Quando esce una versione nuova, riscarica lo ZIP e premi di nuovo `1`;
-   - **`2`** installa o aggiorna SilencerMoon, quando non sarà più in prova;
+   - **`2`** installa o aggiorna SilencerMoon;
    - **`3`** toglie SilencerMoon e la vecchia Silenziatori, se le avevi installate. Silenziatori non si installa più: nel menu compare solo a chi ce l'ha ancora, come «Sostituita», per toglierla.
+
+**Il bat non installa Jukebox (Moon)**, che serve per entrare: senza il launcher bisogna copiare a mano `mods/JukeboxMoon` del repo e il catalogo (lo zip `catalog-*.zip` della pre-release `jukebox`) in `%UserProfile%\Zomboid\mods\JukeboxMoon`, e la musica non arriva. Meglio il launcher.
 
 Il file trova da solo il gioco nelle librerie di Steam, anche su un altro disco. Se non ci riesce te lo dice: in quel caso **trascina la cartella `ProjectZomboid` sopra `mod-moon-server.bat`**.
 
@@ -120,9 +122,9 @@ ZomBOT conta le scorte delle basi (cibo, munizioni, medicine, libri...) e le mos
 
 **Chi non è admin** non vede le finestre, ma ha **il riquadro delle scorte sotto gli oggetti**: passando il mouse su un oggetto, sotto il riquadro del gioco compare «ZomBOT - scorte» con le basi in cui quell'oggetto manca o scarseggia («Scarseggia a ... (300 su 1.000)», «Manca a ...» per un libro o una VHS). Il server rifiuta comunque ogni modifica che non arrivi da un admin.
 
-## SilencerMoon (in prova)
+## SilencerMoon
 
-**SilencerMoon** è la mod dei silenziatori artigianali di Moon, rifatta da capo partendo da Simple Suppressors: prenderà il posto di Silenziatori. **Per ora è in prova**: il launcher non la installa e il server non la usa. Nessun silenziatore si trova già fatto: si costruiscono tutti.
+**SilencerMoon** è la mod dei silenziatori artigianali di Moon, rifatta da capo partendo da Simple Suppressors: prende il posto di Silenziatori. **Serve per giocare su Moon** (dal 6 novembre 2026): la installa e la aggiorna il launcher, o `2` di `mod-moon-server.bat`. Nessun silenziatore si trova già fatto: si costruiscono tutti.
 
 | Silenziatore | Come si ottiene | Rumore | Gittata di base | Danno | Durata media |
 | --- | --- | ---: | ---: | ---: | ---: |
@@ -151,9 +153,9 @@ Le armi sistemate nei veicoli vengono rimandate a chi è lì vicino, così anche
 
 Il progetto completo, con le scelte e le verifiche fatte sui file del gioco 42.21, è nell'analisi v1.2 (non in questo repository). Le prove del Lua: `python -m pytest -q tests/silencermoon` con un Python che ha `pytest` e `lupa` (per esempio quello di ZomBOT). Gli script in `tools/silencermoon` rifanno le icone ramate, la texture e il poster.
 
-## Jukebox (Moon) (in prova)
+## Jukebox (Moon)
 
-**Per ora il server non la usa**: il launcher la mostra «Disattivata». Quando sarà accesa la installa e la aggiorna il launcher, come ZomBOT (Moon), insieme alla musica.
+**Serve per giocare su Moon** (dal 6 novembre 2026): la installa e la aggiorna il launcher 1.0.3, come ZomBOT (Moon), insieme alla musica.
 
 - **Nel gioco**: tasto destro su un jukebox con la corrente, «Jukebox». I CD di Moon si mettono e si tolgono dalla finestra del bottino del jukebox; la finestra «Jukebox» ha Riproduci, Ferma, Precedente, Successiva, la riproduzione casuale e il volume, che vale solo per te. Chi è vicino sente lo stesso brano nello stesso punto.
 - **La musica** la sceglie l'admin. Il launcher la scarica da solo: la prima volta che entri su Moon il gioco ti dà la chiave, e dalla volta dopo il launcher scarica i CD (solo quelli nuovi). La prima sessione è senza musica.

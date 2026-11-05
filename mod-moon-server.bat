@@ -21,7 +21,7 @@ rem ============================================================================
 setlocal EnableExtensions DisableDelayedExpansion
 
 rem SilencerMoon: 1 = in testing («In prova», never installed), empty = installable
-set "SM_DISABLED=1"
+set "SM_DISABLED="
 
 rem the old files of ZomBOT and Admin-Scorte in the game's media\lua: exactly these, nothing else
 set "OLDFILES=client\ZomBotGioco.lua client\ZomBotMenu.lua client\ZomBotStockUI.lua client\ZomBotGravesUI.lua shared\ZomBotData.lua Moon-ZomBOT.version Moon-Admin-Scorte.version"
