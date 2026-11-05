@@ -151,8 +151,10 @@ cifrata.
 
 ## Domande
 
-**Un giocatore nuovo non sente niente.** È normale la prima volta: la chiave della musica gliela dà il server quando
-entra. Dalla volta dopo il launcher scarica la musica da solo.
+**Un giocatore nuovo non sente niente.** Con il launcher 1.0.4 non succede più: la prima volta il launcher chiede il
+codice della musica (scheda dal vivo di ZomBOT, «Musica»; su Discord si chiede con «/scheda») e scarica gli asset
+del Jukebox prima del gioco. Chi ha premuto «Più tardi» o ha un launcher vecchio la sente dalla volta dopo, perché
+la chiave gliela dà anche il server quando entra; il codice si può inserire quando vuole da «CODICE MUSICA».
 
 **La chiave è finita in giro.** `build --new-key` ne fa una nuova e ricifra tutto; poi `publish`. I giocatori
 riceveranno la nuova entrando, e il launcher riscaricherà la musica. La vecchia resta accanto come
