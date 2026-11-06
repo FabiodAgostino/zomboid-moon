@@ -165,14 +165,22 @@ fatto lui (hanno il file `.import-radiovoices`): un errore a metà non tocca nie
 
 ### Il CD unico
 
-Un album con `"unique": {"from": "runner", "oneIn": 300}` in `album.json` è un CD solo in tutta la storia del server
-(decisione dell'utente, `DECISIONI.md` 18; oggi «Love storii...»). Non è nel bottino e gli admin non lo creano
+Un album con `"unique": {"from": "runner"}` in `album.json` è un CD solo in tutta la storia del server (decisione
+dell'utente, `DECISIONI.md` 18 e 19; oggi «Love storii...»). Non è nel bottino e gli admin non lo creano
 (`Catalog.activeAlbums` lo lascia fuori): un secondo esemplare non sarebbe unico. Il builder scrive nel catalogo
-`unique = { from, oneIn, jsonName, jsonArtist }`, con nome del CD e artista già pronti per il JSON (ASCII, `\uXXXX`).
-**Uno alla volta** (scelta dell'utente, `DECISIONI.md` 18): in gioco c'è un solo CD unico, il primo per numero
-d'album (l'ordine in cui gli album entrano nel catalogo) non ancora trovato. Entra in gioco (`since`, secondi unix)
-all'avvio del server o quando quello di prima viene trovato; gli altri aspettano il loro turno, ognuno con il suo
-`oneIn`. Un CD che torna da tirare perché nessuno ha saccheggiato il cadavere tiene il suo `since`.
+`unique = { from, jsonName, jsonArtist }`, con nome del CD e artista già pronti per il JSON (ASCII, `\uXXXX`). Un
+vecchio `"oneIn"` di `album.json` (prima del 6 novembre 2026) è ancora accettato e scritto com'è nel catalogo (stesso
+catalogo, stessa versione), ma la mod non lo legge più. `Catalog.isUnique` guarda `from`: un catalogo costruito senza
+`oneIn` vuole il motore 1.1.0 o dopo (per il motore 1.0.0 quell'album non sarebbe unico).
+
+**Tutti in gioco insieme** (scelta dell'utente, `DECISIONI.md` 19; prima «uno alla volta», 18): ogni CD unico del
+catalogo non ancora trovato è in gioco. Entra in gioco (`since`, secondi unix) all'avvio del server o quando viene
+aggiunto al catalogo (al riavvio dopo `publish`); chi ha già il suo `since` lo tiene, anche un CD che torna da tirare
+perché nessuno ha saccheggiato il cadavere. Niente fila. Ogni corridore ucciso da un giocatore tira **una volta**,
+quanti che siano i CD in gioco: `ZombRand(10000) < UniqueChance × 100`, con `UniqueChance` l'opzione del server in
+percentuale (0–100, 1 di base, arrotondata al centesimo di punto: 1 è uno su 100, 0,25 uno su 400). Se esce, il CD è
+scelto a caso fra quelli che possono cadere adesso (in attesa, o caduti e scaduti: sotto), ognuno con la stessa
+probabilità (`ZombRand(n)`, per numero d'album); se nessuno può cadere, non si tira. Con `-debug` esce sempre.
 
 Il lavoro è in `server/JukeboxMoon/Unique.lua` e, per dire al server chi lo prende, in `client/JukeboxMoon/Finder.lua`.
 Il server non fa niente da solo: nessun controllo periodico (scelta dell'utente, `DECISIONI.md` 18). Verificato nel jar
@@ -183,24 +191,26 @@ e nel Lua della 42.21:
   `getAttackedBy()` (come conta le uccisioni ZomBOT, `ZomBotKills.lua`); un corridore ha `getWalkType()` che comincia
   per `sprint` (il valore del server, che lo manda ai client in `ZombiePacket`). Solo per un corridore ucciso da un
   giocatore, non in fiamme (il cadavere brucerebbe il CD), una volta per zombie (le morti nel fuoco lanciano l'evento
-  due volte), e solo finché il CD aspetta: `ZombRand(oneIn) == 0`.
+  due volte), e solo se almeno un CD può cadere: il tiro qui sopra.
 - **Trovato: lo dice la mod di chi lo prende.** Prendere un oggetto è un'azione del client
   (`media/lua/client/TimedActions/ISInventoryTransferAction.lua`): in multiplayer il client chiama
   `createItemTransaction`, il server sposta l'oggetto in Java senza un evento Lua, e quando arriva
   `ItemTransactionPacket` il client esegue `perform()` (`transferItem` lì gira solo senza rete). `Finder.lua` avvolge
   `perform()` di `ISInventoryTransferAction` e di `ISGrabItemAction` (da terra), guarda gli oggetti del lotto
-  (`queueList[1].items`) e, per un CD unico, manda al server `taken {album, item}`, una volta (di nuovo solo dopo 5 s).
+  (`queueList[1].items`) e, per un CD unico, manda al server `taken {album, item}`, una volta (di nuovo solo dopo 5 s):
+  `album` è il numero dell'album, e il server controlla quel CD, anche quando ne sono fuori più d'uno.
   La mod è obbligatoria: ce l'ha ogni client. Il server controlla **una volta, a quel messaggio**, solo se il CD è
   «caduto»: il giocatore lo porta (`containsTypeRecurse`, anche nelle borse), oppure è entro 5 caselle da dove è caduto
   e il CD non è più su un cadavere lì (due caselle intorno): l'ha messo in una cassa, in un'auto, per terra. Allora è
   trovato da lui. I messaggi hanno il limite degli altri comandi (8 ogni 4 s).
-- **Il cadavere che nessuno saccheggia non ferma la fila** (con «uno alla volta» un CD mai preso bloccherebbe tutti
-  quelli dopo; richiesta dell'utente). Senza sorveglianza: il CD resta «caduto», con il posto e l'ora del mondo
-  (`getGameTime():getWorldAgeHours()`). Può ricadere da un altro corridore (un nuovo 1 su `oneIn`) quando dalla caduta
-  è passato, senza che nessuno l'abbia segnalato, il tempo di rimozione dei cadaveri del server
-  (`SandboxVars.HoursForCorpseRemoval`, ore di gioco: su Moon 216, letto il 5 novembre 2026; il cadavere a quel punto
-  non c'è più), oppure 7 giorni di gioco (`FALLBACK_HOURS`) su un server che i cadaveri non li toglie mai (0 o meno).
-  Così la fila non resta mai ferma per sempre. Il controllo si fa solo al tiro, mai a intervalli.
+- **Il cadavere che nessuno saccheggia non tiene un CD fuori per sempre** (richiesta dell'utente, nata con «uno alla
+  volta», dove un CD mai preso avrebbe bloccato tutti quelli dopo). Senza sorveglianza: il CD resta «caduto», con il
+  posto e l'ora del mondo (`getGameTime():getWorldAgeHours()`), e intanto non può ricadere (gli altri sì). Torna fra
+  quelli che possono cadere da un altro corridore (con il tiro di sempre) quando dalla caduta è passato, senza che
+  nessuno l'abbia segnalato, il tempo di rimozione dei cadaveri del server (`SandboxVars.HoursForCorpseRemoval`, ore
+  di gioco: su Moon 216, letto il 5 novembre 2026; il cadavere a quel punto non c'è più), oppure 7 giorni di gioco
+  (`FALLBACK_HOURS`) su un server che i cadaveri non li toglie mai (0 o meno). Il controllo si fa solo al tiro, mai a
+  intervalli. Più CD possono essere fuori insieme, ognuno con il suo stato, posto, ora e copia.
 - **Una copia sola, anche se ne cadono due.** Ogni copia che cade ha il suo id (`InventoryItem.getID`, salvato, lo
   stesso sul client). La prima copia che un giocatore prende è il CD (`found.copy`). Una copia presa dopo, da un vecchio
   cadavere rimasto lì (solo dove i cadaveri non spariscono), il server la toglie dall'inventario di chi la prende
@@ -220,21 +230,23 @@ e nel Lua della 42.21:
   ```
 
   Una riga per ogni CD unico di sempre, per numero dell'album, per sempre. `from`: dove si nasconde (`unique.from`
-  di `album.json`, oggi `runner`). `since`: quando è entrato in gioco,
-  `null` finché aspetta il suo turno; al massimo una riga ha `since` e non `found` (quello in gioco).
+  di `album.json`, oggi `runner`). `since`: quando è entrato in gioco; `null` solo per un album tolto dal catalogo
+  prima di entrare in gioco (un salvataggio del tempo di «uno alla volta»). Ogni riga con `since` e senza `found` è in
+  gioco, e possono essere più d'una (dalla 1.1.0; il formato resta `v: 1`).
 
   Da trovato, `found` è `{"user":"<account>","character":"<nome e cognome>","at":<secondi unix>,"from":"runner","test":false}`.
-  ZomBOT annuncia in #zombot ogni CD che entra in gioco («oggetto unico», senza dire quale; non quelli già in gioco
-  la prima volta che legge il file) e una volta per `key` quello trovato («è stato trovato un CD unico…»), mai con
-  `test: true`: in single
-  player e in un gioco avviato con `-debug`, dove per provarlo il CD cade dal primo corridore.
+  ZomBOT annuncia in #zombot ogni CD che entra in gioco («oggetto unico», senza dire quale; due che entrano insieme
+  sono due messaggi; non quelli già in gioco la prima volta che legge il file) e una volta per `key` quello trovato
+  («è stato trovato un CD unico…»), mai con `test: true`: in single player e in un gioco avviato con `-debug`, dove
+  per provarlo un CD cade da ogni corridore.
 
 ### Opzioni (sandbox, pagina «Jukebox (Moon)»)
 
 `JukeboxMoon.Enabled`, `MaxCDsPerJukebox` (1–100, 20), `ShuffleAllowed`, `EnableCDLoot`, `LootRarity` (1 raro,
 2 normale, 3 comune), `MoodEffectsEnabled`, `BenefitRadiusTiles` (1–30, 10), `BoredomReductionPerGameHour` (4),
 `StressReductionPerGameHour` (0,02), `MoodEvaluationMinutes` (1–60, 10), `DeafBenefitMultiplier` (0),
-`HardOfHearingBenefitMultiplier` (0,5), `AllowCrossFloorBenefits` (no).
+`HardOfHearingBenefitMultiplier` (0,5), `AllowCrossFloorBenefits` (no), `UniqueChance` (0–100, 1: la probabilità in
+percentuale, con i decimali, che un corridore ucciso da un giocatore porti uno dei CD unici in gioco).
 
 ## La distribuzione
 

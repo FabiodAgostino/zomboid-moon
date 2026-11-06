@@ -28,5 +28,7 @@
     "Sandbox_JukeboxMoon_HardOfHearingBenefitMultiplier": "Benefits for hard of hearing characters",
     "Sandbox_JukeboxMoon_HardOfHearingBenefitMultiplier_tooltip": "0 none, 1 all.",
     "Sandbox_JukeboxMoon_AllowCrossFloorBenefits": "Benefits from another floor too",
-    "Sandbox_JukeboxMoon_AllowCrossFloorBenefits_tooltip": "Off, only on the jukebox's floor."
+    "Sandbox_JukeboxMoon_AllowCrossFloorBenefits_tooltip": "Off, only on the jukebox's floor.",
+    "Sandbox_JukeboxMoon_UniqueChance": "Chance of a unique CD (%)",
+    "Sandbox_JukeboxMoon_UniqueChance_tooltip": "For every runner killed by a player, the chance that it carries one of the unique CDs not found yet, picked at random. Decimals too: 0.5 is one in 200. 0 none."
 }

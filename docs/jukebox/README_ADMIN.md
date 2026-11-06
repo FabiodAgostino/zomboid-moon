@@ -47,17 +47,20 @@ musica/
   facoltativo: senza, si usa quello dell'album.
 - `lootWeight` da 0 a 10: quanto spesso si trova rispetto agli altri album (0: mai nel bottino, solo dagli admin).
 - `archived: true` toglie l'album dal bottino e dalla finestra degli admin, ma i CD già trovati continuano a suonare.
-- `"unique": {"from": "runner", "oneIn": 300}` ne fa un **CD unico**: uno solo in tutta la storia del server, mai nel
-  bottino né dalla finestra degli admin. Lo porta un corridore ucciso da un giocatore, uno ogni `oneIn` (finché non
-  esce); trovato (lo dice al server la mod di chi lo prende), non esce più, e ZomBOT lo annuncia in #zombot. Se
-  nessuno lo prende, può ricadere da un altro corridore dopo il tempo di rimozione dei cadaveri del server
-  (`HoursForCorpseRemoval`, 216 ore di gioco su Moon), o dopo 7 giorni di gioco se il server non li toglie mai: un
-  CD mai raccolto non ferma i CD unici che vengono dopo. Se poi qualcuno trovasse anche la copia vecchia, il server
-  gliela toglie: ne esiste sempre uno solo. `lootWeight` non serve. Non vale per i CD del gioco (`vanillaMedia`).
-  **Uno alla volta**: in gioco c'è un solo CD unico. Il prossimo entra in gioco solo quando quello di prima è stato
-  trovato, nell'ordine in cui li aggiungi (il numero dell'album); ognuno con il suo `oneIn`. Un CD unico aggiunto
-  quando gli altri sono già stati trovati entra in gioco al riavvio del server dopo `publish`. ZomBOT annuncia ogni
-  CD che entra in gioco come «oggetto unico», senza dire quale.
+- `"unique": {"from": "runner"}` ne fa un **CD unico**: uno solo in tutta la storia del server, mai nel bottino né
+  dalla finestra degli admin. Lo porta un corridore ucciso da un giocatore; trovato (lo dice al server la mod di chi
+  lo prende), non esce più, e ZomBOT lo annuncia in #zombot. Se nessuno lo prende, può ricadere da un altro corridore
+  dopo il tempo di rimozione dei cadaveri del server (`HoursForCorpseRemoval`, 216 ore di gioco su Moon), o dopo 7
+  giorni di gioco se il server non li toglie mai. Se poi qualcuno trovasse anche la copia vecchia, il server gliela
+  toglie: ne esiste sempre uno solo. `lootWeight` non serve. Non vale per i CD del gioco (`vanillaMedia`).
+  **Tutti in gioco insieme** (dal 6 novembre 2026): ogni CD unico non ancora trovato può uscire, e più d'uno può
+  essere fuori nello stesso momento. Ogni corridore ucciso da un giocatore ha **una sola** probabilità di portarne
+  uno, scelto a caso fra quelli che possono uscire: la decide l'opzione del server `UniqueChance` (in percentuale,
+  1 di base, anche con i decimali: `DEPLOYMENT.md`, «Le opzioni del server»), non `album.json`. Aggiungere un CD unico
+  non li fa uscire più spesso: cambia solo quale esce. Un CD unico aggiunto entra in gioco al riavvio del server dopo
+  `publish`, anche se gli altri non sono ancora stati trovati. ZomBOT annuncia ogni CD che entra in gioco come
+  «oggetto unico», senza dire quale. Un vecchio `"oneIn"` (era «uno ogni quanti corridori», per album) va ancora bene,
+  da 1 a 1000000, ma non conta più.
 - Un brano dura da 5 secondi a 30 minuti.
 
 ## 2. Controlla

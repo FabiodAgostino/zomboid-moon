@@ -1,5 +1,14 @@
 # Jukebox (Moon): modifiche
 
+## 1.1.0 (6 novembre 2026, non pubblicata, mai provata nel gioco)
+
+- I CD unici non escono più uno alla volta: tutti quelli non ancora trovati sono in gioco insieme, e più d'uno può
+  essere fuori nello stesso momento, ognuno trovato da chi lo prende. Ogni corridore ucciso da un giocatore ha una sola
+  probabilità di portarne uno, scelto a caso fra quelli che possono uscire: la nuova opzione del server
+  `UniqueChance` (in percentuale, 1 di base, anche con i decimali). Il `"oneIn"` di `album.json` non conta più (il
+  builder lo accetta ancora). Il file per ZomBOT resta lo stesso, con più righe in gioco; i salvataggi di prima valgono
+  così come sono.
+
 ## 1.0.0 (5 novembre 2026, non pubblicata, mai provata nel gioco)
 
 - I jukebox del mondo diventano, alla prima apertura, jukebox con un contenitore: i CD di Moon si mettono e si tolgono

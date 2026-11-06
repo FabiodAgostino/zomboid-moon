@@ -1,13 +1,13 @@
 # Jukebox (Moon): le prove
 
-## Automatiche (fatte il 5 novembre 2026)
+## Automatiche (fatte il 5 novembre 2026, rifatte il 6 per i CD unici tutti insieme)
 
 ```bash
 python -m pytest -q tests/jukebox/test_lua.py        # Python con pytest, lupa e Pillow (la .venv di ZomBOT)
 python -m pytest -q tests/jukebox/test_builder.py    # Python con pytest, Pillow, numpy e cryptography, più ffmpeg
 ```
 
-- **Lua** (97, `lupa`, un Lua vero con il gioco imitato: solo i metodi che la mod usa, con i nomi della 42.21, solo
+- **Lua** (116, `lupa`, un Lua vero con il gioco imitato: solo i metodi che la mod usa, con i nomi della 42.21, solo
   gli eventi del gioco che usa, `sendServerCommand` muto in single player come nel gioco, l'emettitore senza
   `playSound`; dalla revisione del 5 novembre anche: la regola «solo CD» rimessa quando la casella si ricarica, sul
   server e sul client; la mod che funziona in single player senza rete; il suono d'ambiente del gioco tolto mentre
@@ -15,8 +15,12 @@ python -m pytest -q tests/jukebox/test_builder.py    # Python con pytest, Pillow
   volume scritto su file solo quando il cursore si ferma; gli avvisi giusti in ogni finestra; la voce del menu con il
   controller; il CD unico: solo un corridore ucciso da un giocatore lo fa cadere, una volta; il server non fa niente da
   solo; la mod lo dice una volta quando lo sposta, anche da terra; trovato da chi lo porta, o da chi è vicino quando non
-  è più sul cadavere; di nuovo da tirare solo dopo il tempo di rimozione dei cadaveri; uno alla volta, nell'ordine, con
-  `since` che non cambia; le righe che restano anche per un album tolto; un server che i cadaveri non li toglie non ferma la fila; la
+  è più sul cadavere; di nuovo da tirare solo dopo il tempo di rimozione dei cadaveri; tutti in gioco insieme, ognuno con
+  il suo `since` che non cambia (anche uno aggiunto mentre gli altri sono in gioco); un tiro solo per corridore con la
+  probabilità del server (decimali, opzione mancante o fuori dai limiti, `-debug` che lo fa uscire sempre) e il CD
+  scelto a caso fra quelli che possono cadere, mai uno già fuori e non scaduto; due CD fuori insieme, ognuno trovato
+  da chi lo prende (`taken` con il numero dell'album) e una copia avanzata tolta mentre l'altro è ancora fuori; un
+  salvataggio del tempo di «uno alla volta» (trovato, rimesso in gioco a mano, in attesa senza `since`) che continua; le righe che restano anche per un album tolto; un server che i cadaveri non li toglie non tiene un CD fuori per sempre; la
   prima copia presa è il CD e una copia presa dopo viene tolta, con la scritta per chi la prende; il file per ZomBOT con i nomi ripuliti; `test` in single player e con `-debug`; mai nel bottino né dagli admin):
   conversione del jukebox una sola volta e solo vicino; solo i CD del catalogo e al massimo `MaxCDsPerJukebox`; la
   funzione di accettazione che sopravvive a `AcceptItemFunction = {}`; play dopo `LEAD_MS` e passaggio da solo al
@@ -31,7 +35,7 @@ python -m pytest -q tests/jukebox/test_builder.py    # Python con pytest, Pillow
   riga di stato; voce del tasto destro e pulsante admin; ogni file compila, ASCII, niente `next`/`xpcall`/
   `table.pack`/`table.unpack`/`os.clock`/`//`; testi IT ed EN; opzioni e predefiniti; `ZomBotMenu.lua` identico; i CD del gioco accettati solo con una registrazione del catalogo, suonati, creati
   dagli admin con la loro registrazione.
-- **Builder** (38; il campo `unique` controllato e scritto nel catalogo con i nomi pronti per il JSON; dalla revisione anche: pezzi mono, chiave nuova con file nuovi e la vecchia tenuta, cartella che ha
+- **Builder** (40; il campo `unique` controllato, con o senza il vecchio `oneIn` che non conta più, e scritto nel catalogo con i nomi pronti per il JSON; dalla revisione anche: pezzi mono, chiave nuova con file nuovi e la vecchia tenuta, cartella che ha
   perso numeri o chiave fermata, `publish` che rifiuta un numero dato a un altro album e riconosce un file caricato a
   metà, pacchetto che non scrive fuori dalla mod, cache ripulita, copertine girate, trasparenti, a 16 bit e rotte,
   importatore che lascia stare gli album dell'admin e conta le righe diverse, copia di riserva fuori da `mods`): errori della cartella della musica (id, anno, titolo lungo, campi sconosciuti, `../`, file

@@ -458,10 +458,11 @@ def test_cds_join_the_loot_lists_without_replacing_them():
 UNIQUE_FILE = 'FILES["jukeboxmoon_unique.json"]'
 
 
-def unique_catalog(extra=False, without_first=False) -> str:
+def unique_catalog(extra=False, without_first=False, third=False) -> str:
     albums = [
         AlbumOut(key=1, id="estate", title="Estate", artist="Vari", year=1993, loot=1.0, archived=False,
                  tracks=[TrackOut(1, "a", 1, "Primo", "A", 25000, 3)], cover=None),
+        # an album.json of before 6 November 2026: its "oneIn" is still in the catalogue, and no longer read
         AlbumOut(key=5, id="love-storii", title="Love storii...", artist="Prince", year=2023, loot=1.0,
                  archived=False, tracks=[TrackOut(9, "alpha", 1, "Alpha", "Prince, Ervie", 20000, 2)], cover=None,
                  unique={"from": "runner", "oneIn": 300}),
@@ -469,7 +470,11 @@ def unique_catalog(extra=False, without_first=False) -> str:
     if extra:                                                       # a second one, added after
         albums.append(AlbumOut(key=6, id="segreto", title="Segreto", artist="Altro", year=None, loot=1.0,
                                archived=False, tracks=[TrackOut(10, "b", 1, "B", "", 20000, 2)], cover=None,
-                               unique={"from": "runner", "oneIn": 50}))
+                               unique={"from": "runner"}))
+    if third:                                                       # and a third
+        albums.append(AlbumOut(key=7, id="terzo", title="Terzo", artist="", year=None, loot=1.0,
+                               archived=False, tracks=[TrackOut(11, "c", 1, "C", "", 20000, 2)], cover=None,
+                               unique={"from": "runner"}))
     if without_first:
         albums = [a for a in albums if a.key != 5]
     return generate.catalog_lua("v1test", albums)
@@ -506,14 +511,16 @@ function kill(walk, killer, burning, x, y)
     fire("OnZombieDead", z)
     return z
 end
-function state() return ((MODDATA.JukeboxMoon or {}).unique or {})["5"] or {} end
+function entry(key) return ((MODDATA.JukeboxMoon or {}).unique or {})[key] or {} end
+function state() return entry("5") end
 function taken(player) cmd("taken", { album = 5, item = 1 }, player) end
+function holding(z, key) return z.inventory:containsTypeRecurse("JukeboxMoon.CD_" .. key) end
 """
 
 
-def unique_game(server=True, client=False, extra=False):
+def unique_game(server=True, client=False, extra=False, third=False):
     modules = ["JukeboxMoon/Server", "JukeboxMoon/Unique"] + (["JukeboxMoon/Finder"] if client else [])
-    lua = runtime(*modules, server=server, catalog=unique_catalog(extra), preload=ACTIONS)
+    lua = runtime(*modules, server=server, catalog=unique_catalog(extra, third=third), preload=ACTIONS)
     lua.execute(WORLD + UNIQUE_WORLD)
     return lua
 
@@ -530,11 +537,17 @@ def in_play(lua):
     return [line["key"] for line in lines(lua) if line["since"] is not None and line["found"] is None]
 
 
+def rands(lua):
+    return list(lua.eval("RANDS").values())
+
+
 def test_the_unique_cd_is_never_loot_nor_made_by_admins():
-    lua = unique_game()
+    lua = unique_game(extra=True)                                   # with and without the old "oneIn"
     assert [a.key for a in lua.eval("JukeboxMoon.Catalog.activeAlbums()").values()] == [1]
-    lua.execute("P.admin = true; cmd('spawn', { album = 5, count = 1 })")
-    assert lua.eval("lastOne().args.what") == "noalbum" and lua.eval("P.inventory.items:size()") == 0
+    assert [a.key for a in lua.eval("JukeboxMoon.Catalog.uniqueAlbums()").values()] == [5, 6]
+    for key in (5, 6):
+        lua.execute(f"P.admin = true; cmd('spawn', {{ album = {key}, count = 1 }})")
+        assert lua.eval("lastOne().args.what") == "noalbum" and lua.eval("P.inventory.items:size()") == 0
 
 
 def test_the_file_for_zombot_says_the_cd_is_waiting():
@@ -549,7 +562,7 @@ def test_only_a_runner_killed_by_a_player_rolls_and_the_cd_drops_once():
     lua.execute("kill('slow2', P); kill('sprint3', nil); kill('sprint3', P, true)")
     assert lua.eval("#RANDS") == 0                                  # a shambler, no killer, burning: no roll
     lua.execute("Z1 = kill('sprint3', P)")
-    assert lua.eval("RANDS[1]") == 300 and lua.eval("Z1.inventory.items:size()") == 0
+    assert lua.eval("RANDS[1]") == 10000 and lua.eval("Z1.inventory.items:size()") == 0   # 1% by default: not this one
     lua.execute("fire('OnZombieDead', Z1)")                          # the fire path: the same zombie again
     assert lua.eval("#RANDS") == 1 and lua.eval("state().state") == "waiting"
     lua.execute("NEXT_RAND = 0; Z2 = kill('sprint1', P)")
@@ -607,7 +620,7 @@ def test_a_corpse_nobody_loots_lets_it_drop_again_only_after_the_removal_time():
     assert s.state == "dropped" and (s.x, s.y) == (40, 40) and s.hours == 1216
 
 
-def test_a_server_that_never_removes_corpses_does_not_stop_the_queue():
+def test_a_server_that_never_removes_corpses_does_not_keep_it_out_for_ever():
     lua = unique_game()
     lua.execute("SandboxVars.HoursForCorpseRemoval = -1; NEXT_RAND = 0; kill('sprint2', P)")
     lua.execute("HOURS = 167; NEXT_RAND = 0; Z2 = kill('sprint2', P)")
@@ -644,20 +657,142 @@ def test_names_are_escaped_for_json():
     assert found(lua)["character"] == 'Anna "la" \\ B'
 
 
-def test_one_unique_cd_at_a_time_in_the_order_they_were_added():
+def test_every_unique_cd_not_found_is_in_play_at_once():
     lua = unique_game(extra=True)
     lua.execute('fire("OnInitGlobalModData", false)')
-    assert [(line["key"], line["since"]) for line in lines(lua)] == [("5", 100), ("6", None)]
+    assert lua.eval(UNIQUE_FILE) == ('{"v":1,"unique":[{"key":"5","name":"CD: Love storii...","artist":"Prince",'
+                                     '"from":"runner","since":100,"found":null},{"key":"6","name":"CD: Segreto",'
+                                     '"artist":"Altro","from":"runner","since":100,"found":null}]}\n')
+    assert in_play(lua) == ["5", "6"]
     lua.execute("Z1 = kill('sprint2', P)")
-    assert list(lua.eval("RANDS").values()) == [300]               # only the one in play rolls
-    lua.execute("NEXT_RAND = 0; Z2 = kill('sprint2', P); NEXT_RAND = 0; Z3 = kill('sprint2', P)")
-    assert lua.eval("Z2.inventory:containsTypeRecurse(CD)") is True and lua.eval("Z3.inventory.items:size()") == 0
-    assert len(lua.eval("RANDS")) == 2 and in_play(lua) == ["5"]   # out on a corpse: the next one still waits
-    lua.execute("P.inventory.items:add(Z2.inventory:take(CD)); NOW = NOW + 60000; taken()")
-    assert [(line["key"], line["since"]) for line in lines(lua)] == [("5", 100), ("6", 160)] and in_play(lua) == ["6"]
+    assert rands(lua) == [10000] and lua.eval("Z1.inventory.items:size()") == 0   # one roll for the two, not one each
+
+
+@pytest.mark.parametrize("option, chance", [
+    (None, 100),        # not in the server's options: 1%
+    ("1.0", 100),
+    ("0.25", 25),       # decimals: hundredths of a percent
+    ("2.5", 250),
+    ("0.01", 1),
+    ("0.334", 33),
+    ("0", 0),
+    ("100", 10000),
+    ("150", 10000),     # kept within 0-100
+    ("-3", 0),
+    ('"5"', 100),       # not a number: the default
+])
+def test_one_roll_per_runner_with_the_servers_chance(option, chance):
+    lua = unique_game(extra=True)
+    if option is not None:
+        lua.execute(f"SandboxVars.JukeboxMoon.UniqueChance = {option}")
+    assert lua.eval("JukeboxMoon.Unique.chance()") == chance
+    if chance < 10000:
+        lua.execute(f"NEXT_RAND = {chance}; Z1 = kill('sprint2', P)")              # just over the chance: nothing
+        assert rands(lua) == [10000] and lua.eval("Z1.inventory.items:size()") == 0
+    if chance > 0:
+        lua.execute(f"NEXT_RAND = {{ {chance - 1}, 0 }}; Z2 = kill('sprint2', P)")  # just under: one CD of the two
+        assert rands(lua)[-2:] == [10000, 2] and lua.eval("holding(Z2, 5)") is True
+        assert lua.eval("Z2.inventory.items:size()") == 1
+
+
+def test_debug_always_drops_one():
+    lua = unique_game(extra=True)
+    lua.execute("SandboxVars.JukeboxMoon.UniqueChance = 0; DEBUG = true")
+    assert lua.eval("JukeboxMoon.Unique.chance()") == 10000
+    lua.execute("Z1 = kill('sprint2', P)")                       # the roll gives its highest number: still a CD
+    assert rands(lua) == [10000, 2] and lua.eval("holding(Z1, 6)") is True and lua.eval("Z1.inventory.items:size()") == 1
+
+
+@pytest.mark.parametrize("pick, key", [(0, "5"), (1, "6"), (2, "7")])
+def test_which_cd_is_picked_at_random_among_those_that_can_drop(pick, key):
+    lua = unique_game(extra=True, third=True)
+    lua.execute(f"NEXT_RAND = {{ 0, {pick} }}; Z = kill('sprint2', P)")
+    assert rands(lua) == [10000, 3]                                 # the chance, then which of the three, each as likely
+    assert lua.eval(f"holding(Z, {key})") is True and lua.eval("Z.inventory.items:size()") == 1
+    assert [k for k in ("5", "6", "7") if lua.eval(f"entry('{k}').state") == "dropped"] == [key]
+
+
+def test_a_cd_out_on_a_corpse_cannot_drop_again_while_the_others_can():
+    lua = unique_game(extra=True, third=True)
+    lua.execute("SandboxVars.HoursForCorpseRemoval = 10; NEXT_RAND = { 0, 1 }; Z1 = kill('sprint2', P)")
+    assert lua.eval("holding(Z1, 6)") is True
+    lua.execute("NEXT_RAND = { 0, 1 }; Z2 = kill('sprint2', P)")
+    assert rands(lua)[2:] == [10000, 2] and lua.eval("holding(Z2, 7)") is True   # 6 is out: between 5 and 7
+    lua.execute("NEXT_RAND = 0; Z3 = kill('sprint2', P)")
+    assert rands(lua)[4:] == [10000] and lua.eval("holding(Z3, 5)") is True      # only 5 could: no pick
     lua.execute("NEXT_RAND = 0; Z4 = kill('sprint2', P)")
-    assert list(lua.eval("RANDS").values())[-1] == 50
-    assert lua.eval("Z4.inventory:containsTypeRecurse('JukeboxMoon.CD_6')") is True
+    assert len(rands(lua)) == 5 and lua.eval("Z4.inventory.items:size()") == 0    # all three out: no roll
+    assert in_play(lua) == ["5", "6", "7"]                          # out is still in play: nobody has found them
+    lua.execute("HOURS = 10; NEXT_RAND = { 0, 2 }; Z5 = kill('sprint2', P, false, 40, 40)")
+    assert rands(lua)[5:] == [10000, 3] and lua.eval("holding(Z5, 7)") is True   # unlooted for 10 hours: all again
+    assert (lua.eval("entry('7').x"), lua.eval("entry('7').y")) == (40, 40) and lua.eval("entry('5').x") == 10
+
+
+def test_two_cds_out_at_once_each_found_by_who_takes_it():
+    lua = unique_game(extra=True)
+    lua.execute("""
+        NEXT_RAND = { 0, 0 }; Z5 = kill('sprint2', P); BODY5 = newCorpse(SQ, Z5.inventory)
+        NEXT_RAND = 0; Z6 = kill('sprint2', P, false, 40, 40); BODY6 = newCorpse(newSquare(40, 40, 0), Z6.inventory)
+    """)
+    assert lua.eval("entry('5').state") == "dropped" and lua.eval("entry('6').state") == "dropped"
+    assert (lua.eval("entry('5').x"), lua.eval("entry('6').x")) == (10, 40) and found(lua) is None
+    lua.execute("""
+        Q = newPlayer("bruno", 40.5, 40.5, 0); C6 = BODY6.container:take('JukeboxMoon.CD_6'); Q.inventory.items:add(C6)
+        cmd("taken", { album = 5, item = C6:getID() }, Q)
+    """)
+    assert lua.eval("entry('5').state") == "dropped"                # the album named is the one checked: not 5
+    lua.execute("NOW = NOW + 5000; cmd('taken', { album = 6, item = C6:getID() }, Q)")
+    assert [line["found"] and line["found"]["user"] for line in lines(lua)] == [None, "bruno"]
+    assert in_play(lua) == ["5"] and lua.eval("entry('6').found.copy == C6:getID()")
+    lua.execute("""
+        C5 = BODY5.container:take(CD); P.inventory.items:add(C5); NOW = NOW + 5000
+        cmd("taken", { album = 5, item = C5:getID() })
+    """)
+    assert [line["found"]["user"] for line in lines(lua)] == ["anna", "bruno"] and in_play(lua) == []
+    assert lua.eval("entry('5').found.copy == C5:getID()") and lua.eval("#REMOVED_ITEMS") == 0
+    lua.execute("NEXT_RAND = 0; Z = kill('sprint2', P)")
+    assert lua.eval("Z.inventory.items:size()") == 0 and len(rands(lua)) == 3   # all found: no more rolls
+
+
+def test_a_later_copy_goes_while_another_cd_is_still_out():
+    lua = unique_game(extra=True)
+    lua.execute("""
+        SandboxVars.HoursForCorpseRemoval = -1
+        NEXT_RAND = { 0, 0 }; OLD = kill('sprint2', P)                          -- 5, nobody loots it
+        HOURS = 200; NEXT_RAND = { 0, 0 }; NEW = kill('sprint2', P, false, 40, 40)   -- 5 again, then 6 still waits
+        NEXT_RAND = 0; Z6 = kill('sprint2', P, false, 60, 60)                   -- 6
+        A = OLD.inventory:take(CD); B = NEW.inventory:take(CD)
+        P.inventory.items:add(A); cmd("taken", { album = 5, item = A:getID() })
+        Q = newPlayer("bruno", 40.5, 40.5, 0); Q.inventory.items:add(B)
+        NOW = NOW + 5000; cmd("taken", { album = 5, item = B:getID() }, Q)
+    """)
+    assert lua.eval("holding(NEW, 6)") is False and lua.eval("holding(Z6, 6)") is True
+    assert lua.eval("state().found.copy == A:getID()") and found(lua)["user"] == "anna"
+    assert lua.eval("Q.inventory.items:size()") == 0 and lua.eval("REMOVED_ITEMS[1] == B")   # the copy goes
+    assert lua.eval("lastOne().player == Q") and lua.eval("lastOne().args.what") == "leftover"
+    assert lua.eval("entry('6').state") == "dropped" and in_play(lua) == ["6"]   # the other one is still out
+
+
+def test_a_save_of_the_time_of_one_at_a_time_goes_on_unchanged():
+    lua = unique_game(extra=True, third=True)
+    # 5 found; 6 put back in play by hand (JukeboxMoonReset62.lua: state waiting, found nil, since now); 7 waiting its
+    # turn, as one at a time left it (no since)
+    lua.execute("""
+        MODDATA.JukeboxMoon = { unique = {
+            ["5"] = { state = "found", since = 50, name = "CD: Love storii...", artist = "Prince", from = "runner",
+                      x = 10, y = 20, z = 0, at = 55, hours = 3, copy = 77,
+                      found = { user = "anna", character = "Nome anna", at = 60, from = "runner", test = false, copy = 77 } },
+            ["6"] = { state = "waiting", since = 90, found = nil, x = 1, y = 2, z = 0, at = 80, hours = 1, copy = 8 },
+            ["7"] = { state = "waiting" },
+        } }
+        fire("OnInitGlobalModData", false)
+    """)
+    assert [(line["key"], line["since"], line["found"] and line["found"]["user"]) for line in lines(lua)] == [
+        ("5", 50, "anna"), ("6", 90, None), ("7", 100, None)]
+    assert in_play(lua) == ["6", "7"]
+    lua.execute("NEXT_RAND = { 0, 0 }; Z = kill('sprint2', P, false, 30, 30)")
+    assert rands(lua) == [10000, 2] and lua.eval("holding(Z, 6)") is True and lua.eval("holding(Z, 5)") is False
+    assert (lua.eval("entry('6').state"), lua.eval("entry('6').x"), lua.eval("entry('6').since")) == ("dropped", 30, 90)
 
 
 def test_a_cd_back_from_an_unlooted_corpse_keeps_its_since():
@@ -668,12 +803,16 @@ def test_a_cd_back_from_an_unlooted_corpse_keeps_its_since():
     assert lua.eval("Z.inventory:containsTypeRecurse(CD)") is True and lines(lua)[0]["since"] == 100
 
 
-def test_the_lines_stay_for_ever_and_a_new_unique_cd_enters_after_the_last_found():
+def test_the_lines_stay_for_ever_and_a_new_unique_cd_enters_play_when_it_is_added():
     lua = unique_game()
-    lua.execute("fire('OnInitGlobalModData', false); NEXT_RAND = 0; Z = kill('sprint2', P)")
-    lua.execute("P.inventory.items:add(Z.inventory:take(CD)); taken()")
-    assert in_play(lua) == []                                       # all found: nothing in play
-    lua.execute(unique_catalog(extra=True, without_first=True))     # a new catalogue: 6 added, 5 taken out
+    lua.execute("fire('OnInitGlobalModData', false)")
+    lua.execute(unique_catalog(extra=True))                         # a new catalogue: 6 added, 5 still in play
+    lua.execute("NOW = NOW + 3600000; fire('OnInitGlobalModData', false)")
+    assert [(line["key"], line["since"]) for line in lines(lua)] == [("5", 100), ("6", 3700)]
+    assert in_play(lua) == ["5", "6"]
+    lua.execute("NEXT_RAND = { 0, 0 }; Z = kill('sprint2', P); P.inventory.items:add(Z.inventory:take(CD)); taken()")
+    assert in_play(lua) == ["6"]
+    lua.execute(unique_catalog(extra=True, without_first=True))     # and then 5 taken out
     lua.execute("NOW = NOW + 3600000; fire('OnInitGlobalModData', false)")
     assert [line["key"] for line in lines(lua)] == ["5", "6"] and lines(lua)[0]["name"] == "CD: Love storii..."
     assert [line["from"] for line in lines(lua)] == ["runner", "runner"]   # kept for the album taken out too
@@ -688,7 +827,7 @@ def test_the_mod_tells_the_server_once_when_it_moves_the_cd():
         OTHER = BODY.container:AddItem("JukeboxMoon.CD_1")
         ISInventoryTransferAction.new(P, { OTHER }, BODY.container, P.inventory):perform()
     """)
-    assert lua.eval("RANDS[1]") == 1                                  # -debug: the first runner has it
+    assert lua.eval("RANDS[1]") == 10000 and lua.eval("#RANDS") == 1   # -debug: the first runner has it
     assert lua.eval("#TO_SERVER") == 0 and lua.eval("state().state") == "dropped"   # another CD: nothing said
     lua.execute("CDITEM = BODY.container:take(CD); BODY.container.items:add(CDITEM)")
     lua.execute("ISInventoryTransferAction.new(P, { CDITEM }, BODY.container, P.inventory):perform()")

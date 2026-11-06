@@ -57,7 +57,7 @@ class Album:
     folder: Path
     cover: Path | None
     media: str | None = None      # a CD of the game (its recording's id): no new item, the game's disc plays it
-    unique: dict | None = None    # {"from": "runner", "oneIn": n}: one CD in the server's whole story, never loot
+    unique: dict | None = None    # {"from": "runner"} (+ an old "oneIn"): one CD in the server's story, never loot
     tracks: list[Track] = field(default_factory=list)
 
 
@@ -125,15 +125,21 @@ def load_album(folder: Path) -> Album:
                           f"(come 89108e07-fc70-4eec-a267-790d6f4b9831).")
     unique = data.get("unique")
     if unique is not None:
+        # "oneIn" (one in how many runners) is no longer read since 6 November 2026: how often a unique CD drops is the
+        # server's option UniqueChance, the same for all. Still accepted (old album.json files build the same), and
+        # still checked when it is there.
         one_in = unique.get("oneIn") if isinstance(unique, dict) else None
-        if (not isinstance(unique, dict) or set(unique) != {"from", "oneIn"} or unique.get("from") not in UNIQUE_FROM
-                or isinstance(one_in, bool) or not isinstance(one_in, int) or not 1 <= one_in <= 1_000_000):
-            raise SourceError(f"{where}: «unique» deve essere {{\"from\": \"runner\", \"oneIn\": 300}} "
-                              f"(da dove viene, e uno ogni quanti: da 1 a 1000000).")
+        if (not isinstance(unique, dict) or not {"from"} <= set(unique) <= {"from", "oneIn"}
+                or unique.get("from") not in UNIQUE_FROM
+                or ("oneIn" in unique and (isinstance(one_in, bool) or not isinstance(one_in, int)
+                                           or not 1 <= one_in <= 1_000_000))):
+            raise SourceError(f"{where}: «unique» deve essere {{\"from\": \"runner\"}} (da dove viene). Un vecchio "
+                              f"«oneIn» va ancora bene (da 1 a 1000000) ma non conta più: quanto spesso esce lo "
+                              f"decide l'opzione del server UniqueChance.")
         if media:
             raise SourceError(f"{where}: un CD del gioco («vanillaMedia») non può essere unico: il gioco ne mette "
                               f"già nel mondo.")
-        unique = {"from": unique["from"], "oneIn": one_in}
+        unique = {"from": unique["from"], **({"oneIn": one_in} if "oneIn" in unique else {})}
     cover = None
     if data.get("cover") is not None:
         cover = _inside(folder, data["cover"], "cover", where, COVER, MAX_COVER_BYTES)

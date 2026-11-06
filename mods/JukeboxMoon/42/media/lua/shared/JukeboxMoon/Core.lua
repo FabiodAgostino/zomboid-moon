@@ -33,6 +33,7 @@ Core.DEFAULTS = {
 	DeafBenefitMultiplier = 0.0,
 	HardOfHearingBenefitMultiplier = 0.5,
 	AllowCrossFloorBenefits = false,
+	UniqueChance = 1.0,                 -- percent: a runner killed by a player has one of the unique CDs in play
 }
 
 local LIMITS = {
@@ -44,6 +45,7 @@ local LIMITS = {
 	MoodEvaluationMinutes = { 1, 60 },
 	DeafBenefitMultiplier = { 0, 1 },
 	HardOfHearingBenefitMultiplier = { 0, 1 },
+	UniqueChance = { 0, 100 },
 }
 
 -- One option: the server's value when it has the right type, the default otherwise, numbers kept in their range.

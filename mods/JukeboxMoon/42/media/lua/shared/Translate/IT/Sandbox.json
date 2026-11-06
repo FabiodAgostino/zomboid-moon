@@ -28,5 +28,7 @@
     "Sandbox_JukeboxMoon_HardOfHearingBenefitMultiplier": "Benefici per chi sente poco",
     "Sandbox_JukeboxMoon_HardOfHearingBenefitMultiplier_tooltip": "0 nessuno, 1 tutti.",
     "Sandbox_JukeboxMoon_AllowCrossFloorBenefits": "Benefici anche da un altro piano",
-    "Sandbox_JukeboxMoon_AllowCrossFloorBenefits_tooltip": "Spento, solo chi è sullo stesso piano del jukebox."
+    "Sandbox_JukeboxMoon_AllowCrossFloorBenefits_tooltip": "Spento, solo chi è sullo stesso piano del jukebox.",
+    "Sandbox_JukeboxMoon_UniqueChance": "Probabilità di un CD unico (%)",
+    "Sandbox_JukeboxMoon_UniqueChance_tooltip": "Per ogni corridore ucciso da un giocatore, la probabilità che porti uno dei CD unici ancora da trovare, scelto a caso. Anche con i decimali, con il punto: 0.5 è uno ogni 200. 0 nessuno."
 }

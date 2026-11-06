@@ -44,9 +44,21 @@ end
 
 CLIENT, SERVER, NOW, DEBUG = false, false, 100000, false
 function isDebugEnabled() return DEBUG end
--- the game's random numbers: RANDS keeps every n asked; NEXT_RAND (once) is the answer, else n - 1 (never 0 unless n = 1)
+-- the game's random numbers: RANDS keeps every n asked; NEXT_RAND (once) is the answer, else n - 1 (never 0 unless n = 1);
+-- NEXT_RAND = { a, b } answers the next calls in that order
 RANDS = {}
-function ZombRand(n) table.insert(RANDS, n) local r = NEXT_RAND NEXT_RAND = nil if r then return r % n end return n - 1 end
+function ZombRand(n)
+    table.insert(RANDS, n)
+    local r = NEXT_RAND
+    if type(r) == "table" then
+        r = table.remove(NEXT_RAND, 1)
+        if #NEXT_RAND == 0 then NEXT_RAND = nil end
+    else
+        NEXT_RAND = nil
+    end
+    if r then return r % n end
+    return n - 1
+end
 -- the game's clock in hours since the world began (GameTime.getWorldAgeHours)
 HOURS = 0
 function getGameTime() return { getWorldAgeHours = function() return HOURS end } end

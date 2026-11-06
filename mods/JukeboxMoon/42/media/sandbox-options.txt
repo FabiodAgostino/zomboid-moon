@@ -118,3 +118,13 @@ option JukeboxMoon.AllowCrossFloorBenefits
     page = JukeboxMoon,
     translation = JukeboxMoon_AllowCrossFloorBenefits,
 }
+
+option JukeboxMoon.UniqueChance
+{
+    type = double,
+    min = 0.0,
+    max = 100.0,
+    default = 1.0,
+    page = JukeboxMoon,
+    translation = JukeboxMoon_UniqueChance,
+}

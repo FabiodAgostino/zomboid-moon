@@ -51,7 +51,7 @@ class AlbumOut:
     tracks: list[TrackOut]
     cover: bytes | None      # the source image, or None for a drawn one
     media: str | None = None  # a CD of the game: the game's disc (Base.Disc_Retail) with this recording plays it
-    unique: dict | None = None  # {"from": "runner", "oneIn": n}: one CD in the server's story (server/Unique.lua)
+    unique: dict | None = None  # {"from": "runner"}: one CD in the server's story (server/Unique.lua); old "oneIn" kept
 
     @property
     def item(self) -> str | None:
@@ -100,8 +100,10 @@ def catalog_lua(version: str, albums: list[AlbumOut]) -> str:
                      f"archived = {'true' if a.archived else 'false'},")
         lines.append(f"\t\t\tcover = {lua_string(f'media/textures/JukeboxMoon/Cover_{a.key}.png')},")
         if a.unique:
-            # name and artist already as JSON (the bot reads them in jukeboxmoon_unique.json)
-            lines.append(f"\t\t\tunique = {{ from = {lua_string(a.unique['from'])}, oneIn = {int(a.unique['oneIn'])}, "
+            # name and artist already as JSON (the bot reads them in jukeboxmoon_unique.json). An old "oneIn" is written
+            # as it was (the same catalogue as before, the same version), but the mod no longer reads it
+            one_in = f"oneIn = {int(a.unique['oneIn'])}, " if "oneIn" in a.unique else ""
+            lines.append(f"\t\t\tunique = {{ from = {lua_string(a.unique['from'])}, {one_in}"
                          f"jsonName = {lua_string(json_text(item_name(a)))}, jsonArtist = {lua_string(json_text(a.artist))} }},")
         lines.append("\t\t\ttracks = {")
         for t in a.tracks:

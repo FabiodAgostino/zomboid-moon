@@ -438,7 +438,9 @@ def test_the_games_cds_from_radio_voices(tmp_path):
 @pytest.mark.parametrize("unique, message", [
     ({"from": "runner", "oneIn": 0}, "«unique»"),
     ({"from": "chest", "oneIn": 300}, "«unique»"),
-    ({"from": "runner"}, "«unique»"),
+    ({"oneIn": 300}, "«unique»"),
+    ({}, "«unique»"),
+    ({"from": "runner", "oneIn": "300"}, "«unique»"),
     ({"from": "runner", "oneIn": 300, "extra": 1}, "«unique»"),
     ("runner", "«unique»"),
 ])
@@ -450,7 +452,9 @@ def test_a_bad_unique_cd_is_refused(tmp_path, unique, message):
 
 def test_a_unique_cd_reaches_the_catalogue_with_its_names_ready_for_json(tmp_path):
     album(tmp_path, "uno", [("a", 6)], unique={"from": "runner", "oneIn": 300})
-    assert source.load(tmp_path)[0].unique == {"from": "runner", "oneIn": 300}
+    assert source.load(tmp_path)[0].unique == {"from": "runner", "oneIn": 300}   # an old album.json: kept as it was
+    album(tmp_path, "uno", [("a", 6)], unique={"from": "runner"})              # since 6 November 2026: no "oneIn"
+    assert source.load(tmp_path)[0].unique == {"from": "runner"}
     album(tmp_path, "cd-uno", [("b", 6)], vanillaMedia=MEDIA, unique={"from": "runner", "oneIn": 3})
     with pytest.raises(SourceError, match="non può essere unico"):
         source.load(tmp_path)
@@ -460,6 +464,9 @@ def test_a_unique_cd_reaches_the_catalogue_with_its_names_ready_for_json(tmp_pat
     assert ('unique = { from = "runner", oneIn = 300, jsonName = "CD: Pi\\\\u00f9 bello", '
             'jsonArtist = "La \\\\\\"banda\\\\\\"" },') in lua
     assert lua.isascii()
+    out.unique = {"from": "runner"}                                  # the mod no longer reads it: none written
+    assert ('unique = { from = "runner", jsonName = "CD: Pi\\\\u00f9 bello", '
+            'jsonArtist = "La \\\\\\"banda\\\\\\"" },') in generate.catalog_lua("v", [out])
 
 
 def test_a_song_counts_its_different_lines_not_the_repeated_ones():

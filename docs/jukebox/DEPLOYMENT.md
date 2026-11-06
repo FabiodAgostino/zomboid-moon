@@ -64,11 +64,16 @@ JukeboxMoon = {
     DeafBenefitMultiplier = 0.0,
     HardOfHearingBenefitMultiplier = 0.5,
     AllowCrossFloorBenefits = false,
+    UniqueChance = 1.0,                   -- % per corridore ucciso da un giocatore: un CD unico, scelto a caso
 },
 ```
 
 Il bottino si decide all'avvio del server: `EnableCDLoot` e `LootRarity` contano dal riavvio dopo, e solo per i
 contenitori non ancora aperti.
+
+`UniqueChance` (dal motore 1.1.0) è la probabilità, in percentuale e con i decimali (con il punto: `0.5` è uno su 200),
+che un corridore ucciso da un giocatore porti uno dei CD unici non ancora trovati, scelto a caso: un tiro solo per
+corridore, quanti che siano i CD unici. Da 0 (mai) a 100; senza, 1. Il server la legge a ogni tiro.
 
 ## Un catalogo nuovo (album aggiunti, tolti, rifatti)
 

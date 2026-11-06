@@ -4,5 +4,5 @@ poster=poster.png
 icon=icon.png
 description=I jukebox del mondo suonano i CD di Moon: trovali, scambiali e mettili in un jukebox con la corrente. Chi ascolta vicino si annoia e si stressa meno. La musica la sceglie l'admin del server e la installa il launcher di Moon. Serve per giocare su Moon: sugli altri server non si carica.
 author=Moon
-modversion=1.0.0
+modversion=1.1.0
 versionMin=42.21.0
