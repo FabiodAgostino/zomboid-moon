@@ -298,6 +298,20 @@ function Handlers.notice(args)
 	tell("notice", args)
 end
 
+-- The server took boredom and/or stress off this player (Server.relieve): the same words and green arrow down as the
+-- game's TV and VHS (ISRadioInteractions.addHalo -> HaloTextHelper.addTextWithArrow, IGUI_HaloNote_*).
+function Handlers.relief(args)
+	local player = getPlayer()
+	if not player or not HaloTextHelper or not HaloTextHelper.addTextWithArrow then return end
+	local color = HaloTextHelper.getGoodColor()
+	if args.boredom == 1 then
+		HaloTextHelper.addTextWithArrow(player, getText("IGUI_HaloNote_Boredom"), "[br/]", false, color)
+	end
+	if args.stress == 1 then
+		HaloTextHelper.addTextWithArrow(player, getText("IGUI_HaloNote_Stress"), "[br/]", false, color)
+	end
+end
+
 function Player.onServerCommand(module, command, args)
 	if module ~= MODULE then return end
 	local handler = Handlers[command]

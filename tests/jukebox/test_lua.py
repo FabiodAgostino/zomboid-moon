@@ -386,6 +386,43 @@ def test_ten_minutes_in_range_take_off_the_hourly_rate_times_ten_sixtieths():
     assert lua.eval("#SYNCED") == 1 and lua.eval("SYNCED[1].mask") == 64 + 128
 
 
+def test_the_relief_is_told_to_who_got_it_for_the_green_arrows():
+    """09/11/2026: «Noia» and «Stress» with the green arrow over the head, as with the game's TV and VHS."""
+    lua = mood()
+    lua.execute("minutes(10)")
+    told = [m for m in lua.eval("TO_ONE").values() if m.command == "relief"]
+    assert len(told) == 1 and told[0].module == "JukeboxMoon"
+    assert (told[0].args.boredom, told[0].args.stress) == (1, 1)
+    assert lua.eval("function(a, b) return rawequal(a, b) end")(told[0].player, lua.eval("P")) is True
+    lua = mood(deaf="P.traits.DEAF = true")
+    lua.execute("minutes(10)")
+    assert not [m for m in lua.eval("TO_ONE").values() if m.command == "relief"]
+    lua = mood(calm="P.stats.STRESS = 0")
+    lua.execute("minutes(10)")
+    told = [m for m in lua.eval("TO_ONE").values() if m.command == "relief"]
+    assert (told[0].args.boredom, told[0].args.stress) == (1, 0)
+
+
+def test_the_client_shows_the_relief_like_the_vhs():
+    lua = client()
+    lua.execute("""
+        HALO = {}
+        HaloTextHelper = {
+            getGoodColor = function() return "good" end,
+            addTextWithArrow = function(p, text, sep, up, color) table.insert(HALO, { text = text, up = up, color = color }) end,
+        }
+        JukeboxMoon.Player.onServerCommand("JukeboxMoon", "relief", { boredom = 1, stress = 1 })
+        JukeboxMoon.Player.onServerCommand("JukeboxMoon", "relief", { boredom = 1, stress = 0 })
+        JukeboxMoon.Player.onServerCommand("Other", "relief", { boredom = 1, stress = 1 })
+    """)
+    halo = [(h.text, h.up, h.color) for h in lua.eval("HALO").values()]
+    assert halo == [
+        ("IGUI_HaloNote_Boredom", False, "good"),
+        ("IGUI_HaloNote_Stress", False, "good"),
+        ("IGUI_HaloNote_Boredom", False, "good"),
+    ]
+
+
 def test_only_the_minutes_really_in_range_count():
     lua = mood()
     lua.execute("minutes(7); P.x = 30; minutes(3)")            # left after seven

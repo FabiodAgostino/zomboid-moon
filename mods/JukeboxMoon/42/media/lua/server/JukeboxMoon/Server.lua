@@ -303,6 +303,9 @@ function Server.relieve(player, minutes)
 			syncPlayerStats(player, mask)
 		end)
 	end
+	-- the words over the head with the green arrow, as the game's TV and VHS do (09/11/2026, the user): only to who
+	-- got the relief, once per evaluation (MoodEvaluationMinutes), never to a deaf player (multiplier 0, above)
+	reply(player, "relief", { boredom = boredom > 0 and 1 or 0, stress = stress > 0 and 1 or 0 })
 end
 
 function Server.everyMinute()

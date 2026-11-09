@@ -1,6 +1,12 @@
 # Jukebox (Moon): modifiche
 
-## 1.1.0 (6 novembre 2026, non pubblicata, mai provata nel gioco)
+## 1.1.1 (9 novembre 2026)
+
+- Quando la musica toglie noia e stress, sopra la testa di chi ascolta compaiono «Riduzione noia» e «Stress» con la
+  freccia verde in giù, come con TV e VHS (`HaloTextHelper.addTextWithArrow`, le stesse scritte del gioco): una volta
+  ogni `MoodEvaluationMinutes`, solo a chi ha avuto il beneficio, mai a chi è sordo.
+
+## 1.1.0 (6 novembre 2026, pubblicata lo stesso giorno)
 
 - I CD unici non escono più uno alla volta: tutti quelli non ancora trovati sono in gioco insieme, e più d'uno può
   essere fuori nello stesso momento, ognuno trovato da chi lo prende. Ogni corridore ucciso da un giocatore ha una sola
