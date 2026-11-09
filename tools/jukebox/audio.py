@@ -31,9 +31,9 @@ from .source import SourceError
 
 SEGMENT_MS = 10000
 OVERLAP_MS = 250
-RATE = 44100
+RATE = 22050           # 09/11/2026, the user: «compattali il più possibile»: half the rate, enough for a jukebox
 CHANNELS = 1           # mono: see above
-QUALITY = "5"          # libvorbis -q:a 5 (variable bit rate, good quality)
+QUALITY = "0"          # libvorbis -q:a 0 (variable bit rate, about 32 kbps mono at 22 kHz; was 5, about 80)
 LOUDNESS = "loudnorm=I=-16:TP=-1.5:LRA=11"
 MIN_MS = 5000
 MAX_MS = 30 * 60 * 1000

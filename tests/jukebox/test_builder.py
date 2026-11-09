@@ -201,7 +201,7 @@ def test_a_real_build_is_complete_reproducible_and_never_half_written(tmp_path):
     piece = next((music / audio.CACHE).glob("*/s000.ogg"))
     probe = audio.run([shutil.which("ffprobe"), "-v", "error", "-show_entries", "stream=channels,sample_rate",
                        "-of", "json", str(piece)]).stdout
-    assert json.loads(probe)["streams"][0] == {"sample_rate": "44100", "channels": 1}   # mono: half the game's memory
+    assert json.loads(probe)["streams"][0] == {"sample_rate": "22050", "channels": 1}   # mono at 22 kHz: small (09/11/2026)
     assert not (tmp_path / "dist" / ".staging").exists()
     catalog = package.read_zip((first.folder / manifest["catalog"]["asset"]).read_bytes())
     lua = catalog["42/media/lua/shared/JukeboxMoon/CatalogData.lua"].decode("ascii")
