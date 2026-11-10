@@ -58,8 +58,8 @@ musica/
   uno, scelto a caso fra quelli che possono uscire: la decide l'opzione del server `UniqueChance` (in percentuale,
   1 di base, anche con i decimali: `DEPLOYMENT.md`, «Le opzioni del server»), non `album.json`. Aggiungere un CD unico
   non li fa uscire più spesso: cambia solo quale esce. Un CD unico aggiunto entra in gioco al riavvio del server dopo
-  `publish`, anche se gli altri non sono ancora stati trovati. ZomBOT annuncia ogni CD che entra in gioco come
-  «oggetto unico», senza dire quale. Un vecchio `"oneIn"` (era «uno ogni quanti corridori», per album) va ancora bene,
+  `publish`, anche se gli altri non sono ancora stati trovati. ZomBOT annuncia i CD che entrano in gioco come
+  «oggetti unici», senza dire quali, con un solo messaggio per tutti quelli dello stesso riavvio. Un vecchio `"oneIn"` (era «uno ogni quanti corridori», per album) va ancora bene,
   da 1 a 1000000, ma non conta più.
 - Un brano dura da 5 secondi a 30 minuti.
 
@@ -89,6 +89,8 @@ scrive niente e il pacchetto di prima resta com'era. Le copertine si girano come
 trasparenti diventano bianche; una copertina che non si apre ferma tutto prima di convertire l'audio.
 
 Il builder si ferma, apposta, quando:
+- **il catalogo intero supera 300 MB** (dal 10 novembre 2026): è quello che scarica ogni giocatore. Con l'audio di
+  oggi (mono, 22 kHz, circa 32 kbps) sono circa 0,27 MB al minuto, cioè più di 18 ore di musica;
 - **manca `jukebox.lock.json` o `jukebox.key`** in una cartella già costruita: rimettili dalla copia di sicurezza (per
   la chiave c'è anche `--new-key`, sotto);
 - **l'audio di un brano è cambiato**: se è lo stesso brano rifatto, `--replace estate-1993/primo-brano`; se è un altro

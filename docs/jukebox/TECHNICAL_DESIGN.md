@@ -235,8 +235,8 @@ e nel Lua della 42.21:
   gioco, e possono essere più d'una (dalla 1.1.0; il formato resta `v: 1`).
 
   Da trovato, `found` è `{"user":"<account>","character":"<nome e cognome>","at":<secondi unix>,"from":"runner","test":false}`.
-  ZomBOT annuncia in #zombot ogni CD che entra in gioco («oggetto unico», senza dire quale; due che entrano insieme
-  sono due messaggi; non quelli già in gioco la prima volta che legge il file) e una volta per `key` quello trovato
+  ZomBOT annuncia in #zombot ogni CD che entra in gioco («oggetto unico», senza dire quale; quelli che entrano
+  insieme sono un solo messaggio che dice quanti sono, dal 10 novembre 2026; non quelli già in gioco la prima volta che legge il file) e una volta per `key` quello trovato
   («è stato trovato un CD unico…»), mai con `test: true`: in single player e in un gioco avviato con `-debug`, dove
   per provarlo un CD cade da ogni corridore.
 

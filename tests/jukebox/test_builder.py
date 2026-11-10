@@ -231,6 +231,21 @@ def test_a_real_build_is_complete_reproducible_and_never_half_written(tmp_path):
 
 
 @pytest.mark.skipif(not FFMPEG, reason="ffmpeg is not installed")
+def test_a_package_over_the_limit_is_never_written(tmp_path, monkeypatch):
+    assert build.MAX_BYTES == 300 * 1024 * 1024  # 10/11/2026: every CD together at most 300 MB
+    music = tmp_path / "music"
+    album(music, "uno", [("a", 12.5)])
+    monkeypatch.setattr(build, "MAX_BYTES", 1000)
+    with pytest.raises(SourceError, match="oltre il limite"):
+        build.build(music, tmp_path / "dist")
+    assert not (music / "jukebox.lock.json").exists() and not (music / "jukebox.key").exists()
+    assert not (tmp_path / "dist").exists() or not any(p.name != ".staging" for p in (tmp_path / "dist").iterdir())
+    assert not (tmp_path / "dist" / ".staging").exists() or not any((tmp_path / "dist" / ".staging").iterdir())
+    monkeypatch.setattr(build, "MAX_BYTES", 300 * 1024 * 1024)
+    assert build.build(music, tmp_path / "dist").version
+
+
+@pytest.mark.skipif(not FFMPEG, reason="ffmpeg is not installed")
 def test_install_puts_engine_catalogue_audio_and_key_on_this_computer(tmp_path):
     music = tmp_path / "music"
     album(music, "uno", [("a", 6)])

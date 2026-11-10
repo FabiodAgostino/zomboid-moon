@@ -3,6 +3,9 @@
 The numbers (jukebox.lock.json) and the key (jukebox.key) are written before the package takes its name: a package is
 never in dist without the numbers it used. A folder that has one of the two and not the other was built before and
 lost a file: the builder stops instead of giving new numbers (CDs in saves would play another album) or a new key.
+
+A package heavier than MAX_BYTES is never written (10/11/2026, the user: «Per tutti i cd di gioco dobbiamo arrivare al
+massimo a 300mb»): it is what every player downloads with the launcher.
 """
 
 from __future__ import annotations
@@ -16,6 +19,7 @@ from .source import SourceError
 
 REPO = Path(__file__).resolve().parents[2]
 MOD_INFO = REPO / "mods" / "JukeboxMoon" / "42" / "mod.info"
+MAX_BYTES = 300 * 1024 * 1024  # the whole package, as Windows counts MB
 
 
 def engine_version() -> str:
@@ -125,6 +129,12 @@ def build(music: Path, dist: Path, replace: set[str] = frozenset(), forget: set[
                                       "key": package.key_id(key)})
         public[generate.CATALOG_DATA] = generate.catalog_lua(version, outs).encode("ascii")
         staged = staging.finish(version, engine_version(), public)
+        weight = sum(p.stat().st_size for p in staged.iterdir())
+        if weight > MAX_BYTES:
+            raise SourceError(
+                f"Il catalogo peserebbe {weight / 2**20:.0f} MB, oltre il limite di {MAX_BYTES / 2**20:.0f} MB (è quello "
+                f"che scarica ogni giocatore): togli qualche album o comprimi di più l'audio (tools/jukebox/audio.py). "
+                f"Non ho scritto niente.")
         problems = package.verify(staged, key)
         if problems:
             raise SourceError("Il pacchetto appena scritto non torna: " + "; ".join(problems))
