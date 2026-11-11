@@ -73,10 +73,10 @@ function getText(key, a, b) local s = key if a then s = s .. "|" .. tostring(a) 
 function print() end
 
 SandboxVars = { JukeboxMoon = {} }
-CharacterStat = { BOREDOM = "BOREDOM", STRESS = "STRESS" }
+CharacterStat = { BOREDOM = "BOREDOM", STRESS = "STRESS", UNHAPPINESS = "UNHAPPINESS" }
 CharacterTrait = { DEAF = "DEAF", HARD_OF_HEARING = "HARD_OF_HEARING" }
 Capability = { CanSetupNonPVPZone = "CanSetupNonPVPZone" }
-SyncPlayerStatsPacket = { getBitMaskForStat = function(stat) return stat == "BOREDOM" and 64 or 128 end }
+SyncPlayerStatsPacket = { getBitMaskForStat = function(stat) return ({ BOREDOM = 64, STRESS = 128, UNHAPPINESS = 256 })[stat] end }
 SYNCED = {}
 function syncPlayerStats(player, mask) table.insert(SYNCED, { player = player, mask = mask }) end
 
@@ -273,7 +273,7 @@ end
 function newPlayer(name, x, y, z, admin)
     local p = { name = name, x = x, y = y, z = z or 0, dead = false, admin = admin or false, traits = {},
         classes = { IsoPlayer = true, IsoGameCharacter = true }, fullName = "Nome " .. name,
-        stats = { BOREDOM = 50, STRESS = 0.5 }, inventory = newContainer("inventory") }
+        stats = { BOREDOM = 50, STRESS = 0.5, UNHAPPINESS = 30 }, inventory = newContainer("inventory") }
     function p:getX() return self.x end
     function p:getY() return self.y end
     function p:getZ() return self.z end

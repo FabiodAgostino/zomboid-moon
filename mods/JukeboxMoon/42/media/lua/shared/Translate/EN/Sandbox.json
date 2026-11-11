@@ -21,6 +21,8 @@
     "Sandbox_JukeboxMoon_BoredomReductionPerGameHour_tooltip": "On a scale from 0 to 100.",
     "Sandbox_JukeboxMoon_StressReductionPerGameHour": "Stress removed per game hour",
     "Sandbox_JukeboxMoon_StressReductionPerGameHour_tooltip": "On a scale from 0 to 1.",
+    "Sandbox_JukeboxMoon_UnhappinessReductionPerGameHour": "Unhappiness removed per game hour (unique CDs)",
+    "Sandbox_JukeboxMoon_UnhappinessReductionPerGameHour_tooltip": "Only near a jukebox playing a unique CD. On a scale from 0 to 100.",
     "Sandbox_JukeboxMoon_MoodEvaluationMinutes": "Every how many game minutes",
     "Sandbox_JukeboxMoon_MoodEvaluationMinutes_tooltip": "How often the benefits are applied, for the time really spent near the jukebox.",
     "Sandbox_JukeboxMoon_DeafBenefitMultiplier": "Benefits for deaf characters",

@@ -403,6 +403,32 @@ def test_the_relief_is_told_to_who_got_it_for_the_green_arrows():
     assert (told[0].args.boredom, told[0].args.stress) == (1, 0)
 
 
+def test_a_unique_cd_takes_off_unhappiness_too_and_the_others_do_not():
+    """11/11/2026, the user: «la musica deve togliere anche la tristezza ... (solo per i CD unici)»."""
+    lua = mood()                                                    # an ordinary CD
+    lua.execute("minutes(10)")
+    assert lua.eval("P.stats.UNHAPPINESS") == 30
+    told = [m for m in lua.eval("TO_ONE").values() if m.command == "relief"]
+    assert told[0].args.unhappiness == 0 and lua.eval("SYNCED[1].mask") == 64 + 128
+    lua = opened(server(catalog=unique_catalog()))
+    lua.execute(MOOD.replace("JukeboxMoon.CD_1", "JukeboxMoon.CD_5"))  # Love storii, the unique CD
+    lua.execute("minutes(10)")
+    assert lua.eval("P.stats.UNHAPPINESS") == pytest.approx(30 - 4 * 10 / 60)
+    assert lua.eval("P.stats.BOREDOM") == pytest.approx(50 - 4 * 10 / 60)
+    told = [m for m in lua.eval("TO_ONE").values() if m.command == "relief"]
+    assert (told[0].args.boredom, told[0].args.stress, told[0].args.unhappiness) == (1, 1, 1)
+    assert lua.eval("SYNCED[1].mask") == 64 + 128 + 256
+    # nothing to take off: no word for it; never below zero
+    lua = opened(server(catalog=unique_catalog()))
+    lua.execute("P.stats.UNHAPPINESS = 0.2")
+    lua.execute(MOOD.replace("JukeboxMoon.CD_1", "JukeboxMoon.CD_5"))
+    lua.execute("minutes(10)")
+    assert lua.eval("P.stats.UNHAPPINESS") == 0
+    lua.execute("P.stats.UNHAPPINESS = 0; minutes(10)")
+    told = [m for m in lua.eval("TO_ONE").values() if m.command == "relief"]
+    assert told[-1].args.unhappiness == 0
+
+
 def test_the_client_shows_the_relief_like_the_vhs():
     lua = client()
     lua.execute("""
@@ -414,12 +440,14 @@ def test_the_client_shows_the_relief_like_the_vhs():
         JukeboxMoon.Player.onServerCommand("JukeboxMoon", "relief", { boredom = 1, stress = 1 })
         JukeboxMoon.Player.onServerCommand("JukeboxMoon", "relief", { boredom = 1, stress = 0 })
         JukeboxMoon.Player.onServerCommand("Other", "relief", { boredom = 1, stress = 1 })
+        JukeboxMoon.Player.onServerCommand("JukeboxMoon", "relief", { boredom = 0, stress = 0, unhappiness = 1 })
     """)
     halo = [(h.text, h.up, h.color) for h in lua.eval("HALO").values()]
     assert halo == [
         ("IGUI_HaloNote_Boredom", False, "good"),
         ("IGUI_HaloNote_Stress", False, "good"),
         ("IGUI_HaloNote_Boredom", False, "good"),
+        ("IGUI_HaloNote_Unhappiness", False, "good"),
     ]
 
 

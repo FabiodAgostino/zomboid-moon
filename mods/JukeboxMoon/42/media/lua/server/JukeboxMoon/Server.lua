@@ -36,6 +36,7 @@ Server.active = {}      -- key -> { key, x, y, z, on, power, seq, entries, index
 Server.count = 0        -- how many are in `active`
 Server.recent = {}      -- username -> times of the last commands (a few per seconds at most)
 Server.minutes = {}     -- username -> game minutes in range since the last relief
+Server.uniqueMinutes = {}   -- username -> of those, the minutes in range of a unique CD (unhappiness too)
 Server.elapsed = 0      -- game minutes since the last relief
 Server.lastTick = 0
 Server.lastCheck = 0
@@ -284,28 +285,37 @@ local function hasTrait(player, trait)
 	return ok and has == true
 end
 
-function Server.relieve(player, minutes)
+function Server.relieve(player, minutes, uniqueMinutes)
 	local deaf = hasTrait(player, CharacterTrait.DEAF)
 	local hard = hasTrait(player, CharacterTrait.HARD_OF_HEARING)
 	local multiplier = Mood.multiplier(deaf, hard)
 	if multiplier <= 0 then return end
 	local stats = player:getStats()
-	local boredom, stress = Mood.relief(minutes, multiplier,
-		stats:get(CharacterStat.BOREDOM), stats:get(CharacterStat.STRESS))
-	if boredom <= 0 and stress <= 0 then return end
+	-- unhappiness only after minutes with a unique CD (Mood.uniqueInRange): read only then
+	local unhappyNow = 0
+	if (uniqueMinutes or 0) > 0 then
+		local ok, value = pcall(function() return stats:get(CharacterStat.UNHAPPINESS) end)
+		unhappyNow = ok and tonumber(value) or 0
+	end
+	local boredom, stress, unhappiness = Mood.relief(minutes, multiplier,
+		stats:get(CharacterStat.BOREDOM), stats:get(CharacterStat.STRESS), uniqueMinutes, unhappyNow)
+	if boredom <= 0 and stress <= 0 and unhappiness <= 0 then return end
 	if boredom > 0 then stats:remove(CharacterStat.BOREDOM, boredom) end
 	if stress > 0 then stats:remove(CharacterStat.STRESS, stress) end
+	if unhappiness > 0 then stats:remove(CharacterStat.UNHAPPINESS, unhappiness) end
 	-- the player's stats belong to the server: tell the player's game, as the game's own farming does
 	if isServer() then
 		pcall(function()
 			local mask = SyncPlayerStatsPacket.getBitMaskForStat(CharacterStat.BOREDOM)
 				+ SyncPlayerStatsPacket.getBitMaskForStat(CharacterStat.STRESS)
+			if unhappiness > 0 then mask = mask + SyncPlayerStatsPacket.getBitMaskForStat(CharacterStat.UNHAPPINESS) end
 			syncPlayerStats(player, mask)
 		end)
 	end
 	-- the words over the head with the green arrow, as the game's TV and VHS do (09/11/2026, the user): only to who
 	-- got the relief, once per evaluation (MoodEvaluationMinutes), never to a deaf player (multiplier 0, above)
-	reply(player, "relief", { boredom = boredom > 0 and 1 or 0, stress = stress > 0 and 1 or 0 })
+	reply(player, "relief", { boredom = boredom > 0 and 1 or 0, stress = stress > 0 and 1 or 0,
+		unhappiness = unhappiness > 0 and 1 or 0 })
 end
 
 function Server.everyMinute()
@@ -316,17 +326,21 @@ function Server.everyMinute()
 			if not player:isDead() and Mood.anyInRange(Server.active, player:getX(), player:getY(), player:getZ(), t) then
 				local name = player:getUsername() or "?"
 				Server.minutes[name] = (Server.minutes[name] or 0) + 1
+				if Mood.uniqueInRange(Server.active, player:getX(), player:getY(), player:getZ(), t) then
+					Server.uniqueMinutes[name] = (Server.uniqueMinutes[name] or 0) + 1
+				end
 			end
 		end
 	end
 	Server.elapsed = Server.elapsed + 1
 	if Server.elapsed < Core.option("MoodEvaluationMinutes") then return end
 	Server.elapsed = 0
-	local minutes = Server.minutes
-	Server.minutes = {}
+	local minutes, unique = Server.minutes, Server.uniqueMinutes
+	Server.minutes, Server.uniqueMinutes = {}, {}
 	for _, player in ipairs(Server.players()) do
-		local m = minutes[player:getUsername() or "?"]
-		if m and m > 0 and not player:isDead() then Server.relieve(player, m) end
+		local name = player:getUsername() or "?"
+		local m = minutes[name]
+		if m and m > 0 and not player:isDead() then Server.relieve(player, m, unique[name] or 0) end
 	end
 end
 

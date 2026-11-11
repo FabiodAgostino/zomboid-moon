@@ -1,5 +1,11 @@
 # Jukebox (Moon): modifiche
 
+## 1.3.0 (11 novembre 2026)
+
+- Un CD unico toglie anche l'infelicità a chi ascolta vicino, oltre a noia e stress: 4 punti su 100 per ora di gioco
+  (opzione del server `UnhappinessReductionPerGameHour`), con «Infelicità» e la freccia verde sopra la testa. Gli
+  altri CD come prima (richiesta dell'utente).
+
 ## 1.2.0 (11 novembre 2026)
 
 - Quando un CD unico cade dal corridore che hai ucciso, sopra la tua testa compare in oro «Noti qualcosa di

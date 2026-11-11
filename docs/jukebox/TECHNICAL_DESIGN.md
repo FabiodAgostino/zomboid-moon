@@ -119,6 +119,13 @@ stesso piano salvo `AllowCrossFloorBenefits`), conta un minuto. Ogni `MoodEvalua
 jukebox non si sommano. `CharacterTrait.DEAF` × `DeafBenefitMultiplier` (0), `CharacterTrait.HARD_OF_HEARING` ×
 `HardOfHearingBenefitMultiplier` (0,5). Nessun tratto della mod.
 
+**I CD unici tolgono anche l'infelicità** (dalla 1.2.0, 11 novembre 2026, richiesta dell'utente: «la musica deve
+togliere anche la tristezza … solo per i CD unici»). Dei minuti contati, quelli vicino a un jukebox il cui brano è di
+un album unico (`Mood.uniqueInRange`: `Catalog.track(box.track).album`, `Catalog.isUnique`) si contano anche a parte;
+alla valutazione tolgono `UnhappinessReductionPerGameHour` (4 su 100, come la noia) × minuti / 60 × moltiplicatore con
+`stats:remove(CharacterStat.UNHAPPINESS, …)`, mai sotto zero, nella stessa maschera di `syncPlayerStats`. Il client
+mostra «Infelicità» con la freccia verde (`IGUI_HaloNote_Unhappiness`, la parola del gioco), solo quando ne ha tolta.
+
 ### Catalogo nel gioco
 
 `shared/JukeboxMoon/CatalogData.lua` (generato) definisce `JukeboxMoonCatalog = { version, segmentMs, overlapMs,

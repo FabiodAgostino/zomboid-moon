@@ -310,6 +310,10 @@ function Handlers.relief(args)
 	if args.stress == 1 then
 		HaloTextHelper.addTextWithArrow(player, getText("IGUI_HaloNote_Stress"), "[br/]", false, color)
 	end
+	-- a unique CD: unhappiness too (Server.relieve), the game's own word
+	if args.unhappiness == 1 then
+		HaloTextHelper.addTextWithArrow(player, getText("IGUI_HaloNote_Unhappiness"), "[br/]", false, color)
+	end
 end
 
 function Player.onServerCommand(module, command, args)

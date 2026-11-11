@@ -81,6 +81,16 @@ option JukeboxMoon.StressReductionPerGameHour
     translation = JukeboxMoon_StressReductionPerGameHour,
 }
 
+option JukeboxMoon.UnhappinessReductionPerGameHour
+{
+    type = double,
+    min = 0.0,
+    max = 100.0,
+    default = 4.0,
+    page = JukeboxMoon,
+    translation = JukeboxMoon_UnhappinessReductionPerGameHour,
+}
+
 option JukeboxMoon.MoodEvaluationMinutes
 {
     type = integer,
