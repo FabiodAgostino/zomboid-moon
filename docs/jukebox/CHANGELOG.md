@@ -1,5 +1,10 @@
 # Jukebox (Moon): modifiche
 
+## Prossima versione
+
+- `UnhappinessReductionPerGameHour` di base 50 su 100 per ora di gioco (era 4): la scelta dell'utente
+  (11 novembre 2026). Su Moon vale già dall'opzione del server.
+
 ## 1.3.0 (11 novembre 2026)
 
 - Un CD unico toglie anche l'infelicità a chi ascolta vicino, oltre a noia e stress: 4 punti su 100 per ora di gioco

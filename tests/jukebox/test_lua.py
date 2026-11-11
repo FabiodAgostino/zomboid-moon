@@ -413,7 +413,7 @@ def test_a_unique_cd_takes_off_unhappiness_too_and_the_others_do_not():
     lua = opened(server(catalog=unique_catalog()))
     lua.execute(MOOD.replace("JukeboxMoon.CD_1", "JukeboxMoon.CD_5"))  # Love storii, the unique CD
     lua.execute("minutes(10)")
-    assert lua.eval("P.stats.UNHAPPINESS") == pytest.approx(30 - 4 * 10 / 60)
+    assert lua.eval("P.stats.UNHAPPINESS") == pytest.approx(30 - 50 * 10 / 60)
     assert lua.eval("P.stats.BOREDOM") == pytest.approx(50 - 4 * 10 / 60)
     told = [m for m in lua.eval("TO_ONE").values() if m.command == "relief"]
     assert (told[0].args.boredom, told[0].args.stress, told[0].args.unhappiness) == (1, 1, 1)
