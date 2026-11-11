@@ -885,6 +885,49 @@ def test_the_mod_tells_it_from_the_floor_too():
     assert lua.eval("state().state") == "found"
 
 
+def test_only_the_killer_hears_that_something_fell_and_only_when_it_falls():
+    lua = unique_game()
+    lua.execute("B = newPlayer('bruno', 12.5, 21.5, 0); Z1 = kill('sprint3', P)")   # the roll fails: nothing to tell
+    assert not [m for m in lua.eval("TO_ONE").values() if m.command == "notice"]
+    lua.execute("NEXT_RAND = 0; Z2 = kill('sprint1', P)")
+    told = [m for m in lua.eval("TO_ONE").values() if m.command == "notice"]
+    assert len(told) == 1 and told[0].args.what == "interesting" and told[0].player.name == "anna"
+    assert told[0].args.key is None                                   # not which CD, nor any album
+    assert not [m for m in lua.eval("TO_ALL").values() if m.command == "notice"]   # nobody else
+
+
+def test_the_killer_reads_it_in_gold_and_hears_the_chime():
+    lua = unique_game(server=False, client=True)
+    lua.execute("""
+        LOCAL = P
+        HALO, SOUNDS = {}, {}
+        HaloTextHelper = { addText = function(p, text, sep, r, g, b) table.insert(HALO, { p = p, text = text, rgb = r .. "," .. g .. "," .. b }) end }
+        getSoundManager = function() return { playUISound = function(self, name) table.insert(SOUNDS, name) end } end
+        fire("OnServerCommand", "JukeboxMoon", "notice", { what = "interesting" })
+    """)
+    halo = list(lua.eval("HALO").values())
+    assert [(h.text, h.rgb) for h in halo] == [("IGUI_JukeboxMoon_Notice_interesting", "255,215,0")]
+    assert halo[0].p.name == "anna" and list(lua.eval("SOUNDS").values()) == ["JukeboxMoon_Interesting"]
+    # without the helper, the game's own note in the same colour; a sound that fails stops nothing
+    lua.execute("""
+        HaloTextHelper = nil
+        getSoundManager = function() error("no sound") end
+        fire("OnServerCommand", "JukeboxMoon", "notice", { what = "interesting" })
+    """)
+    assert lua.eval("P.halo") == "IGUI_JukeboxMoon_Notice_interesting"
+
+
+def test_the_chime_and_its_words_are_in_the_mod():
+    script = (MOD / "media" / "scripts" / "JukeboxMoon_ui.txt").read_text(encoding="utf-8")
+    assert "sound JukeboxMoon_Interesting" in script and "category = UI," in script
+    sound = re.search(r"file = (\S+?),", script).group(1)
+    ogg = MOD / sound
+    assert ogg.is_file() and ogg.read_bytes()[:4] == b"OggS" and ogg.stat().st_size < 40_000
+    for lang, words in (("IT", "Noti qualcosa di interessante"), ("EN", "You notice something interesting")):
+        names = json.loads((LUA / "shared" / "Translate" / lang / "IG_UI.json").read_text(encoding="utf-8"))
+        assert names["IGUI_JukeboxMoon_Notice_interesting"] == words
+
+
 def test_the_player_reads_why_a_copy_went():
     lua = unique_game(server=False, client=True)
     lua.execute("""LOCAL = P; fire("OnServerCommand", "JukeboxMoon", "notice", { what = "leftover" })""")

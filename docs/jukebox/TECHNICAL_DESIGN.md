@@ -239,6 +239,12 @@ e nel Lua della 42.21:
   insieme sono un solo messaggio che dice quanti sono, dal 10 novembre 2026; non quelli già in gioco la prima volta che legge il file) e una volta per `key` quello trovato
   («è stato trovato un CD unico…»), mai con `test: true`: in single player e in un gioco avviato con `-debug`, dove
   per provarlo un CD cade da ogni corridore.
+- **Chi l'ha ucciso se ne accorge** (dalla 1.2.0, 11 novembre 2026): quando un CD cade, `Unique.drop` manda al solo
+  uccisore l'avviso `interesting` (`Server.notice`, nessuna chiave né album). Il client (`Finder.interesting`) scrive
+  sopra la testa «Noti qualcosa di interessante» in oro (`HaloTextHelper.addText(player, testo, "[br/]", 255, 215, 0)`,
+  che nel 42.21 mette `[col=r,g,b]` davanti; senza, `setHaloNote` con lo stesso colore) e suona `JukeboxMoon_Interesting`
+  (`media/scripts/JukeboxMoon_ui.txt`, categoria UI) con `playUISound`: l'emettitore dell'interfaccia, mai mandato agli
+  altri. Nessun altro giocatore vede o sente niente.
 
 ### Opzioni (sandbox, pagina «Jukebox (Moon)»)
 

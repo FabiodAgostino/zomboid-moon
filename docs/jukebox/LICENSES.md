@@ -5,6 +5,7 @@
 | Codice della mod (`mods/JukeboxMoon`), del builder (`tools/jukebox`), delle prove (`tests/jukebox`) e del launcher | Moon | Scritto da zero il 5 novembre 2026 |
 | `client/ZomBotMenu.lua` | Moon | La copia byte per byte di ZomBOT (Moon) |
 | Poster, icona, icone dei CD e copertine disegnate | Moon | Fatti con forme e numeri (`tools/jukebox/art.py`, `generate.py`) |
+| Rintocco «Noti qualcosa di interessante» (`media/sound/jukeboxmoon_ui/interesting.ogg`) | Moon | Sintetizzato da zero con dei seni (campane), nessuna registrazione |
 | Musica demo | nessuno: libera | Fatta con dei numeri da `tools/jukebox/demo.py`, nessuna registrazione |
 | Modello del CD nel mondo (`WorldStaticModel = Disk`) | The Indie Stone | Il modello del gioco, solo nominato: nessun file copiato |
 | Audio dei CD del gioco (`import-radiovoices`) | Espaidi, Radio Voices (Workshop 3828360540); voci ElevenLabs, canzoni Suno e alcune canzoni vere dei loro autori | Il permesso lo chiede l'admin (decisione dell'utente). Mai in git; su GitHub solo cifrato |

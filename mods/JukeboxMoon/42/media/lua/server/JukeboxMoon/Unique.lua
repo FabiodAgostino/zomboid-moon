@@ -42,6 +42,10 @@
 --   found: {"user":"<account>","character":"<name surname>","at":<unix s>,"from":"runner","test":false}
 -- test is true in single player and in a game started with -debug (where a CD drops from every runner, to try it):
 -- ZomBOT announces nothing for it.
+--
+-- When a CD falls, the player who killed the runner, and only that player, reads "Noti qualcosa di interessante" over
+-- the head in gold and hears a chime (notice "interesting", client/JukeboxMoon/Finder.lua; the user, 11 November
+-- 2026). Nobody else learns anything: not which CD, not that there is one.
 if isClient() then return end
 
 require "JukeboxMoon/Core"
@@ -252,6 +256,8 @@ function Unique.drop(album, zombie, killer)
 	Core.warn("the unique CD of album " .. tostring(album.key) .. " dropped from a runner at " .. e.x .. "," .. e.y .. ","
 		.. e.z .. " killed by " .. tostring(try(function() return killer:getUsername() end, "?")))
 	Unique.write()
+	-- to the killer only: something on that corpse is worth a look
+	Server.notice(killer, "interesting")
 end
 
 function Unique.onZombieDead(zombie)

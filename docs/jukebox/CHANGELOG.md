@@ -1,5 +1,13 @@
 # Jukebox (Moon): modifiche
 
+## 1.2.0 (11 novembre 2026)
+
+- Quando un CD unico cade dal corridore che hai ucciso, sopra la tua testa compare in oro «Noti qualcosa di
+  interessante» e senti un rintocco: solo tu, chi è vicino non vede e non sente niente, e non dice quale CD sia
+  (richiesta dell'utente). Il server lo manda al solo uccisore (avviso `interesting`), il client usa
+  `HaloTextHelper.addText` con il colore e `playUISound` con un suono della mod (`JukeboxMoon_Interesting`,
+  `media/sound/jukeboxmoon_ui/interesting.ogg`, sintetizzato da noi).
+
 ## 1.1.1 (9 novembre 2026)
 
 - Quando la musica toglie noia e stress, sopra la testa di chi ascolta compaiono «Riduzione noia» e «Stress» con la

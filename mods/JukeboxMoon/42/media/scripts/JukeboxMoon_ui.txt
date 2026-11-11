@@ -1,0 +1,16 @@
+module JukeboxMoon
+{
+    imports
+    {
+        Base
+    }
+
+    sound JukeboxMoon_Interesting
+    {
+        category = UI,
+        clip
+        {
+            file = media/sound/jukeboxmoon_ui/interesting.ogg,
+        }
+    }
+}
