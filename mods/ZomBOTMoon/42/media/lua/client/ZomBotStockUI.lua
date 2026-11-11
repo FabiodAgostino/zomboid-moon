@@ -109,6 +109,7 @@ function Core.byCategory(fullType)
     if (data.books or {})[fullType] or (data.magazines or {})[fullType] or (data.mediaItems or {})[fullType] then
         return true
     end
+    if Core.jukebox() and Core.jukebox().album(fullType) then return true end -- a CD of Moon's: the «cd» check
     if Core.describe(fullType).kind == "set" then return true end
     local ok, read = pcall(function()
         local script = getScriptManager():FindItem(fullType)
@@ -141,6 +142,38 @@ end
 
 function Core.fluidLabel(fluid)
     return ((ZomBotData or {}).fluids or {})[fluid] or fluid
+end
+
+-- The jukebox's CDs, the «cd» check (11/11/2026): the catalogue of the mod Jukebox (Moon), nil without it
+function Core.jukebox()
+    return JukeboxMoon and JukeboxMoon.Catalog or nil
+end
+
+-- a CD the «cd» check looks for: not unique nor archived, Moon's found in the loot or the game's that play (as the
+-- server's ZomBot.isJukeboxCd and the bot's stock.parse_discs)
+function Core.isJukeboxCd(album)
+    return type(album) == "table" and album.unique == nil and album.archived ~= true
+        and (album.media ~= nil or (tonumber(album.loot) or 0) > 0) and (album.item ~= nil or album.media ~= nil)
+end
+
+-- what the «cd» check calls this CD: its item (Moon's) or its recording (the game's); nil for anything else, a unique CD
+function Core.cdOf(item)
+    local Catalog = Core.jukebox()
+    if item == nil or Catalog == nil then return nil end
+    local ok, album = pcall(function() return Catalog.albumOf(item) end)
+    if not ok or not Core.isJukeboxCd(album) then return nil end
+    return album.media or album.item
+end
+
+function Core.cdCount()
+    local Catalog = Core.jukebox()
+    if Catalog == nil then return 0 end
+    local n = 0
+    local ok, albums = pcall(function() return Catalog.albums() end)
+    for _, album in ipairs(ok and albums or {}) do
+        if Core.isJukeboxCd(album) then n = n + 1 end
+    end
+    return n
 end
 
 -- The VHS that teach: every tape of a kind is the same item (Base.VHS_Retail), what it is is the id of the recording
@@ -317,7 +350,7 @@ end
 -- about all the food («Provviste: Scarseggiano a RiversideMoon (112 su 200 porzioni)»). A tape that teaches
 -- (`tapeId`, the recording on it: Core.tapeOf) is missing where a VHS check lacks that recording. Shown to anyone with
 -- the file, admin or not (28/10/2026).
-function Core.shortages(fullType, fluid, tapeId)
+function Core.shortages(fullType, fluid, tapeId, cdId)
     local lines = {}
     local keys = { fullType }
     if Core.isFood(fullType) then
@@ -357,8 +390,10 @@ function Core.shortages(fullType, fluid, tapeId)
                 end
             end
             for key, set in pairs(status.missing or {}) do
-                -- books and magazines are missing by full type, VHS by the recording
-                local member = Core.ruleKind(key) == "vhs" and tapeId or fullType
+                -- books and magazines are missing by full type, VHS by the recording, CDs by their own id (Core.cdOf)
+                local kind = Core.ruleKind(key)
+                local member = fullType
+                if kind == "vhs" then member = tapeId elseif kind == "cd" then member = cdId end
                 if member and set[member] and Core.ruleOf(base, key) then
                     lines[#lines + 1] = { text = "Manca a " .. base.name, level = "critical" }
                     break
@@ -378,6 +413,7 @@ function Core.ruleKind(key)
     if key == "libri" or head == "libri" then return "books", rest end
     if key == "riviste" or head == "riviste" then return "magazines", rest end
     if key == "vhs" or head == "vhs" then return "vhs", rest end
+    if key == "cd" then return "cd" end
     if head == "liquido" then return "fluid", rest end
     if head == "attrezzo" then return "tool", rest end
     return "item"
@@ -396,6 +432,7 @@ function Core.ruleLabel(key)
         return rest and ("Riviste di " .. ((data.series or {})[rest] or rest)) or "Riviste di ricette (tutte)"
     end
     if kind == "vhs" then return rest and ("VHS di " .. Core.tapeSkillLabel(rest)) or "VHS delle abilit\195\160 (tutte)" end
+    if kind == "cd" then return "CD (tutti tranne gli unici)" end
     return Core.unitLabel(key, Core.itemName(key))
 end
 
@@ -408,18 +445,19 @@ function Core.ruleIcon(key)
         return category and category.icon or nil
     end
     return ({ food = "Base.TinnedBeans", fluid = "Base.WaterBottle", books = "Base.Book", magazines = "Base.Magazine",
-        vhs = "Base.VHS_Retail" })[kind]
+        vhs = "Base.VHS_Retail", cd = "Base.Disc_Retail" })[kind]
 end
 
 -- the checks of a set of copies: skill books, recipe magazines, VHS that teach
 function Core.isSet(kind)
-    return kind == "books" or kind == "magazines" or kind == "vhs"
+    return kind == "books" or kind == "magazines" or kind == "vhs" or kind == "cd"
 end
 
 -- «Critico fino a 100, scarseggia fino a 500, buono da 1.000», «1 copia di ogni volume», «Ognuna: c'è o manca»
 function Core.ruleText(rule)
     local kind = Core.ruleKind(rule.key)
     if kind == "vhs" then return "Ognuna: c'\195\168 o manca" end
+    if kind == "cd" then return "Ognuno: c'\195\168 o manca" end
     if Core.isSet(kind) then
         local copies = rule.good == 1 and "1 copia" or (rule.good .. " copie")
         return copies .. (kind == "books" and " di ogni volume" or " di ognuna")
@@ -439,7 +477,7 @@ function Core.ruleStatus(base, rule)
         if set == nil then return { text = "Non ancora contato" } end
         local n = 0
         for _ in pairs(set) do n = n + 1 end
-        if n == 0 then return { text = kind == "books" and "Ci sono tutti" or "Ci sono tutte", level = "good" } end
+        if n == 0 then return { text = (kind == "books" or kind == "cd") and "Ci sono tutti" or "Ci sono tutte", level = "good" } end
         return { text = n == 1 and "Ne manca 1" or ("Ne mancano " .. n), level = "critical" }
     end
     local s = status and status.items and status.items[rule.key]
@@ -478,6 +516,10 @@ function Core.categories()
         out[#out + 1] = { key = "vhs", label = "VHS delle abilit\195\160", icon = "Base.VHS_Retail", none = "Non tracciate",
             what = Core.tapeCount(nil) .. " cassette che insegnano: ognuna c'\195\168 o manca" }
     end
+    if Core.cdCount() > 0 then -- without the mod Jukebox (Moon) there are none
+        out[#out + 1] = { key = "cd", label = "CD del jukebox", icon = "Base.Disc_Retail", none = "Non tracciati",
+            what = Core.cdCount() .. " CD (tutti tranne gli unici): ognuno c'\195\168 o manca" }
+    end
     out[#out + 1] = { key = Core.FOOD, label = "Provviste", icon = "Base.TinnedBeans", none = "Non tracciate",
         what = "Tutto il cibo, in porzioni da 25 di fame (circa un pasto)" }
     return out
@@ -486,7 +528,7 @@ end
 -- a check of a whole category (the «Scorte» window handles it) and a check of one skill or series saved before
 -- 28/10/2026 (listed, only to be removed: no window adds them any more)
 function Core.isCategory(key)
-    return key == "libri" or key == "riviste" or key == "vhs" or key == Core.FOOD
+    return key == "libri" or key == "riviste" or key == "vhs" or key == "cd" or key == Core.FOOD
 end
 
 function Core.isLegacy(key)
@@ -1517,8 +1559,17 @@ function ZomBotStockWindow:render()
         self:drawText("Non riesco a contare adesso: " .. tostring(self.info.error), PAD, y, RED.r, RED.g, RED.b, 1, UIFont.Small)
     else
         local have = self.info.have or 0
-        local text = "Adesso nella base: " .. (self.litres and string.format("%.1f", have) or Core.amount(have)) .. unit
+        local shown = Core.amount(have)
+        if self.litres or (self.info.pieces and have ~= math.floor(have)) then
+            shown = string.format("%.1f", have):gsub("%.", ",")
+        end
+        local text = "Adesso nella base: " .. shown .. unit
         local extra = {}
+        if self.info.pieces and self.info.pieces ~= have then
+            -- an item that runs out (a filter, tape): counted for what is left in it (11/11/2026)
+            table.insert(extra, Core.amount(self.info.pieces) .. (self.info.pieces == 1 and " pezzo" or " pezzi")
+                .. " in tutto, contati per quanto ne resta")
+        end
         if (self.info.packed or 0) > 0 then table.insert(extra, Core.amount(self.info.packed) .. " ancora in scatole o pacchi") end
         if (self.info.loadedAmmo or 0) > 0 then table.insert(extra, Core.amount(self.info.loadedAmmo) .. " nei caricatori") end
         if self.tool and #(self.info.parts or {}) > 1 then table.insert(extra, Core.toolParts(self.info.parts)) end
@@ -1894,7 +1945,7 @@ end
 function ZomBotUI.drawShortages(tip)
     if tip.item == nil or (ISContextMenu.instance and ISContextMenu.instance.visibleCheck) then return end
     local tape = Core.tapeOf(tip.item)
-    local lines = Core.shortages(tip.item:getFullType(), fluidOf(tip.item), tape and tape.id)
+    local lines = Core.shortages(tip.item:getFullType(), fluidOf(tip.item), tape and tape.id, Core.cdOf(tip.item))
     if #lines == 0 then return end
     local title = "ZomBOT - scorte"
     local width = UI.textWidth(title)
