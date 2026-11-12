@@ -2,7 +2,7 @@
 
 Le mod per giocare a **Project Zomboid** (Build 42) sul server **Moon**.
 
-**Per giocare su Moon servono tre mod: «ZomBOT (Moon)»** (ZomBOT e Admin-Scorte insieme), **«Jukebox (Moon)»** e **«SilencerMoon»** (dal 6 novembre 2026). Le installa e le aggiorna da solo il **[launcher di Moon](#il-launcher-moonlauncherexe)**, dalla versione 1.0.3; in alternativa c'è [`mod-moon-server.bat`](#in-alternativa-mod-moon-serverbat). Sugli altri server non si carica.
+**Per giocare su Moon servono quattro mod: «ZomBOT (Moon)»** (ZomBOT e Admin-Scorte insieme), **«Jukebox (Moon)»**, **«SilencerMoon»** (dal 6 novembre 2026) e **«AutoPilot (Moon)»** (dal 12 novembre 2026, spenta finché non la accendi tu). Le installa e le aggiorna da solo il **[launcher di Moon](#il-launcher-moonlauncherexe)**, dalla versione 1.0.3; in alternativa c'è [`mod-moon-server.bat`](#in-alternativa-mod-moon-serverbat). Sugli altri server non si carica.
 
 | Mod | Stato | Come arriva | Cos'è |
 | --- | --- | --- | --- |
@@ -10,6 +10,7 @@ Le mod per giocare a **Project Zomboid** (Build 42) sul server **Moon**.
 | **Jukebox (Moon)** | **Obbligatoria** | il launcher la installa e la aggiorna da solo, con la musica (ti chiede una volta il tuo codice della musica, e la musica arriva prima di entrare) | I jukebox del mondo suonano i CD di Moon, scelti dall'admin; chi ascolta vicino si annoia e si stressa meno. Vedi [Jukebox (Moon)](#jukebox-moon). |
 | **Silenziatori** | **Tolta** | a nessuno: il launcher 1.0.4 la toglie dal tuo computer | La vecchia mod dei silenziatori (Simple Suppressors di Kiidxatlas, tradotta e corretta), sostituita da SilencerMoon. Vedi [Silenziatori (tolta)](#silenziatori-tolta). |
 | **SilencerMoon** | **Obbligatoria** | il launcher la installa e la aggiorna da solo, in `%UserProfile%\Zomboid\mods\SilencerMoon` | I silenziatori artigianali che prendono il posto di Silenziatori: leghe fuse da un fucile a pompa, silenziatori per pistole e per fucili, il filtro dell'olio come ripiego. Vedi [SilencerMoon](#silencermoon). |
+| **AutoPilot (Moon)** | **Obbligatoria**, spenta di base | il launcher la installa e la aggiorna da solo, in `%UserProfile%\Zomboid\mods\AutoPilotMoon` | Automazioni dal tasto destro (legna, pietre, terreno, campi, mobili, contenitori, cadaveri) e le macro con il loro editor di script. Resta spenta finché non la accendi tu. Vedi [AutoPilot (Moon)](#autopilot-moon). |
 
 ---
 
@@ -163,6 +164,15 @@ Il progetto completo, con le scelte e le verifiche fatte sui file del gioco 42.2
 
 Per gli admin, come aggiungere un CD: [docs/jukebox/README_ADMIN.md](docs/jukebox/README_ADMIN.md). Come è fatta: [docs/jukebox/TECHNICAL_DESIGN.md](docs/jukebox/TECHNICAL_DESIGN.md).
 
+## AutoPilot (Moon)
+
+**Serve per entrare su Moon** (dal 12 novembre 2026), quindi il launcher la installa a tutti, ma **resta spenta**: finché non la accendi tu, il gioco è come senza.
+
+- **Accenderla**: nel gioco Esc, Opzioni, Mod, «AutoPilot (Moon)», spunta **«Attiva AutoPilot»**. Ogni lavoro deve essere acceso anche dall'admin nelle impostazioni del server.
+- **I lavori**: tasto destro sul terreno, «AutoPilot». Abbattere alberi e segare tronchi (anche in catena, con le assi lasciate a terra), fare legna, raccogliere legna e pietre, pulire il terreno, insaccare terra, curare i campi (solchi, semina, acqua, concime, cure, raccolto), smontare mobili, svuotare contenitori, ammucchiare cadaveri. Si sceglie un'area, anche disegnandola con il mouse (al massimo 21×21 caselle). Un pannello dice cosa sta facendo; ci si ferma muovendosi, e si ferma da solo con gli zombie vicini, la fame, la sete o le ferite.
+- **La regola**: fa solo quello che potresti fare a mano, con le azioni del gioco. Niente di più veloce, niente di gratis.
+- **Le macro** (sperimentali): un piccolo linguaggio, in inglese e con la forma di Python, per ripetere ricette, allenarsi, mangiare, bere, fumare e riposare nelle pause. Si scrivono nell'editor del gioco (colori, suggerimenti mentre scrivi, controllo riga per riga) o nella scheda «ScriptEditor» della tua scheda personaggio di ZomBOT, e si possono registrare facendo le ricette a mano. ZomBOT, in #zombot, ti aiuta a scriverle.
+
 ## Silenziatori (tolta)
 
 **Silenziatori non c'è più: l'ha sostituita SilencerMoon**, e le due insieme non vanno d'accordo. Il server non la usa e per entrare non serve. **Il launcher, dalla versione 1.0.4, la toglie da solo dal tuo computer**: all'avvio, a gioco chiuso, cancella la sua cartella `%UserProfile%\Zomboid\mods\Silenziatori` e ti dice cosa ha tolto (se il gioco è aperto ti chiede di chiuderlo). La sua scheda non c'è più. Con `mod-moon-server.bat` la toglie **`3`**.
@@ -216,3 +226,4 @@ Ogni modifica nel codice è segnata con `[moon]`, così si ritrova facilmente. N
 - **Simple Suppressors**, da cui nasce Silenziatori: Kiidxatlas ([Steam Workshop](https://steamcommunity.com/sharedfiles/filedetails/?id=3782565181)). Modelli, suoni, ricette e quasi tutto il codice sono suoi. Se la mod ti piace, lascia un pollice in su sulla sua pagina del Workshop.
 - **Traduzione italiana e correzioni**: per il server Moon.
 - **ZomBOT e Admin-Scorte**: il bot Discord del server Moon.
+- **AutoPilot (Moon)**: per il server Moon.

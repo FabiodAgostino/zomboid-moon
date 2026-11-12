@@ -106,6 +106,23 @@
         "files": [],
         "folders": ["{zomboid}/mods/Silenziatori"]
       }
+    },
+    {
+      "id": "autopilot-moon",
+      "name": "AutoPilot (Moon)",
+      "versionFile": "mods/AutoPilotMoon/42.14/mod.info",
+      "versionKey": "modversion",
+      "required": true,
+      "state": "installabile",
+      "audience": "Per tutti",
+      "summary": "Automazioni dal tasto destro: abbattere alberi e segare tronchi, fare legna, raccogliere legna e pietre, pulire il terreno, insaccare terra, curare i campi, smontare mobili, svuotare contenitori, ammucchiare cadaveri. Più le macro, con il loro editor di script.",
+      "note": "La installo a tutti perché il server la chiede, ma resta spenta: la accendi tu, se vuoi, da Opzioni > Mod > «Attiva AutoPilot».",
+      "afterInstall": "Nel gioco: Esc, Opzioni, Mod, spunta «Attiva AutoPilot». Poi tasto destro sul terreno, «AutoPilot».",
+      "image": "mods/AutoPilotMoon/42.14/preview.png",
+      "installedVersion": { "file": "{zomboid}/mods/AutoPilotMoon/42.14/mod.info", "key": "modversion" },
+      "install": [
+        { "from": "mods/AutoPilotMoon", "to": "{zomboid}/mods/AutoPilotMoon", "mirror": true }
+      ]
     }
   ]
 }

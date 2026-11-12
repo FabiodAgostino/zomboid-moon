@@ -1,0 +1,217 @@
+VERSION = 1,
+
+option AutoPilotMoon.EnableUnloader
+{
+	type = boolean,
+	default = false,
+	page = AutoPilotMoon,
+	translation = AutoPilot_EnableUnloader,
+}
+
+option AutoPilotMoon.EnableCorpsePiler
+{
+	type = boolean,
+	default = false,
+	page = AutoPilotMoon,
+	translation = AutoPilot_EnableCorpsePiler,
+}
+
+option AutoPilotMoon.EnableFarmer
+{
+	type = boolean,
+	default = false,
+	page = AutoPilotMoon,
+	translation = AutoPilot_EnableFarmer,
+}
+
+option AutoPilotMoon.EnableGardener
+{
+	type = boolean,
+	default = false,
+	page = AutoPilotMoon,
+	translation = AutoPilot_EnableGardener,
+}
+
+option AutoPilotMoon.EnableSoilBagger
+{
+	type = boolean,
+	default = false,
+	page = AutoPilotMoon,
+	translation = AutoPilot_EnableSoilBagger,
+}
+
+option AutoPilotMoon.EnableDismantler
+{
+	type = boolean,
+	default = false,
+	page = AutoPilotMoon,
+	translation = AutoPilot_EnableDismantler,
+}
+
+option AutoPilotMoon.EnableLumberjack
+{
+	type = boolean,
+	default = false,
+	page = AutoPilotMoon,
+	translation = AutoPilot_EnableLumberjack,
+}
+
+option AutoPilotMoon.MaxSquaresPerJob
+{
+	type = integer,
+	min = 25,
+	max = 2000,
+	default = 400,
+	page = AutoPilotMoon,
+	translation = AutoPilot_MaxSquaresPerJob,
+}
+
+option AutoPilotMoon.UnloaderItemsPerStep
+{
+	type = integer,
+	min = 1,
+	max = 100,
+	default = 20,
+	page = AutoPilotMoon,
+	translation = AutoPilot_UnloaderItemsPerStep,
+}
+
+option AutoPilotMoon.UnloaderItemsPerJob
+{
+	type = integer,
+	min = 1,
+	max = 2000,
+	default = 200,
+	page = AutoPilotMoon,
+	translation = AutoPilot_UnloaderItemsPerJob,
+}
+
+option AutoPilotMoon.DismantlerObjectsPerJob
+{
+	type = integer,
+	min = 1,
+	max = 500,
+	default = 50,
+	page = AutoPilotMoon,
+	translation = AutoPilot_DismantlerObjectsPerJob,
+}
+
+option AutoPilotMoon.CorpsesPerJob
+{
+	type = integer,
+	min = 1,
+	max = 500,
+	default = 50,
+	page = AutoPilotMoon,
+	translation = AutoPilot_CorpsesPerJob,
+}
+
+option AutoPilotMoon.EnableAutoRest
+{
+	type = boolean,
+	default = false,
+	page = AutoPilotMoon,
+	translation = AutoPilot_EnableAutoRest,
+}
+
+option AutoPilotMoon.GathererItemsPerTrip
+{
+	type = integer,
+	min = 1,
+	max = 100,
+	default = 20,
+	page = AutoPilotMoon,
+	translation = AutoPilot_GathererItemsPerTrip,
+}
+
+option AutoPilotMoon.GathererItemsPerJob
+{
+	type = integer,
+	min = 1,
+	max = 2000,
+	default = 200,
+	page = AutoPilotMoon,
+	translation = AutoPilot_GathererItemsPerJob,
+}
+
+option AutoPilotMoon.EnableSawyer
+{
+	type = boolean,
+	default = false,
+	page = AutoPilotMoon,
+	translation = AutoPilot_EnableSawyer,
+}
+
+option AutoPilotMoon.EnableGatherer
+{
+	type = boolean,
+	default = false,
+	page = AutoPilotMoon,
+	translation = AutoPilot_EnableGatherer,
+}
+
+option AutoPilotMoon.EnableFirewood
+{
+	type = boolean,
+	default = false,
+	page = AutoPilotMoon,
+	translation = AutoPilot_EnableFirewood,
+}
+
+option AutoPilotMoon.SawyerLogsPerJob
+{
+	type = integer,
+	min = 1,
+	max = 500,
+	default = 50,
+	page = AutoPilotMoon,
+	translation = AutoPilot_SawyerLogsPerJob,
+}
+
+option AutoPilotMoon.FirewoodLogsPerJob
+{
+	type = integer,
+	min = 1,
+	max = 500,
+	default = 50,
+	page = AutoPilotMoon,
+	translation = AutoPilot_FirewoodLogsPerJob,
+}
+
+option AutoPilotMoon.EnableMacro
+{
+	type = boolean,
+	default = false,
+	page = AutoPilotMoon,
+	translation = AutoPilot_EnableMacro,
+}
+
+option AutoPilotMoon.MacroActionsPerRun
+{
+	type = integer,
+	min = 1,
+	max = 2000,
+	default = 200,
+	page = AutoPilotMoon,
+	translation = AutoPilot_MacroActionsPerRun,
+}
+
+option AutoPilotMoon.MacroLoopsPerRun
+{
+	type = integer,
+	min = 1,
+	max = 1000,
+	default = 100,
+	page = AutoPilotMoon,
+	translation = AutoPilot_MacroLoopsPerRun,
+}
+
+option AutoPilotMoon.MacroActionsPerMinute
+{
+	type = integer,
+	min = 1,
+	max = 60,
+	default = 20,
+	page = AutoPilotMoon,
+	translation = AutoPilot_MacroActionsPerMinute,
+}
