@@ -38,6 +38,8 @@
 --   titleKey     the job's title in "Lavoro: %1" (default: the automation's or the chain's)
 --   descKey      the description (T_Desc_*)
 --   whatKey      the destination step's title ("IGUI_AutoPilot_D_TitlePlanks") for a job that carries; nil: none
+--   onSpot       with whatKey: the picker offers "Sul posto" first (the character's own square; start gets dest = nil),
+--                the text key of what happens then ("IGUI_AutoPilot_D_OnSpotPlanks"; the Sawyer, 12/11/2026)
 --   countJob     the automation whose squareFilter the area tool counts with (default: job, or the chain's first phase)
 --   countFn(params) -> function(square, player)   instead of countJob, when the count depends on the variant
 --   unitKey      what the area tool counts (default the counting automation's)
@@ -498,7 +500,7 @@ local function secondStep(spec, params)
 
 	if spec.whatKey
 	then
-		return { whatKey = spec.whatKey };
+		return { whatKey = spec.whatKey, onSpot = spec.onSpot };
 	end
 
 	return nil;
@@ -549,6 +551,7 @@ function AutoPilotMoon.JobMenu.onPickArea(player, id, params)
 		titleText = JobMenu:getLabel(spec, player),
 		unitKey = spec.unitKey,
 		whatKey = spec.whatKey,
+		onSpot = spec.onSpot,
 		onCancel = function() end,
 	};
 

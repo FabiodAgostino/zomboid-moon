@@ -5,13 +5,20 @@
 -- - which logs: the logs lying on the ground in the area (Base.Log), and the logs the character already carries (they
 --   are sawn first, where the character stands). Logs in containers (crates, trunks) are left alone: picking from a
 --   container is the Unloader's business.
--- - how: the game's grab of the log (walk next to it, then the transfer the server checks), then the recipe chosen
---   on the log in the inventory (ISInventoryPaneContextMenu.OnNewCraft, client/64_AP_Craft.lua); the planks go into
---   the inventory as by hand (the game drops them at the character's feet when they do not fit).
--- - the planks: carried to the destination (AutoPilotMoon.Haul) when the character cannot pick up another log (its
---   load, the server's items per trip), and at the end.
--- - without a destination (the chain "Taglia e sega", user's decision of 12/11/2026) the planks stay ON THE GROUND next
---   to the sawn log, never carried away: right after each recipe they are put down with the game's own "place item"
+-- - how (owner's test of 12/11/2026: no more picking the log up into the bag first): a log on the ground is sawn where it
+--   lies, the way the game does it by hand: the character walks next to it (the game's walk to a free square next to
+--   it, AdjacentFreeTileFinder, as luautils.walkAdj), then the recipe is chosen on the log in the loot window's floor
+--   (ISInventoryPaneContextMenu.OnNewCraft with the world item: SawLogs is CanBeDoneFromFloor in 42.22, so the game
+--   moves nothing and the ISHandcraftAction consumes the log from the ground; client/64_AP_Craft.lua). A log the
+--   character carries is sawn in the inventory, where the character stands. The planks go into the inventory as by
+--   hand (the game drops them at the character's feet when they do not fit). The heavy log is never carried.
+-- - a log it cannot get next to (no free square around it, or still out of the loot window's reach after
+--   Sawyer.maxWalks walks: a wall) is left with the warning "unreachable".
+-- - the planks: carried to the destination (AutoPilotMoon.Haul) when the character could not take the planks of another
+--   log (its load, the server's items per trip: the log's weight as the measure, as before), and at the end.
+-- - "Sul posto" ("On the spot", the first choice of the destination picker since 12/11/2026) and the chain "Taglia e
+--   sega" (user's decision of 12/11/2026): no destination, the planks stay ON THE GROUND next to the sawn log, never
+--   carried away: right after each recipe they are put down with the game's own "place item"
 --   (ISDropWorldItemAction with isPlaceItem, as the cursor ISPlace3DItemCursor does), on the log's square or, when the
 --   game would refuse it there (more than Sawyer.floorLimit of weight on it, not next to the character, blocked by a
 --   wall), on the nearest square next to the character that it accepts. Only what really left the inventory counts
@@ -21,7 +28,7 @@
 --   no rule of ours), too tired, the game refusing the recipe, the destination gone / full / locked.
 -- - SawyerLogsPerJob logs per job (server); reached, the planks are delivered and the job ends as finished (a chain goes
 --   on with its next phase).
--- Never walks to a log it could not saw (W-B3): the saw, the light and the endurance are checked before each pick-up.
+-- Never walks to a log it could not saw (W-B3): the saw, the light and the endurance are checked before each walk.
 
 require "05_AP_Config";
 require "50_AP_Automation";
@@ -42,6 +49,7 @@ Sawyer.carryPerJob = 100000;  -- the planks carried are bounded by the logs per 
 Sawyer.floorLimit = 50;       -- ISDropWorldItemAction:isValid of 42.22: no more than 50 of weight on the square
 Sawyer.dropGraceMs = 1500;    -- the drops ended and a plank is still in the inventory: the server may still answer
 Sawyer.maxDropTries = 3;      -- drops of the same plank that do not happen before it is left in the bag
+Sawyer.maxWalks = 3;          -- walks towards the same log that do not bring it within reach before it is left
 
 function Sawyer.isLog(item)
 	return item:getFullType() == Sawyer.logType;
@@ -72,8 +80,8 @@ function Sawyer:getCarriedLogs(player, skip)
 end
 
 -- Starts the Sawyer for the player on the squares (a list or a function). ctx (optional): destination (where the
--- planks go; none: they stay on the ground next to each log), run (a chain's ctx: what an earlier phase delivered is
--- never picked up again).
+-- planks go; none, "Sul posto": they stay on the ground next to each log), run (a chain's ctx: what an earlier phase
+-- delivered is never picked up again).
 function AutoPilotMoon.Automation.startSawyer(player, squares, startSquare, ctx)
 	local dest = ctx and ctx.destination;
 	local logs = 0;
@@ -110,7 +118,8 @@ function AutoPilotMoon.Automation.startSawyer(player, squares, startSquare, ctx)
 			tries = {},
 			unsawn = {},
 			leave = dest == nil,   -- no destination: the planks stay on the ground next to the log
-			logFrom = {},          -- log id -> { x, y, z } of the square it was picked up from
+			logFrom = {},          -- log id -> { x, y, z } of the square where it lay (sawn there)
+			walks = {},            -- log id -> walks towards it
 			drop = nil,            -- the planks being put down: { from, entries = { item, id, done }, idleSince }
 			dropTries = {},        -- plank id -> drops that did not happen
 		};
@@ -132,7 +141,7 @@ function AutoPilotMoon.Automation:stopSawyer()
 	A:stopSquareProcessingQueue("sawyerWorking");
 end
 
--- why the character cannot saw now (and the job stops), checked before every pick-up and every recipe (W-B3)
+-- why the character cannot saw now (and the job stops), checked before every walk and every recipe (W-B3)
 local function refusal(player, recipe)
 	if recipe == nil
 	then
@@ -177,7 +186,7 @@ local function finishAtLimit(S)
 	return "discard";
 end
 
--- the recipe on one log of the inventory
+-- the recipe on one log: in the inventory, or on the ground within reach (the loot window's floor)
 local function saw(S, player, recipe, log)
 	local reason = Craft:check(player, recipe, log);
 
@@ -411,7 +420,6 @@ local function confirmSaw(S, player)
 	if consumed
 	then
 		S.sawn = S.sawn + 1;
-		S.hauler.cargo[id] = nil;
 		AutoPilotMoon.Progress:count("IGUI_AutoPilot_P_C_LogsSawn");
 		AutoPilotMoon.Progress:addUnitsDone(1);
 	else
@@ -419,7 +427,7 @@ local function confirmSaw(S, player)
 
 		if S.tries[id] >= Sawyer.maxTries
 		then
-			-- left as it is: carried to the destination with the planks if this job picked it up
+			-- left as it is, where it is (on the ground, or in the bag when the character carried it)
 			S.unsawn[id] = true;
 			AutoPilotMoon.Progress:warn("IGUI_AutoPilot_A_Skip_GameRefused");
 		end
@@ -438,8 +446,38 @@ local function confirmSaw(S, player)
 	return nil;
 end
 
+-- The log is out of reach (the loot window's floor does not list it): the game's walk to a free square next to it
+-- (AdjacentFreeTileFinder and ISWalkToTimedAction, as luautils.walkAdj). "busy" while walking; after Sawyer.maxWalks
+-- walks, or with no free square next to it, the log is left with the warning "unreachable" and the next decision goes
+-- on with the next log.
+local function approach(S, player, square, log)
+	local id = log:getID();
+
+	S.walks[id] = (S.walks[id] or 0) + 1;
+
+	local adjacent = nil;
+
+	if S.walks[id] <= Sawyer.maxWalks
+	then
+		adjacent = AdjacentFreeTileFinder.Find(square, player);
+	end
+
+	if adjacent == nil
+	then
+		S.unsawn[id] = true;
+		AutoPilotMoon.Progress:warn("IGUI_AutoPilot_A_Skip_Unreachable");
+
+		return "busy";
+	end
+
+	AutoPilotMoon.Progress:setActivity("IGUI_AutoPilot_P_Now_Sawing", S.sawn + 1);
+	ISTimedActionQueue.add(ISWalkToTimedAction:new(player, adjacent));
+
+	return "busy";
+end
+
 -- One decision while the character is idle (the engine's removeCheckFunction). "busy" while the job does something of
--- its own (a pick-up, a recipe, a trip: their own limits), true when the square is done.
+-- its own (a walk, a recipe, a trip: their own limits), true when the square is done.
 function AutoPilotMoon.Automation:checkSawyerSquare(square, player)
 	local S = A.sawyerState;
 
@@ -518,7 +556,9 @@ function AutoPilotMoon.Automation:checkSawyerSquare(square, player)
 		return "discard";
 	end
 
-	local entries = Haul:findOnSquare(h, square, Sawyer.isLog, true);
+	local entries = Haul:findOnSquare(h, square, function(item)
+		return Sawyer.isLog(item) and not S.unsawn[item:getID()];
+	end, true);
 
 	if #entries == 0
 	then
@@ -536,7 +576,10 @@ function AutoPilotMoon.Automation:checkSawyerSquare(square, player)
 		return "discard";
 	end
 
-	if not Haul:canPick(h, entries[1].item:getUnequippedWeight())
+	local log = entries[1].item;
+
+	-- with a destination: room for the planks of this log (the log's weight as the measure), else a trip first
+	if not S.leave and not Haul:canPick(h, log:getUnequippedWeight())
 	then
 		if Haul:deliver(h)
 		then
@@ -548,14 +591,15 @@ function AutoPilotMoon.Automation:checkSawyerSquare(square, player)
 		return "discard";
 	end
 
-	Haul:grab(h, square, entries);
-
-	for i, entry in ipairs(entries)
-	do
-		S.logFrom[entry.id] = { x = square:getX(), y = square:getY(), z = square:getZ() };
+	-- sawn where it lies: first next to it, within the loot window's reach
+	if not Craft:canReach(player, log)
+	then
+		return approach(S, player, square, log);
 	end
 
-	return "busy";
+	S.logFrom[log:getID()] = { x = square:getX(), y = square:getY(), z = square:getZ() };
+
+	return saw(S, player, recipe, log);
 end
 
 function AutoPilotMoon.Automation:checkSawyerQueue(player)
@@ -588,6 +632,7 @@ AutoPilotMoon.JobMenu:define("sawLogs", {
 	job = "sawyer",
 	descKey = "IGUI_AutoPilot_T_Desc_SawLogs",
 	whatKey = "IGUI_AutoPilot_D_TitlePlanks",
+	onSpot = "IGUI_AutoPilot_D_OnSpotPlanks",   -- "Sul posto" first in the picker (12/11/2026)
 	here = true,
 	icon = "Base.Saw",
 	requirements = function(player)

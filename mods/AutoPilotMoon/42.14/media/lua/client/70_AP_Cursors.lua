@@ -843,6 +843,10 @@ Picker.refreshMs = 250;     -- the square under the cursor is looked at again th
 --   Destination:inspect: ok, x, y, z, reasonKey, object), describe(info) -> the line of the box, howKey (the "Click..."
 --   line), startAtPlayer (the cursor starts on the character: the corpses' pile, spec 3.5), noRemember (not the "last
 --   destination" of the containers), toDest(info) -> what onConfirm gets (default Destination:fromInfo).
+-- "Sul posto" (12/11/2026, the Sawyer: owner's test): onSpot = the text key of what happens then
+--   ("IGUI_AutoPilot_D_OnSpotPlanks"). It is the first and default choice: the cursor starts on the character, whose
+--   square means "Sul posto" (one click, or A, and it starts), told in the box in the "good" colour; any other square is
+--   a destination as before (the last one still marked). onConfirm then gets dest = nil and info.kind = "onSpot".
 function AutoPilotMoon.DestinationPicker:begin(player, opts)
 	if player == nil or not Cursors:createClasses()
 	then
@@ -868,7 +872,7 @@ function AutoPilotMoon.DestinationPicker:begin(player, opts)
 	};
 	local startX, startY = nil, nil;
 
-	if session.last
+	if session.last and not opts.onSpot
 	then
 		startX, startY = session.last.x, session.last.y;
 	else
@@ -899,7 +903,10 @@ function AutoPilotMoon.DestinationPicker:inspectAt(session, x, y, z)
 	session.inspectedAt = now;
 	local square = cell and cell:getGridSquare(x, y, z);
 
-	if session.opts.inspect
+	if session.opts.onSpot and square ~= nil and square == session.player:getSquare()
+	then
+		session.info = { ok = true, kind = "onSpot", x = x, y = y, z = z };
+	elseif session.opts.inspect
 	then
 		session.info = square and session.opts.inspect(square, session.player) or nil;
 	else
@@ -928,16 +935,25 @@ function AutoPilotMoon.DestinationPicker:refreshLines(session)
 	end
 
 	line(lines, title, UI.titleColor.r, UI.titleColor.g, UI.titleColor.b);
-	textLine(lines, getText(opts.howKey or "IGUI_AutoPilot_D_How"));
+
+	if opts.onSpot
+	then
+		textLine(lines, getText(opts.howKey or "IGUI_AutoPilot_D_HowOnSpot"));
+	else
+		textLine(lines, getText(opts.howKey or "IGUI_AutoPilot_D_How"));
+	end
 
 	if UI:isJoypad(session.playerNum)
 	then
-		textLine(lines, getText("IGUI_AutoPilot_D_HowJoypad"));
+		textLine(lines, getText(opts.onSpot and "IGUI_AutoPilot_D_HowJoypadOnSpot" or "IGUI_AutoPilot_D_HowJoypad"));
 	else
 		textLine(lines, getText("IGUI_AutoPilot_S_HowCancel"));
 	end
 
-	if info
+	if info and info.kind == "onSpot"
+	then
+		goodLine(lines, getText(opts.onSpot));
+	elseif info
 	then
 		local describe = opts.describe or function(i) return AutoPilotMoon.Destination:describe(i) end;
 
@@ -1067,7 +1083,10 @@ function AutoPilotMoon.DestinationPicker:onCreate(session, x, y, z)
 
 	local dest = nil;
 
-	if session.opts.toDest
+	if info.kind == "onSpot"
+	then
+		dest = nil;
+	elseif session.opts.toDest
 	then
 		dest = session.opts.toDest(info);
 	else
@@ -1076,7 +1095,7 @@ function AutoPilotMoon.DestinationPicker:onCreate(session, x, y, z)
 
 	session.result = dest;
 
-	if not session.opts.noRemember
+	if dest ~= nil and not session.opts.noRemember
 	then
 		AutoPilotMoon.Destination:remember(dest);
 	end
@@ -1140,7 +1159,8 @@ function AutoPilotMoon.DestinationPicker:getAPrompt(session)
 end
 
 -- Area, then destination, in one go (spec 3.5: "prima l'area, poi la destinazione"): opts as AreaTool:begin plus
--- whatKey; onConfirm(rect, dest, info) when both are chosen, onCancel() when either is cancelled.
+-- whatKey and onSpot (the picker's "Sul posto"); onConfirm(rect, dest, info) when both are chosen (dest nil: "Sul
+-- posto"), onCancel() when either is cancelled.
 function AutoPilotMoon.AreaTool:beginWithDestination(player, opts)
 	local areaOpts = {};
 
@@ -1153,6 +1173,7 @@ function AutoPilotMoon.AreaTool:beginWithDestination(player, opts)
 		Picker:begin(player, {
 			titleText = opts.titleText,
 			whatKey = opts.whatKey,
+			onSpot = opts.onSpot,
 			step = true,
 			area = rect,
 			onConfirm = function(dest, info)
