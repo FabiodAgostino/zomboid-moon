@@ -666,6 +666,11 @@ local function confirmDrink(run, pending, waited)
 	return "fail", getText("IGUI_AutoPilot_A_MacroR_NotDrunk", pending.name);
 end
 
+-- a drainable with something left (the game keeps its own copy of this local in every file that needs it)
+local function predicateNotEmpty(item)
+	return item:getCurrentUsesFloat() > 0;
+end
+
 -- the fire a smoke needs, as the "Smoke" option checks it (ISInventoryPaneContextMenu.doEatOption): an open flame
 -- nearby, or one of the item's required types (lighter, matches...) not empty; nil, and the names when there is none
 local function hasFire(player, item)

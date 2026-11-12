@@ -3,4 +3,4 @@ poster=preview.png
 id=AutoPilotMoon
 author=Moon
 description=Automations for the Moon server: chop trees, saw logs, make firewood, gather wood and stones, clear the ground, bag soil, tend the fields, dismantle furniture, empty containers, stack corpses, and experimental macros. Every job uses the game's own actions. The server admin switches each job on (sandbox options) and each player switches the mod on in Options > Mods.
-modversion=1.0
+modversion=1.0.1
