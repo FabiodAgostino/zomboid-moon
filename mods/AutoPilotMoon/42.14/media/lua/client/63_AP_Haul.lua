@@ -28,7 +28,8 @@ Haul.confirmGraceMs = 1500;   -- the grab ended and the item is not in the inven
 Haul.destinationMargin = 1;   -- squares around the destination never picked from (where a full destination puts down)
 
 -- a new hauler for a job. opts (optional): perTrip, perJob (the Carry limits; default the server's Gatherer
--- limits), counterKey (what a delivered item counts as; default "carried"), shared (a table that lives as long as the
+-- limits), counterKey (what a delivered item counts as; default "carried"), activityKey (the panel's "Ora" line while
+-- carrying; default Carry's), shared (a table that lives as long as the
 -- chain, ctx.run: the items delivered by an earlier phase are never picked up again)
 function AutoPilotMoon.Haul:new(player, dest, opts)
 	opts = opts or {};
@@ -317,6 +318,7 @@ local function newTrip(h)
 		perTrip = h.opts.perTrip,
 		perJob = h.opts.perJob,
 		counterKey = h.opts.counterKey,
+		activityKey = h.opts.activityKey,
 		onCarried = function(item)
 			local id = item:getID();
 

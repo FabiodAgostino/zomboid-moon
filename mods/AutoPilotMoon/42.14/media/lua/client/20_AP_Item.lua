@@ -91,6 +91,46 @@ function AutoPilotMoon.Item:isFullSoilBag(item)
 	return item:getCurrentUsesFloat() + item:getUseDelta() > 1;
 end
 
+-- a sack holding dirt, sand, gravel or clay: one of the four types the game's shovelling makes (ISShovelGround.newBag,
+-- ISShovelGroundCursor.GetEmptyItem), the game's own data; never a name. Emptied, the game turns it back into
+-- Base.EmptySandbag (ReplaceOnDeplete), so a soil bag always holds some soil.
+function AutoPilotMoon.Item:isSoilBag(item)
+	if item == nil
+	then
+		return false;
+	end
+
+	local fullType = item:getFullType();
+
+	for i, soilType in ipairs(AutoPilotMoon.Item.soilBagTypes)
+	do
+		if fullType == soilType
+		then
+			return true;
+		end
+	end
+
+	return false;
+end
+
+-- an empty sack the game's shovelling accepts: its own predicateEmpty of ISShovelGroundCursor (a HOLD_DIRT item with
+-- nothing inside). A wheat or seed sack is HOLD_DIRT too, but only once it is empty, as by hand.
+function AutoPilotMoon.Item:isEmptySoilSack(item)
+	if item == nil or not item:hasTag(ItemTag.HOLD_DIRT)
+	then
+		return false;
+	end
+
+	if instanceof(item, "InventoryContainer")
+	then
+		local inventory = item:getInventory();
+
+		return inventory ~= nil and inventory:isEmpty();
+	end
+
+	return true;
+end
+
 -- the full soil bags lying in the main inventory (not in hands), which the Soil bagger puts in a worn bag
 function AutoPilotMoon.Item:getFullSoilBags(player)
 	local result = {};
@@ -137,13 +177,19 @@ function AutoPilotMoon.Item:getEquippedBagWithRoom(player, item)
 end
 
 -- D1: the full bags go into a worn bag with a transfer action of the game (the server checks it), never by hand;
--- returns how many transfers were queued
-function AutoPilotMoon.Item:stashFullSoilBags(player)
+-- only the bags keep(bag) accepts when given (the Soil bagger: the ones it filled); returns how many transfers were
+-- queued
+function AutoPilotMoon.Item:stashFullSoilBags(player, keep)
 	local queued = 0;
 
 	for i, bag in ipairs(AutoPilotMoon.Item:getFullSoilBags(player))
 	do
-		local destination = AutoPilotMoon.Item:getEquippedBagWithRoom(player, bag);
+		local destination = nil;
+
+		if keep == nil or keep(bag)
+		then
+			destination = AutoPilotMoon.Item:getEquippedBagWithRoom(player, bag);
+		end
 
 		if destination
 		then

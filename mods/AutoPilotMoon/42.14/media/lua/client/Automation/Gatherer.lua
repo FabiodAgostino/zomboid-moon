@@ -3,8 +3,11 @@
 -- Gatherer (Raccoglitore, 11/11/2026, phase B; ANALISI-WorkOrders.md 6 point 3, spec UX-AUTOPILOT.md 2.2, 3.5, 5):
 -- picks up what lies on the ground in an area and carries it to a destination (a container, stacked crates, a vehicle's
 -- trunk, a square of ground), a trip when the character is loaded.
--- - what: logs, planks, firewood, stones, twigs and branches, all the wood (Gatherer.kinds; the chains add
+-- - what: logs, planks, firewood, stones, twigs and branches, all the wood, full sacks (Gatherer.kinds; the chains add
 --   "stonesTwigs"); only items lying on the ground, never in containers, never the character's own things.
+-- - full sacks ("Sacchi pieni", 13/11/2026): the sacks of dirt, sand, gravel or clay the game's shovelling makes
+--   (AutoPilotMoon.Item:isSoilBag: the four full types of ISShovelGround, the game's data, never a name); never an empty
+--   sack, never another sack (wheat, seeds: other types). The Soil bagger's "Sul posto" leaves them on the ground.
 -- - picking up: the game's grab (walk next to the square, one transfer per item the server checks); as many items of
 --   the square as fit (weight forecast: Haul:canPick, the server's items per trip), the first always when the game has
 --   room; only what arrived counts.
@@ -56,10 +59,11 @@ Gatherer.kinds = {
 	twigs = { types = byType(twigs), labelKey = "IGUI_AutoPilot_M_GatherTwigs" },
 	allWood = { types = byType(allWood), labelKey = "IGUI_AutoPilot_M_GatherAllWood" },
 	stonesTwigs = { types = byType(clearingYields), stones = true },
+	fullSacks = { types = byType(AutoPilotMoon.Item.soilBagTypes), labelKey = "IGUI_AutoPilot_M_GatherFullSacks" },
 };
 
 -- the kinds of the menu, in the spec's order (2.2)
-Gatherer.menuKinds = { "logs", "planks", "firewood", "stones", "twigs", "allWood" };
+Gatherer.menuKinds = { "logs", "planks", "firewood", "stones", "twigs", "allWood", "fullSacks" };
 
 -- the filter of a kind (nil kind: all the wood)
 function Gatherer:matcher(kindName)
@@ -290,7 +294,18 @@ AutoPilotMoon.JobMenu:define("gather", {
 	descKey = "IGUI_AutoPilot_T_Desc_Gather",
 	whatKey = "IGUI_AutoPilot_D_TitleItems",
 	variants = variants,
-	here = true,
+	-- "Qui" (spec 2.2 rule 6): something of any kind of the menu lies on the clicked square
+	here = function(square, player)
+		for i, kindName in ipairs(Gatherer.menuKinds)
+		do
+			if Haul:squareHas(square, Gatherer:matcher(kindName), nil)
+			then
+				return true;
+			end
+		end
+
+		return false;
+	end,
 	icon = "Base.Log",
 	countFn = function(params)
 		local match = Gatherer:matcher(params and params.what);

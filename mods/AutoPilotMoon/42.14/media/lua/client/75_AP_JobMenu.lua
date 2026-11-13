@@ -33,7 +33,7 @@
 --
 -- spec fields:
 --   group        "wood" / "ground" / "fields" / "house"
---   labelKey     the verb ("IGUI_AutoPilot_M_SawLogs"), or label(player) -> text ("Insacca: terra")
+--   labelKey     the verb ("IGUI_AutoPilot_M_SawLogs"), or label(player, params) -> text ("Insacca: sabbia")
 --   job | chain  the automation or the chain the entry starts (Automation:isEnabled / Chain:isEnabled)
 --   titleKey     the job's title in "Lavoro: %1" (default: the automation's or the chain's)
 --   descKey      the description (T_Desc_*)
@@ -49,6 +49,8 @@
 --                for the variant
 --   notes(player, params) -> list of { text, bad = bool }      extra tooltip lines (too dark now...)
 --   limits(params) -> list of texts                            the server's limits ("Lavoro: X. Limite del server: ...")
+--   menuParams(player) -> params   for an entry without variants: the params its areas start with, worked out when
+--                the menu is built (the Soil bagger: the soil of the clicked square, JobMenu.clickedSquare)
 --   variants     list of { labelKey | text, params }, or function(player) -> that list (the seeds the character has,
 --                "Carote (24)"); a variant whose requirements(player, params) miss something is grey with the reason
 --   start(player, rect, dest, params) -> started              rect = AutoPilotMoon.Area:rect, dest = Destination or nil
@@ -95,6 +97,7 @@ JobMenu.radiusKeys = {
 
 JobMenu.textures = JobMenu.textures or {};   -- full type -> texture of the item script, or false (read once)
 JobMenu.cache = nil;                          -- what one opening of the menu worked out (JobMenu:memo)
+JobMenu.clickedSquare = nil;                  -- while the menu is built: the clicked square (JobMenu:getClickedSquare)
 
 function AutoPilotMoon.JobMenu:define(id, spec)
 	if JobMenu.specs[id] == nil
@@ -142,10 +145,10 @@ function AutoPilotMoon.JobMenu:getTitle(spec)
 	return getText(AutoPilotMoon.Automation.definitions[spec.job].titleKey);
 end
 
-function AutoPilotMoon.JobMenu:getLabel(spec, player)
+function AutoPilotMoon.JobMenu:getLabel(spec, player, params)
 	if spec.label
 	then
-		return spec.label(player);
+		return spec.label(player, params);
 	end
 
 	return getText(spec.labelKey);
@@ -186,6 +189,7 @@ end
 
 function AutoPilotMoon.JobMenu:endBuild()
 	JobMenu.cache = nil;
+	JobMenu.clickedSquare = nil;
 end
 
 -- fn() once per opening of the menu (outside a menu: every time)
@@ -522,7 +526,7 @@ function AutoPilotMoon.JobMenu:afterArea(player, spec, region, params)
 		opts[k] = v;
 	end
 
-	opts.titleText = JobMenu:getLabel(spec, player);
+	opts.titleText = JobMenu:getLabel(spec, player, params);
 	opts.step = true;
 
 	if region and region.kind == nil
@@ -548,7 +552,7 @@ function AutoPilotMoon.JobMenu.onPickArea(player, id, params)
 	end
 
 	local opts = {
-		titleText = JobMenu:getLabel(spec, player),
+		titleText = JobMenu:getLabel(spec, player, params),
 		unitKey = spec.unitKey,
 		whatKey = spec.whatKey,
 		onSpot = spec.onSpot,
@@ -743,7 +747,7 @@ function AutoPilotMoon.JobMenu:add(context, player, id)
 			end
 		end
 	else
-		addAreas(menu, player, spec, nil);
+		addAreas(menu, player, spec, spec.menuParams and spec.menuParams(player) or nil);
 	end
 
 	return option;
@@ -900,6 +904,7 @@ end
 -- Fills the submenu "AutoPilot" for the player (worldobjects: what the game passed to its menu event, for "Qui").
 function AutoPilotMoon.JobMenu:fill(menu, player, worldobjects)
 	JobMenu:beginBuild();
+	JobMenu.clickedSquare = JobMenu:getClickedSquare(worldobjects, player);
 
 	if AutoPilotMoon.Automation:isBusy()
 	then
@@ -931,7 +936,7 @@ function AutoPilotMoon.JobMenu:fill(menu, player, worldobjects)
 			-- rule 1: the player can do nothing about it, but knows why the list is empty
 			AutoPilotMoon:addDisabledContextMenuItem(menu, getText("IGUI_AutoPilot_M_NoneOnServer"), getText("IGUI_AutoPilot_M_NoneOnServer_Tooltip"));
 		else
-			local hereIds = anyJob and JobMenu:getHereIds(JobMenu:getClickedSquare(worldobjects, player), player) or {};
+			local hereIds = anyJob and JobMenu:getHereIds(JobMenu.clickedSquare, player) or {};
 
 			if #hereIds > 0
 			then
