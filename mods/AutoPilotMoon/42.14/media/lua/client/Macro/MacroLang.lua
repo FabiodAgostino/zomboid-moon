@@ -13,8 +13,11 @@
 --   if <condition>:   elif <condition>:   else:       exercise("pushups", minutes=10)
 --   when <condition>:   (top level: checked in the pauses between two actions)
 --   rest(seat="nearest", until=95)   eat(open_cans=True)   drink()   smoke()   pass   break
+--   repair("Item", using="Material")   sharpen("Item")   read("Book")          (wave 0 of the work skills, 13/11/2026)
 --   conditions: has("Item", at_least=20), count("Item") >= 3, skill("Maintenance") < 4, hungry >= 2, thirsty,
---   stressed, bored, sad, pain, tired, panic (moodle levels 0-4; alone = at least 1), endurance (percent 0-100)
+--   stressed, bored, sad, pain, tired, panic (moodle levels 0-4; alone = at least 1), endurance (percent 0-100);
+--   xp_gained("Maintenance") >= 100, condition("Item") < 15, has("Item", damaged=True), dark, hour >= 20,
+--   known("Recipe")
 --
 -- Lang:check(text, resolver, opts) -> result
 --   result.ops        the main flat program: ACTION / WAIT / LOOP / END / STOPIF / IF / JUMP, jumps already worked out
@@ -30,19 +33,21 @@
 -- ids = true to collect the name tokens and their ids (Lang:withIds, "Copia con gli id").
 --
 -- Operations (indexes into the same list; the handlers have lists of their own):
---   ACTION  line, kind "craft" / "exercise" / "rest" / "eat" / "drink" / "smoke", possibleFirst
---           craft: recipes (list), recipeText, withTypes, withText, dismantle, itemText
+--   ACTION  line, kind "craft" / "exercise" / "rest" / "eat" / "drink" / "smoke" / "read", possibleFirst
+--           craft: recipes (list), recipeText, withTypes, withText, dismantle, itemText; repair() and sharpen() are
+--           craft actions too, with work = "repair" / "sharpen", the item in withTypes, materialText (using=)
 --           exercise: exercise (the game's id), minutes;  rest: seat "nearest" / "ground", untilPct
---           eat / drink / smoke: itemTypes (list or nil), itemText, openCans (eat), amount (drink: 1 / 0.5 / 0.25)
+--           eat / drink / smoke / read: itemTypes (list or nil), itemText, openCans (eat), amount (drink: 1 / 0.5 / 0.25)
 --   WAIT    line, ms, seconds
 --   LOOP    line, mode "times" / "possible" / "while" / "forever", n, cond, condText, endIndex, firstAction, synthetic
 --   END     line, loopIndex
 --   STOPIF  line, cond, plain (stop())
 --   IF      line, cond, falseTarget (the op to go to when the condition is false)
 --   JUMP    line, target
--- A condition is a small tree, evaluated by Run:evalCondition: { k = "const", v } / "has" (types, n) / "count"
--- (types) / "skill" (perk) / "moodle" (name) / "endurance" / "num" (v) / "not" (a) / "and" / "or" (a, b) / "cmp" (op,
--- a, b); text = the condition as written.
+-- A condition is a small tree, evaluated by Run:evalCondition: { k = "const", v } / "has" (types, n, damaged) / "count"
+-- (types) / "skill" (perk) / "moodle" (name) / "percent" (name) / "word" (name: dark, hour) / "xp" (perk) /
+-- "condition" (types) / "known" (recipes) / "num" (v) / "not" (a) / "and" / "or" (a, b) / "cmp" (op, a, b); text = the
+-- condition as written. result.xpPerks: the skills xp_gained() reads (their experience is noted at the start).
 --
 -- Kahlua: the file is ASCII; the accented and typographic characters are written as UTF-8 byte escapes, which the
 -- game's Lua compiler decodes into one character each.
@@ -107,6 +112,21 @@ end
 -- (CharacterStat.NICOTINE_WITHDRAWAL, 0-0.51 in the game, shown as 0-100); the game has no moodle for the craving
 Lang.percents = { endurance = "tired", craving = "mood" };
 
+-- the other words a condition can read alone (wave 0, 13/11/2026): value "bool" (true or false: alone, never
+-- compared) or "number" (compared; low-high its range). dark: too dark for a recipe that is not done in the dark, the
+-- game's own test (IsoPlayer.tooDarkToRead, the one that stops ISHandcraftAction and refuses "Read"); hour: the
+-- game's hour, 0-23 (GameTime.getHour). Help IGUI_AutoPilot_E_Sug_Cond_<name>, label IGUI_AutoPilot_E_Cond_<name>.
+Lang.condWordList = {
+	{ name = "dark", value = "bool" },
+	{ name = "hour", value = "number", low = 0, high = 23 },
+};
+Lang.condWords = {};
+
+for i, entry in ipairs(Lang.condWordList)
+do
+	Lang.condWords[entry.name] = entry;
+end
+
 -- Italian words written by habit in a condition: the name to write
 Lang.moodleItalian = {
 	fame = "hungry", affamato = "hungry", sete = "thirsty", assetato = "thirsty", sazio = "full", ubriaco = "drunk",
@@ -120,6 +140,7 @@ Lang.moodleItalian = {
 	unhappy = "sad", hunger = "hungry", thirst = "thirsty", nauseous = "sick", hyperthermia = "hot",
 	hypothermia = "cold", food_eaten = "full", fatigue = "tired", sleepy = "tired", zombie = "zombified",
 	cant_sprint = "restricted", heavyload = "heavy_load", hasacold = "has_cold",
+	buio = "dark", scuro = "dark", notte = "dark", darkness = "dark", ora = "hour", orario = "hour", time = "hour",
 };
 
 -- the edit distance of two short words (the closest name of a word not known)
@@ -170,6 +191,11 @@ function AutoPilotMoon.Macro.Lang:closestName(word)
 	for name in pairs(Lang.percents)
 	do
 		table.insert(candidates, name);
+	end
+
+	for i, entry in ipairs(Lang.condWordList)
+	do
+		table.insert(candidates, entry.name);
 	end
 
 	table.sort(candidates);
@@ -251,14 +277,31 @@ Lang.calls = {
 	drink = { pos = { "item" }, kw = { item = "str", amount = "str" }, req = {}, usage = "drink(amount=\"half\")", action = true,
 		names = { item = "item", amount = "amount" } },
 	smoke = { pos = { "item" }, kw = { item = "str" }, req = {}, usage = "smoke()", action = true, names = { item = "item" } },
+	-- wave 0 of the work skills (13/11/2026): the game's repairs and sharpenings of an item it keeps, and reading a
+	-- book or a magazine as the inventory's "Read" does
+	repair = { pos = { "item" }, kw = { item = "str", using = "str", times = "num" }, req = { "item" },
+		usage = "repair(\"Item\", using=\"Material\")", action = true, names = { item = "item", using = "item" } },
+	sharpen = { pos = { "item" }, kw = { item = "str", times = "num" }, req = { "item" }, usage = "sharpen(\"Item\")",
+		action = true, names = { item = "item" } },
+	read = { pos = { "item" }, kw = { item = "str" }, req = { "item" }, usage = "read(\"Book\")", action = true,
+		names = { item = "item" } },
 };
 
--- what a condition can call
+-- what a condition can call; value: "bool" (alone, true or false) or "number" (to compare); names "anyRecipe": every
+-- recipe of the game, the workbenches' too (known() is about knowing, not doing)
 Lang.condCalls = {
-	has = { pos = { "item" }, kw = { item = "str", at_least = "num" }, req = { "item" }, usage = "has(\"Item\", at_least=20)",
-		names = { item = "item" } },
-	count = { pos = { "item" }, kw = { item = "str" }, req = { "item" }, usage = "count(\"Item\") >= 20", names = { item = "item" } },
-	skill = { pos = { "name" }, kw = { name = "str" }, req = { "name" }, usage = "skill(\"Maintenance\") < 4", names = { name = "skill" } },
+	has = { pos = { "item" }, kw = { item = "str", at_least = "num", damaged = "bool" }, req = { "item" },
+		usage = "has(\"Item\", at_least=20)", names = { item = "item" }, value = "bool" },
+	count = { pos = { "item" }, kw = { item = "str" }, req = { "item" }, usage = "count(\"Item\") >= 20", names = { item = "item" },
+		value = "number" },
+	skill = { pos = { "name" }, kw = { name = "str" }, req = { "name" }, usage = "skill(\"Maintenance\") < 4", names = { name = "skill" },
+		value = "number" },
+	xp_gained = { pos = { "name" }, kw = { name = "str" }, req = { "name" }, usage = "xp_gained(\"Maintenance\") >= 100",
+		names = { name = "skill" }, value = "number" },
+	condition = { pos = { "item" }, kw = { item = "str" }, req = { "item" }, usage = "condition(\"Item\") < 15",
+		names = { item = "item" }, value = "number" },
+	known = { pos = { "recipe" }, kw = { recipe = "str" }, req = { "recipe" }, usage = "known(\"Recipe\")",
+		names = { recipe = "anyRecipe" }, value = "bool" },
 };
 
 -- The statements of a line other than the calls, as the editor's suggestions write them (MACRO-AUTOPILOT.md 4.12; the
@@ -299,7 +342,8 @@ Lang.italian = {
 	mangia = "eat()", bevi = "drink()", fuma = "smoke()", riposa = "rest()", ["finch\195\169"] = "while ...:",
 	finche = "while ...:", hai = "has(\"...\")", non = "not", e = "and", o = "or", allenati = "exercise(\"pushups\")",
 	esercizio = "exercise(\"pushups\")", flessioni = "exercise(\"pushups\")", vero = "True", falso = "False",
-	sempre = "while True:", altrimentise = "elif ...:", fai = "craft(\"...\")",
+	sempre = "while True:", altrimentise = "elif ...:", fai = "craft(\"...\")", ripara = "repair(\"...\")",
+	affila = "sharpen(\"...\")", leggi = "read(\"...\")",
 };
 
 -- ============================================================================================================
@@ -687,12 +731,17 @@ local function warnAmbiguousItem(ctx, token, types, relevant, use, recipes, reci
 		text = text .. getText("IGUI_AutoPilot_E_P_Including", kindText);
 	end
 
-	text = text .. getText(use == "count" and "IGUI_AutoPilot_E_P_CountsAll" or "IGUI_AutoPilot_E_P_FirstFound");
+	-- what the macro does with them: the first it finds ("use"), all counted together ("count"), the best condition
+	-- among all of them ("best", condition())
+	local what = { use = "IGUI_AutoPilot_E_P_FirstFound", count = "IGUI_AutoPilot_E_P_CountsAll", best = "IGUI_AutoPilot_E_P_BestOfAll" };
+	local writeOne = { use = "IGUI_AutoPilot_E_P_WriteOne", count = "IGUI_AutoPilot_E_P_CountOne", best = "IGUI_AutoPilot_E_P_WatchOne" };
+
+	text = text .. getText(what[use]);
 
 	-- what to write: a name of one item the recipes take, then the game's types
 	local suggestions = {};
 
-	if use ~= "count" and recipes and resolver.uniqueNamesLike
+	if use == "use" and recipes and resolver.uniqueNamesLike
 	then
 		local found = resolver:uniqueNamesLike(token.text, function(fullType)
 			return takenBy(resolver, recipes, fullType);
@@ -714,7 +763,7 @@ local function warnAmbiguousItem(ctx, token, types, relevant, use, recipes, reci
 		table.insert(suggestions, fullType);
 	end
 
-	text = text .. getText(use == "count" and "IGUI_AutoPilot_E_P_CountOne" or "IGUI_AutoPilot_E_P_WriteOne", quoted(suggestions[1]));
+	text = text .. getText(writeOne[use], quoted(suggestions[1]));
 
 	-- a similar name of one item that another recipe takes: "Sacco di juta" goes with "Strappa sacco grande" (the
 	-- incident of 12/11/2026: the macro meant the jute sack, which "Strappa sacco" does not take)
@@ -852,8 +901,11 @@ local function slotText(resolver, slot)
 end
 
 -- what a craft line needs ("Attrezzi e materiali", 4.5): the materials it uses up, the tools it keeps, the skills, in
--- data (for ZomBOT) and in words; nil when the resolver cannot say (it has no inputSlots)
-local function requirementsOf(ctx, recipe, recipeText)
+-- data (for ZomBOT) and in words; nil when the resolver cannot say (it has no inputSlots). The item a repair or a
+-- sharpening works on (slot.target) is not a tool: entry.target, "su ..." (targetText: the item of the line, when the
+-- line names it). alternatives: the other recipes of a repair() / sharpen() line, in the order the macro tries them
+-- (entry.alternatives = their ids, "oppure: ..." with their names).
+local function requirementsOf(ctx, recipe, recipeText, targetText, alternatives)
 	local resolver = ctx.resolver;
 
 	if resolver.inputSlots == nil
@@ -866,13 +918,21 @@ local function requirementsOf(ctx, recipe, recipeText)
 	local materialWords = {};
 	local toolWords = {};
 	local skillWords = {};
+	local targetWords = {};
 
 	for i, slot in ipairs(resolver:inputSlots(recipe))
 	do
 		local text = slotText(resolver, slot);
 		local item = { text = text, amount = slot.amount, types = slot.types, tags = slot.tags, sharp = slot.sharp };
 
-		if slot.keep
+		if slot.target
+		then
+			item.text = targetText or text;
+			item.damaged = slot.damaged;
+			item.sharpenable = slot.sharpenable;
+			entry.target = item;
+			table.insert(targetWords, item.text);
+		elseif slot.keep
 		then
 			table.insert(entry.tools, item);
 			table.insert(toolWords, text);
@@ -894,6 +954,11 @@ local function requirementsOf(ctx, recipe, recipeText)
 
 	local parts = {};
 
+	if #targetWords > 0
+	then
+		table.insert(parts, getText("IGUI_AutoPilot_E_NeedsOn", table.concat(targetWords, ", ")));
+	end
+
 	if #materialWords > 0
 	then
 		table.insert(parts, getText("IGUI_AutoPilot_E_NeedsUses", table.concat(materialWords, ", ")));
@@ -912,6 +977,21 @@ local function requirementsOf(ctx, recipe, recipeText)
 	if #parts == 0
 	then
 		table.insert(parts, getText("IGUI_AutoPilot_E_NeedsNothing"));
+	end
+
+	if alternatives and #alternatives > 0
+	then
+		local names = {};
+
+		entry.alternatives = {};
+
+		for i, other in ipairs(alternatives)
+		do
+			table.insert(entry.alternatives, resolver:recipeId(other));
+			table.insert(names, resolver:recipeName(other));
+		end
+
+		table.insert(parts, getText("IGUI_AutoPilot_E_NeedsOr", table.concat(names, ", ")));
 	end
 
 	entry.text = getText("IGUI_AutoPilot_E_Needs", ctx.line, recipeText, table.concat(parts, "; "));
@@ -1307,6 +1387,17 @@ local function compileNum(ctx, node)
 			end
 
 			return { k = "percent", name = node.lower };
+		elseif Lang.condWords[node.lower]
+		then
+			if Lang.condWords[node.lower].value == "number"
+			then
+				return { k = "word", name = node.lower };
+			end
+
+			-- dark compared: it is true or false
+			lineError(ctx, getText("IGUI_AutoPilot_E_P_NotNumber", ctx.line, node.v), node.tok);
+
+			return nil;
 		end
 
 		unknownName(ctx, node.v, node.tok);
@@ -1316,13 +1407,17 @@ local function compileNum(ctx, node)
 	then
 		local spec = Lang.condCalls[node.fn];
 
-		if spec == nil or node.fn == "has"
+		if spec == nil or spec.value == "bool"
 		then
 			if spec == nil
 			then
 				lineError(ctx, getText("IGUI_AutoPilot_E_P_UnknownName", ctx.line, node.tok.text), node.tok);
-			else
+			elseif node.fn == "has"
+			then
+				-- has() compared: count() is the number
 				lineError(ctx, getText("IGUI_AutoPilot_E_P_Usage", ctx.line, Lang.condCalls.count.usage));
+			else
+				lineError(ctx, getText("IGUI_AutoPilot_E_P_NotNumber", ctx.line, node.tok.text), node.tok);
 			end
 
 			return nil;
@@ -1335,16 +1430,21 @@ local function compileNum(ctx, node)
 			return nil;
 		end
 
-		if node.fn == "count"
+		if node.fn == "count" or node.fn == "condition"
 		then
 			local types = resolveItem(ctx, bound.item.tok);
 
 			if types
 			then
-				warnAmbiguousItem(ctx, bound.item.tok, types, types, "count");
+				warnAmbiguousItem(ctx, bound.item.tok, types, types, node.fn == "count" and "count" or "best");
 			end
 
-			return types and { k = "count", types = types } or nil;
+			if types == nil
+			then
+				return nil;
+			end
+
+			return { k = node.fn, types = types };
 		end
 
 		local perk = ctx.resolver:resolveSkill(bound.name.v);
@@ -1357,6 +1457,25 @@ local function compileNum(ctx, node)
 		end
 
 		noteId(ctx, bound.name.tok, "skill", ctx.resolver:skillId(perk));
+
+		if node.fn == "xp_gained"
+		then
+			-- the skills whose experience the run notes at its start (xp_gained counts from there)
+			local list = ctx.result.xpPerks;
+			local seen = false;
+
+			for i, other in ipairs(list)
+			do
+				seen = seen or other == perk;
+			end
+
+			if not seen
+			then
+				table.insert(list, perk);
+			end
+
+			return { k = "xp", perk = perk };
+		end
 
 		return { k = "skill", perk = perk };
 	end
@@ -1371,6 +1490,12 @@ local function compareExample(ctx, node)
 	if node.k == "call"
 	then
 		return textOf(ctx, ctx.tokenIndex[node.tok], node.last) .. " >= 1";
+	end
+
+	if node.lower and Lang.condWords[node.lower]
+	then
+		-- hour: an hour of the game
+		return node.v .. " >= 20";
 	end
 
 	return (node.v or node.tok.text) .. " < 30";
@@ -1404,6 +1529,10 @@ compileBool = function(ctx, node)
 		ctx.moodlesSeen[Lang.moodles[node.lower]] = true;
 
 		return { k = "cmp", op = ">=", a = { k = "moodle", name = Lang.moodles[node.lower], word = node.lower }, b = { k = "num", v = 1 } };
+	elseif node.k == "name" and Lang.condWords[node.lower] and Lang.condWords[node.lower].value == "bool"
+	then
+		-- dark: alone
+		return { k = "word", name = node.lower };
 	elseif node.k == "call" and node.fn == "has"
 	then
 		local bound = bindArgs(ctx, "has", Lang.condCalls.has, node.args);
@@ -1432,8 +1561,37 @@ compileBool = function(ctx, node)
 			warnAmbiguousItem(ctx, bound.item.tok, types, types, "count");
 		end
 
-		return types and { k = "has", types = types, n = n } or nil;
-	elseif node.k == "num" or (node.k == "name" and Lang.percents[node.lower]) or (node.k == "call" and Lang.condCalls[node.fn])
+		-- damaged=True: only the damaged ones the macro may work on (condition below the most, never a favourite, an
+		-- equipped or a worn one: what repair() takes)
+		return types and { k = "has", types = types, n = n, damaged = bound.damaged ~= nil and bound.damaged.v == true } or nil;
+	elseif node.k == "call" and node.fn == "known"
+	then
+		local bound = bindArgs(ctx, "known", Lang.condCalls.known, node.args);
+
+		if bound == nil
+		then
+			return nil;
+		end
+
+		-- any recipe of the game, a workbench's too: known() is about knowing it, not about doing it here
+		local token = bound.recipe.tok;
+		local recipes, suggestions = ctx.resolver:resolveRecipe(token.text);
+
+		if recipes == nil
+		then
+			lineError(ctx, withMaybe(getText("IGUI_AutoPilot_E_P_UnknownRecipe", ctx.line, token.text), suggestions), token);
+
+			return nil;
+		end
+
+		if #recipes == 1
+		then
+			noteId(ctx, token, "recipe", ctx.resolver:recipeId(recipes[1]));
+		end
+
+		return { k = "known", recipes = recipes };
+	elseif node.k == "num" or (node.k == "name" and (Lang.percents[node.lower] or Lang.condWords[node.lower]))
+		or (node.k == "call" and Lang.condCalls[node.fn])
 	then
 		lineError(ctx, getText("IGUI_AutoPilot_E_P_CompareIt", ctx.line, node.k == "call" and node.tok.text or (node.v and tostring(node.v)) or node.tok.text,
 			compareExample(ctx, node)));
@@ -1906,7 +2064,149 @@ local function compileCraft(ctx, name, bound)
 	addAction(ctx, action, times);
 end
 
--- exercise / rest / eat / drink / smoke
+-- the types of a list a set of recipes takes (uses up, or works on)
+local function takenTypes(resolver, recipes, types)
+	local list = {};
+
+	for i, fullType in ipairs(types)
+	do
+		if takenBy(resolver, recipes, fullType)
+		then
+			table.insert(list, fullType);
+		end
+	end
+
+	return list;
+end
+
+-- repair("X", using="M", times=N) / sharpen("X", times=N) (wave 0, A0.2): the game's own recipes that repair or
+-- sharpen X and keep it, like dismantle() finds the one that dismantles; a craft action on X with every recipe that
+-- fits, in the order the macro tries them (the first the game can do now: Names.workOrder), only those using M up
+-- when the line says it. The game keeps its own rules: a repair can fail and damage, the more repairs the more it
+-- fails; the macro counts the attempt (A0.1) and goes on.
+local function compileWork(ctx, name, bound)
+	local resolver = ctx.resolver;
+	local times = bound.times and bound.times.v or 1;
+
+	if bound.times and not checkNumber(ctx, times, Lang.minNumber, Lang.maxNumber)
+	then
+		return;
+	end
+
+	local itemToken = bound.item.tok;
+	local types = resolveItem(ctx, itemToken);
+
+	if types == nil
+	then
+		return;
+	end
+
+	local noRecipe = name == "sharpen" and "IGUI_AutoPilot_E_P_NoSharpen" or "IGUI_AutoPilot_E_P_NoRepair";
+	local recipes = resolver.workRecipes and resolver:workRecipes(name, types, nil) or {};
+
+	if #recipes == 0
+	then
+		lineError(ctx, getText(noRecipe, ctx.line, itemToken.text), itemToken);
+
+		return;
+	end
+
+	local action = { op = "ACTION", kind = "craft", work = name, withTypes = types, withText = itemToken.text,
+		itemText = itemToken.text };
+
+	if bound.using
+	then
+		local materialToken = bound.using.tok;
+		local materials = resolveItem(ctx, materialToken);
+
+		if materials == nil
+		then
+			return;
+		end
+
+		local fitting = resolver:workRecipes(name, types, materials);
+
+		if #fitting == 0
+		then
+			-- the materials it is repaired with: the first type of what each recipe uses up
+			local others = {};
+
+			for i, recipe in ipairs(recipes)
+			do
+				for j, slot in ipairs(resolver.inputSlots and resolver:inputSlots(recipe) or {})
+				do
+					if not slot.keep and slot.types[1] and #others < Lang.maxSuggested
+					then
+						local text = writable(resolver, slot.types[1]);
+						local seen = false;
+
+						for k, other in ipairs(others)
+						do
+							seen = seen or other == text;
+						end
+
+						if not seen
+						then
+							table.insert(others, text);
+						end
+
+						break;
+					end
+				end
+			end
+
+			lineError(ctx, withMaybe(getText("IGUI_AutoPilot_E_P_NoRepairWith", ctx.line, itemToken.text, materialToken.text), others),
+				materialToken);
+
+			return;
+		end
+
+		-- a material name of several types the recipes use up: the macro leaves the choice to the game, say it
+		warnAmbiguousItem(ctx, materialToken, materials, takenTypes(resolver, fitting, materials), "use", fitting, nil);
+		recipes = fitting;
+		action.materialText = materialToken.text;
+	end
+
+	-- an item name of several types the recipes work on: the macro takes the first damaged one it finds (2.9)
+	warnAmbiguousItem(ctx, itemToken, types, takenTypes(resolver, recipes, types), "use", recipes, nil);
+
+	action.recipes = recipes;
+	action.recipeText = resolver:recipeName(recipes[1]);
+
+	if ctx.opts.player
+	then
+		local learned = false;
+
+		for i, recipe in ipairs(recipes)
+		do
+			learned = learned or resolver:isLearned(ctx.opts.player, recipe);
+		end
+
+		if not learned
+		then
+			warn(ctx, getText("IGUI_AutoPilot_E_P_NotLearned", ctx.line, action.recipeText), itemToken);
+		end
+	end
+
+	local alternatives = {};
+
+	for i = 2, #recipes
+	do
+		table.insert(alternatives, recipes[i]);
+	end
+
+	local needs = requirementsOf(ctx, recipes[1], action.recipeText, itemToken.text, alternatives);
+
+	if needs
+	then
+		needs.work = name;
+		table.insert(ctx.result.requirements, needs);
+	end
+
+	addAction(ctx, action, times);
+end
+
+-- exercise / rest / eat / drink / smoke / read
 local function compileBody(ctx, name, bound)
 	local action = { op = "ACTION", kind = name };
 
@@ -1971,6 +2271,12 @@ local function compileBody(ctx, name, bound)
 			if types == nil
 			then
 				return;
+			end
+
+			if name == "read"
+			then
+				-- a name of several books: the first one the macro finds is read (2.9)
+				warnAmbiguousItem(ctx, bound.item.tok, types, types, "use");
 			end
 
 			action.itemTypes = types;
@@ -2070,6 +2376,9 @@ local function parseCall(ctx, first)
 	if name == "craft" or name == "dismantle"
 	then
 		compileCraft(ctx, name, bound);
+	elseif name == "repair" or name == "sharpen"
+	then
+		compileWork(ctx, name, bound);
 	elseif name == "wait"
 	then
 		local n = bound.seconds.v;
@@ -2421,7 +2730,7 @@ function AutoPilotMoon.Macro.Lang:check(text, resolver, opts)
 	opts = opts or {};
 
 	local result = { ops = {}, handlers = {}, problems = {}, all = {}, errors = 0, warnings = 0, more = 0, actionCount = 0,
-		lineCount = 0, uses = {}, requirements = {} };
+		lineCount = 0, uses = {}, requirements = {}, xpPerks = {} };
 
 	if resolver == nil or not resolver:isReady()
 	then
@@ -2750,11 +3059,12 @@ function AutoPilotMoon.Macro.Lang:classify(raw)
 		then
 			class = "string";
 
-			-- skill("Name"): the skill's name, as the moodles
+			-- skill("Name"), xp_gained("Name"): the skill's name, as the moodles
 			local before = tokens[k - 1];
 			local call = tokens[k - 2];
+			local spec = call and call.k == "name" and Lang.condCalls[call.lower] or nil;
 
-			if before and before.k == "sym" and before.text == "(" and call and call.k == "name" and call.lower == "skill"
+			if before and before.k == "sym" and before.text == "(" and spec and spec.names and spec.names[spec.pos[1]] == "skill"
 			then
 				class = "name";
 			end
@@ -2778,7 +3088,7 @@ function AutoPilotMoon.Macro.Lang:classify(raw)
 			elseif LOGIC_WORDS[token.lower]
 			then
 				class = "logic";
-			elseif Lang.moodles[token.lower] or Lang.percents[token.lower]
+			elseif Lang.moodles[token.lower] or Lang.percents[token.lower] or Lang.condWords[token.lower]
 			then
 				class = "name";
 			end

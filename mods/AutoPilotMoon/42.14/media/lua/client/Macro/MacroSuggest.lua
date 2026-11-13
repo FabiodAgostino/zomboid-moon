@@ -14,11 +14,13 @@
 -- Contexts (S:context(line, column)):
 --   statement   a word at the start of a line: the statements (while possible:, if ...:, when ...:) and the commands
 --   condition   after if / elif / while / when, after and / or / not, in stop_if(...) and in a parenthesis there:
---               the moodles (with their Italian names), endurance, craving, has(, count(, skill(, not
---   args        after "(" or "," in a call: its keyword arguments not written yet (using=, minutes=, seat=...), and
---               after "(" the names its first argument holds (craft( -> the recipes, written with the quotes)
---   recipe, item, skill, exercise, seat, amount   inside the quotes of an argument that holds that kind of name, or
---               right after its "=" without the quotes
+--               the moodles (with their Italian names), endurance, craving, dark, hour (Lang.condWordList), has(,
+--               count(, skill(, xp_gained(, condition(, known(, not
+--   args        after "(" or "," in a call: its keyword arguments not written yet (using=, minutes=, seat=, damaged=...),
+--               and after "(" the names its first argument holds (craft( -> the recipes, written with the quotes)
+--   recipe, anyRecipe, item, skill, exercise, seat, amount   inside the quotes of an argument that holds that kind of
+--               name, or right after its "=" without the quotes (anyRecipe: every recipe, the workbenches' too, for
+--               known("..."))
 -- Searching: without accents and case (an accented e = e), every word typed; the name in the player's language
 -- first (the whole name, then a word of it, then every word anywhere), then the game's id (AssembleShortImplement,
 -- Base.ClawhammerHead: "short implement", "clawhammer" find them, in any language); the last two from 3 letters; at
@@ -723,6 +725,21 @@ local function conditionEntries(ctx, q)
 			helpArg = detail }, others);
 	end
 
+	-- dark, hour (Lang.condWordList, wave 0)
+	for i, word in ipairs(L.condWordList)
+	do
+		local name = word.name;
+		local detail = text("IGUI_AutoPilot_E_Cond_" .. name);
+		local others = { detail };
+
+		for k, italianWord in ipairs(italian[name] or {})
+		do
+			table.insert(others, italianWord);
+		end
+
+		add({ label = name, detail = detail, class = "name", text = name, helpKey = "IGUI_AutoPilot_E_Sug_Cond_" .. name }, others);
+	end
+
 	for i, name in ipairs(sortedKeys(L.condCalls))
 	do
 		local entry = callEntry(name, L.condCalls[name]);
@@ -787,6 +804,20 @@ function AutoPilotMoon.Macro.Suggest:getIndex()
 
 	table.sort(recipes, byFold);
 
+	-- every recipe of the game, the workbenches' too (known("...")), the same way
+	local anyRecipes = {};
+
+	for i, recipe in ipairs(N.allRecipeList or N.recipeList)
+	do
+		local name = N:recipeName(recipe);
+		local id = N:recipeId(recipe);
+
+		table.insert(anyRecipes, { label = name, value = N:isAmbiguousRecipe(recipe) and id or name, id = id,
+			fold = fold(name), alt = S.idWords(id) });
+	end
+
+	table.sort(anyRecipes, byFold);
+
 	local items = {};
 
 	for i, entry in ipairs(N.itemNameList)
@@ -805,7 +836,7 @@ function AutoPilotMoon.Macro.Suggest:getIndex()
 
 	table.sort(items, byFold);
 
-	S.index = { source = N.recipeList, recipe = recipes, item = items };
+	S.index = { source = N.recipeList, recipe = recipes, anyRecipe = anyRecipes, item = items };
 
 	return S.index;
 end
@@ -873,7 +904,7 @@ local function nameEntries(ctx, kind, q, words)
 		end
 	end
 
-	if kind == "recipe" or kind == "item"
+	if kind == "recipe" or kind == "anyRecipe" or kind == "item"
 	then
 		local index = S:getIndex();
 
@@ -898,7 +929,7 @@ local function nameEntries(ctx, kind, q, words)
 						count = e.count });
 				else
 					table.insert(buckets[b], { label = e.label, detail = e.id, class = "string", value = e.value, text = quotedText(ctx, e.value),
-						helpKey = kind == "recipe" and "IGUI_AutoPilot_E_Sug_Recipe" or "IGUI_AutoPilot_E_Sug_Item", helpArg = e.id });
+						helpKey = kind == "item" and "IGUI_AutoPilot_E_Sug_Item" or "IGUI_AutoPilot_E_Sug_Recipe", helpArg = e.id });
 				end
 			end
 

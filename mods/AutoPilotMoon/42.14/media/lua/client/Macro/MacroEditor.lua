@@ -2210,7 +2210,7 @@ function W:onDeleteAnswer(button, macro)
 	self:refresh();
 end
 
--- Inserisci (4.6, 11.7): recipe, item, repeat, if, body, when, condition, wait, stop if; every form written in the
+-- Inserisci (4.6, 11.7): recipe, item, repeat, if, body, work, when, condition, wait, stop if; every form written in the
 -- language of the macros with its indentation (the game's text box does not indent by itself)
 function W:onInsert(button)
 	if not self.editable
@@ -2252,9 +2252,22 @@ function W:onInsert(button)
 	local bodyMenu = sub("IGUI_AutoPilot_E_InsertBody");
 
 	for i, line in ipairs({ "exercise(\"pushups\", minutes=10)", "exercise(\"squats\", minutes=10)", "rest()", "rest(seat=\"ground\")",
-		"eat(open_cans=True)", "drink()", "smoke()" })
+		"eat(open_cans=True)", "drink()", "smoke()", "read(\"Base.BookMaintenance1\")" })
 	do
 		bodyMenu:addOption(line, self, W.onInsertLine, line);
+	end
+
+	-- the work on the tools (wave 0, 13/11/2026): repair, sharpen, read, the loop on the damaged ones; with the game's
+	-- ids, valid in every language
+	local workMenu = sub("IGUI_AutoPilot_E_InsertWork");
+
+	workMenu:addOption("while has(\"Base.BaseballBat\", damaged=True):", self, W.onInsertBlock, "while has(\"Base.BaseballBat\", damaged=True):");
+
+	for i, line in ipairs({ "repair(\"Base.BaseballBat\", using=\"Base.DuctTape\")", "repair(\"Base.BaseballBat\")",
+		"sharpen(\"Base.KitchenKnife\")", "read(\"Base.BookMaintenance1\")", "stop_if(condition(\"Base.KitchenKnife\") < 15)",
+		"stop_if(dark)" })
+	do
+		workMenu:addOption(line, self, W.onInsertLine, line);
 	end
 
 	local whenMenu = sub("IGUI_AutoPilot_E_InsertWhen");
@@ -2290,6 +2303,25 @@ function W:onInsert(button)
 				groupMenu:addOption(name .. " - " .. getText("IGUI_AutoPilot_E_Moodle_" .. name), self, W.onInsertText, name .. " < 30");
 			end
 		end
+	end
+
+	-- the conditions of the work (wave 0): the words (dark, hour) and the calls xp_gained, condition, has damaged, known
+	local workOption = condMenu:addOption(getText("IGUI_AutoPilot_E_CondGroup_work"), nil, nil);
+	local workGroup = condMenu:getNew(condMenu);
+
+	condMenu:addSubMenu(workOption, workGroup);
+
+	for i, word in ipairs(Lang.condWordList)
+	do
+		local text = word.value == "number" and (word.name .. " >= 20") or word.name;
+
+		workGroup:addOption(word.name .. " - " .. getText("IGUI_AutoPilot_E_Cond_" .. word.name), self, W.onInsertText, text);
+	end
+
+	for i, text in ipairs({ "xp_gained(\"" .. skill .. "\") >= 100", "condition(\"Base.KitchenKnife\") < 15",
+		"has(\"Base.BaseballBat\", damaged=True)", "known(\"CarvePlank\")" })
+	do
+		workGroup:addOption(text, self, W.onInsertText, text);
 	end
 
 	context:addOption(getText("IGUI_AutoPilot_E_InsertWait"), self, W.onInsertLine, "wait(5)");

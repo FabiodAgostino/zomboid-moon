@@ -75,6 +75,9 @@ function AutoPilotMoon.Macro.Body:describe(op)
 	elseif op.kind == "drink"
 	then
 		return getText("IGUI_AutoPilot_P_Now_MacroDrink");
+	elseif op.kind == "read"
+	then
+		return getText("IGUI_AutoPilot_P_Now_MacroRead", op.itemText or "");
 	end
 
 	return getText("IGUI_AutoPilot_P_Now_MacroSmoke");
@@ -795,11 +798,208 @@ local function confirmSmoke(run, pending, waited)
 end
 
 -- ============================================================================================================
+-- Read (wave 0, 13/11/2026, ANALISI-API-MACRO-LAVORATIVE.md A0.4): a book or a magazine as the inventory's "Read"
+-- (ISInventoryPaneContextMenu.readItem of 42.22: the book moved into the main inventory when it is in a bag, the
+-- ISReadABook the server runs, the book put back), with the menu's own refusals and texts
+-- (ISInventoryPaneContextMenu.doLiteratureMenu): too dark, illiterate, too complicated, too simple, nothing to read
+-- ============================================================================================================
+
+local function skillBookOf(book)
+	local books = rawget(_G, "SkillBook");
+	local entry = books and books[book:getSkillTrained()] or nil;
+
+	return entry and entry.perk and entry or nil;
+end
+
+-- the pages read of a book: the most of the item's and the character's (ISReadABook keeps both: the item's on the
+-- server's side, synced; the character's map is the one a new reading starts from)
+local function pagesRead(player, book)
+	return math.max(book:getAlreadyReadPages() or 0, player:getAlreadyReadPages(book:getFullType()) or 0);
+end
+
+local function literatureTitle(book)
+	return book:hasModData() and book:getModData().literatureTitle or nil;
+end
+
+-- already read: every page of a book with pages; a magazine whose recipes the character got (getAlreadyReadBook); a
+-- story already read (isLiteratureRead). Reading it again gives nothing.
+function AutoPilotMoon.Macro.Body:isRead(player, book)
+	local pages = book:getNumberOfPages();
+
+	if pages > 0
+	then
+		return pagesRead(player, book) >= pages;
+	end
+
+	local recipes = book:getLearnedRecipes();
+
+	if recipes and not recipes:isEmpty()
+	then
+		return player:getAlreadyReadBook():contains(book:getFullType());
+	end
+
+	local title = literatureTitle(book);
+
+	return title ~= nil and player:isLiteratureRead(title);
+end
+
+-- the game's refusal of "Read" for this book now, with its own text; nil: it can be read
+function AutoPilotMoon.Macro.Body:readRefusal(player, book)
+	local picture = book:hasTag(ItemTag.PICTUREBOOK) or book:hasTag(ItemTag.PICTURE);
+
+	if player:tooDarkToRead()
+	then
+		return getText(picture and "ContextMenu_TooDarkToSee" or "ContextMenu_TooDark");
+	end
+
+	if player:hasTrait(CharacterTrait.ILLITERATE) and not picture
+	then
+		return getText("ContextMenu_Illiterate");
+	end
+
+	local skill = skillBookOf(book);
+
+	if skill and book:getLvlSkillTrained() ~= -1 and book:getLvlSkillTrained() > player:getPerkLevel(skill.perk) + 1
+	then
+		return getText("ContextMenu_TooComplicated");
+	end
+
+	if skill and book:getMaxLevelTrained() ~= -1 and book:getMaxLevelTrained() <= player:getPerkLevel(skill.perk)
+	then
+		return getText("ContextMenu_TooSimple");
+	end
+
+	if book:hasTag(ItemTag.UNINTERESTING)
+	then
+		return getText("ContextMenu_EmptyNotebook");
+	end
+
+	return nil;
+end
+
+-- the book read() would read: the first of the named types in the inventory (bags included, favourites too: reading
+-- uses nothing up) that is something to read; nil and the reason, "nothing" when there is none
+function AutoPilotMoon.Macro.Body:chooseBook(player, op)
+	local books = itemsWhere(player, function(item)
+		return named(op, item) and instanceof(item, "Literature");
+	end);
+
+	if #books == 0
+	then
+		return nil, getText("IGUI_AutoPilot_A_MacroR_NoBook", op.itemText or ""), "nothing";
+	end
+
+	-- one not read yet first (two copies of a magazine: the one still to read)
+	for i, book in ipairs(books)
+	do
+		if not Body:isRead(player, book)
+		then
+			return book;
+		end
+	end
+
+	return books[1];
+end
+
+local function readState(player, book)
+	local title = literatureTitle(book);
+
+	return {
+		pages = pagesRead(player, book),
+		readBook = player:getAlreadyReadBook():contains(book:getFullType()),
+		literature = title ~= nil and player:isLiteratureRead(title),
+		boredom = stat(player, "BOREDOM"),
+		unhappiness = stat(player, "UNHAPPINESS"),
+	};
+end
+
+local function startRead(run, op)
+	local player = run.player;
+	local book, why, kind = Body:chooseBook(player, op);
+
+	if book == nil
+	then
+		return nil, why, kind;
+	end
+
+	if Body:isRead(player, book)
+	then
+		-- nothing left to read: a "while possible" ends well, else the line after (like rest() already rested)
+		if op.possibleFirst
+		then
+			return nil, getText("IGUI_AutoPilot_A_MacroR_AlreadyRead", book:getDisplayName()), "nothing";
+		end
+
+		AutoPilotMoon:say("info", getText("IGUI_AutoPilot_A_MacroR_AlreadyReadNext", book:getDisplayName()), player);
+
+		return nil, nil, "skip";
+	end
+
+	local refusal = Body:readRefusal(player, book);
+
+	if refusal
+	then
+		return nil, refusal, nil;
+	end
+
+	ISInventoryPaneContextMenu.readItem(book, player:getPlayerNum());
+
+	-- after the game's own ISReadABook:new (its getDuration sets the item's pages from the character's)
+	local state = readState(player, book);
+
+	state.kind = "read";
+	state.book = book;
+	state.name = book:getDisplayName();
+	state.numberOfPages = book:getNumberOfPages();
+
+	return state;
+end
+
+-- counted when the character read something: more pages (or the whole book), a magazine's recipes, a story read, less
+-- boredom or sadness (a comic without pages)
+local function confirmRead(run, pending, waited)
+	local player = run.player;
+	local now = readState(player, pending.book);
+
+	if now.pages > pending.pages or (pending.numberOfPages > 0 and now.pages >= pending.numberOfPages)
+		or (now.readBook and not pending.readBook) or (now.literature and not pending.literature)
+		or now.boredom < pending.boredom - 0.0001 or now.unhappiness < pending.unhappiness - 0.0001
+	then
+		return "done";
+	end
+
+	if waited < Body.confirmMs
+	then
+		return "busy";
+	end
+
+	return "fail", getText("IGUI_AutoPilot_A_MacroR_NotRead", pending.name);
+end
+
+-- "Adesso si puo' fare?" for read(): nil when it can start now
+local function probeRead(player, op)
+	local book, why = Body:chooseBook(player, op);
+
+	if book == nil
+	then
+		return why;
+	end
+
+	if Body:isRead(player, book)
+	then
+		return getText("IGUI_AutoPilot_A_MacroR_AlreadyRead", book:getDisplayName());
+	end
+
+	return Body:readRefusal(player, book);
+end
+
+-- ============================================================================================================
 -- The interface for MacroRun
 -- ============================================================================================================
 
-local starts = { exercise = startExercise, rest = startRest, eat = startEat, drink = startDrink, smoke = startSmoke };
-local confirms = { exercise = confirmExercise, rest = confirmRest, eat = confirmEat, drink = confirmDrink, smoke = confirmSmoke };
+local starts = { exercise = startExercise, rest = startRest, eat = startEat, drink = startDrink, smoke = startSmoke, read = startRead };
+local confirms = { exercise = confirmExercise, rest = confirmRest, eat = confirmEat, drink = confirmDrink, smoke = confirmSmoke,
+	read = confirmRead };
 
 function AutoPilotMoon.Macro.Body:start(run, op)
 	local pending, why, kind = starts[op.kind](run, op);
@@ -842,6 +1042,9 @@ function AutoPilotMoon.Macro.Body:probe(player, op)
 		local item, why = Body:chooseDrink(player, op);
 
 		return item == nil and why or nil;
+	elseif op.kind == "read"
+	then
+		return probeRead(player, op);
 	end
 
 	local item, why = Body:chooseSmoke(player, op);

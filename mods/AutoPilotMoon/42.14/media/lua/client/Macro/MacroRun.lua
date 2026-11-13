@@ -102,6 +102,101 @@ function AutoPilotMoon.Macro.Run:percent(player, name)
 	return math.floor((stats:get(stat) or 0) / 0.51 * 100 + 0.5);
 end
 
+-- the conditions of the work (wave 0, 13/11/2026, ANALISI-API-MACRO-LAVORATIVE.md A0.3): read only, nothing queued
+
+-- an item's condition in percent of its most (0-100; an item without a most: 100)
+local function conditionPercent(item)
+	local max = item:getConditionMax();
+
+	if max == nil or max <= 0
+	then
+		return 100;
+	end
+
+	return math.floor(item:getCondition() * 100 / max);
+end
+
+-- condition("X"): the best condition among the items of those types the character has (bags, favourites and the one
+-- in the hands included: the tool in use is the one to look after); 0 when there is none
+function AutoPilotMoon.Macro.Run:bestCondition(player, types)
+	local best = 0;
+	local set = {};
+
+	for i, fullType in ipairs(types)
+	do
+		set[fullType] = true;
+	end
+
+	local items = player:getInventory():getAllEvalRecurse(function(item)
+		return set[item:getFullType()] == true;
+	end);
+
+	for i = 0, items:size() - 1
+	do
+		best = math.max(best, conditionPercent(items:get(i)));
+	end
+
+	return best;
+end
+
+-- has("X", damaged=True): the items of those types below their most condition (InventoryItem.isDamaged of 42.22, the
+-- test of a repair's flags[IsDamaged]) that the macro may work on (never a favourite, an equipped or a worn one)
+function AutoPilotMoon.Macro.Run:countDamaged(player, types)
+	local set = {};
+
+	for i, fullType in ipairs(types)
+	do
+		set[fullType] = true;
+	end
+
+	local items = player:getInventory():getAllEvalRecurse(function(item)
+		return set[item:getFullType()] == true and item:getCondition() < item:getConditionMax() and Run:isUsable(player, item);
+	end);
+
+	return items:size();
+end
+
+-- xp_gained("Skill"): the experience the skill took since the macro started (0 outside a run: the editor's checks)
+function AutoPilotMoon.Macro.Run:xpGained(player, perk)
+	local run = Run.current;
+	local start = run and run.player == player and run.xpBase and run.xpBase[perk:getId()] or nil;
+
+	if start == nil
+	then
+		return 0;
+	end
+
+	return math.max(0, math.floor(player:getXp():getXP(perk) - start));
+end
+
+-- the words of a condition (Lang.condWordList): dark (true / false), hour (0-23)
+function AutoPilotMoon.Macro.Run:wordValue(player, name)
+	if name == "dark"
+	then
+		return player:tooDarkToRead() == true;
+	elseif name == "hour"
+	then
+		local time = getGameTime();
+
+		return time and time:getHour() or 0;
+	end
+
+	return 0;
+end
+
+-- known("Recipe"): one of the recipes of the name is known (needs no learning, or learned)
+function AutoPilotMoon.Macro.Run:knows(player, recipes)
+	for i, recipe in ipairs(recipes)
+	do
+		if AutoPilotMoon.Macro.Names:isLearned(player, recipe)
+		then
+			return true;
+		end
+	end
+
+	return false;
+end
+
 local function value(player, node)
 	local k = node.k;
 
@@ -120,6 +215,15 @@ local function value(player, node)
 	elseif k == "skill"
 	then
 		return player:getPerkLevel(node.perk);
+	elseif k == "xp"
+	then
+		return Run:xpGained(player, node.perk);
+	elseif k == "condition"
+	then
+		return Run:bestCondition(player, node.types);
+	elseif k == "word"
+	then
+		return Run:wordValue(player, node.name);
 	end
 
 	return 0;
@@ -133,7 +237,18 @@ function AutoPilotMoon.Macro.Run:evalCondition(player, cond)
 		return cond.v == true;
 	elseif k == "has"
 	then
+		if cond.damaged
+		then
+			return Run:countDamaged(player, cond.types) >= cond.n;
+		end
+
 		return Run:countItems(player, cond.types) >= cond.n;
+	elseif k == "word"
+	then
+		return Run:wordValue(player, cond.name) == true;
+	elseif k == "known"
+	then
+		return Run:knows(player, cond.recipes);
 	elseif k == "not"
 	then
 		return not Run:evalCondition(player, cond.a);
@@ -206,7 +321,9 @@ function AutoPilotMoon.Macro.Run:choose(player, op)
 
 	for i, recipe in ipairs(op.recipes)
 	do
-		local typeSet = op.withSet or AutoPilotMoon.Macro.Names:consumedTypes(recipe);
+		-- without using=: what the recipe uses up, or the item it works on and keeps (a repair: the damaged bat, never
+		-- the tape, so the game does not pick a favourite bat by itself)
+		local typeSet = op.withSet or AutoPilotMoon.Macro.Names:clickTypes(recipe);
 		local item = containers and findItem(player, containers, recipe, typeSet) or nil;
 
 		if item
@@ -242,8 +359,13 @@ local function recipeName(recipe)
 	return AutoPilotMoon.Macro.Names:recipeName(recipe);
 end
 
+-- the recipe is not known yet (a magazine, a level): the game refuses it for that, say how it is learned (A0.3)
+local function notKnown(player, recipe)
+	return player ~= nil and recipe ~= nil and not AutoPilotMoon.Macro.Names:isLearned(player, recipe);
+end
+
 -- why an action does not start, in words (5.3)
-local function reasonText(op, reason, recipe)
+local function reasonText(op, reason, recipe, player)
 	local name = recipeName(recipe);
 
 	if reason == "dark"
@@ -252,9 +374,16 @@ local function reasonText(op, reason, recipe)
 	elseif reason == "surface"
 	then
 		return getText("IGUI_AutoPilot_A_MacroR_Surface", name);
+	elseif reason == "noitem" and op.work
+	then
+		-- repair() / sharpen(): nothing damaged, nothing to sharpen (favourites never)
+		return getText(op.work == "sharpen" and "IGUI_AutoPilot_A_MacroR_NothingToSharpen" or "IGUI_AutoPilot_A_MacroR_NothingToRepair", op.itemText);
 	elseif reason == "noitem" and op.withText
 	then
 		return getText("IGUI_AutoPilot_A_MacroR_NoItem", op.withText);
+	elseif reason == "refused" and notKnown(player, recipe)
+	then
+		return getText("IGUI_AutoPilot_A_MacroR_NotKnown", name, AutoPilotMoon.Macro.Names:learnHint(recipe));
 	end
 
 	return getText("IGUI_AutoPilot_A_MacroR_Refused", name);
@@ -265,6 +394,11 @@ local function describe(op)
 	if op.kind ~= "craft"
 	then
 		return Body():describe(op);
+	end
+
+	if op.work
+	then
+		return getText(op.work == "sharpen" and "IGUI_AutoPilot_P_Now_MacroSharpen" or "IGUI_AutoPilot_P_Now_MacroRepair", op.itemText);
 	end
 
 	if op.dismantle
@@ -565,9 +699,16 @@ function AutoPilotMoon.Macro.Run:start(player, macro)
 		starts = {},
 		perks = {},
 		xpStart = {},
+		xpBase = {},
 		outer = nil,
 	};
 	local seen = {};
+
+	-- xp_gained("Skill") counts from here (A0.3)
+	for i, perk in ipairs(result.xpPerks or {})
+	do
+		run.xpBase[perk:getId()] = player:getXp():getXP(perk);
+	end
 
 	prepareOps(run, ops, seen);
 
@@ -809,16 +950,19 @@ local function act(run, frame, op)
 
 	if recipe == nil
 	then
-		if op.possibleFirst and (reason == "refused" or reason == "noitem")
+		-- "while possible" ends well when the materials are over; a recipe not known yet is a reason to say instead
+		if op.possibleFirst and (reason == "noitem" or (reason == "refused" and not notKnown(run.player, about)))
 		then
 			finish(run, getText("IGUI_AutoPilot_A_MacroDoneCannot", recipeName(about)));
 		else
-			fail(run, op, reasonText(op, reason, about));
+			fail(run, op, reasonText(op, reason, about, run.player));
 		end
 
 		return;
 	end
 
+	-- the state of what the recipe keeps, before it (A0.1): the confirmation of a repair or a sharpening
+	local kept = Run:keptState(run.player, recipe, item);
 	local action = AutoPilotMoon.Craft:queueAction(run.player, recipe, item);
 
 	if action == nil
@@ -828,11 +972,133 @@ local function act(run, frame, op)
 		return;
 	end
 
+	Run:addDrainables(kept, action);
 	action.autopilotMacro = true;
 	run.actions = run.actions + 1;
 	table.insert(starts, time);
-	run.pending = { kind = "craft", action = action, item = item, itemId = item:getID(), recipe = recipe, op = op, frame = frame, performed = false };
+	run.pending = { kind = "craft", action = action, item = item, itemId = item:getID(), recipe = recipe, op = op, frame = frame,
+		performed = false, kept = kept };
 	AutoPilotMoon.Progress:setActivity("IGUI_AutoPilot_P_Now_MacroLine", op.line, op.desc);
+end
+
+-- ============================================================================================================
+-- The recipes that keep their item (A0.1, wave 0, 13/11/2026): a repair or a sharpening uses up nothing whole and
+-- makes nothing new (recipes_fixing.txt: the item mode:keep, the tape used only in part); the game's recipe code
+-- (RecipeCodeOnCreate.genericFixer / sharpenBladeGeneric of the 42.22 jar) changes the kept item instead: its
+-- condition (up, or down by 1 when it fails), its sharpness, the count of its repairs. So a recipe counts as done also
+-- when, since it was queued: the experience grew in a skill the recipe gives (only once the game's perform came: an
+-- earlier action's experience arriving late from the server never counts), the kept item's condition, sharpness or
+-- repairs changed, or a drainable it used (tape, glue) has fewer uses or is gone.
+-- ============================================================================================================
+
+local function recipeXp(player, recipe)
+	local total = 0;
+
+	for i, perk in ipairs(AutoPilotMoon.Macro.Names:xpPerks(recipe))
+	do
+		total = total + player:getXp():getXP(perk);
+	end
+
+	return total;
+end
+
+local function itemStateOf(item)
+	local sharpness = nil;
+
+	if item:hasSharpness()
+	then
+		sharpness = item:getSharpness();
+	end
+
+	return item:getCondition(), sharpness, item:getHaveBeenRepaired();
+end
+
+-- the state of the item a recipe is started on, and the experience of its skills
+function AutoPilotMoon.Macro.Run:keptState(player, recipe, item)
+	local state = { xp = recipeXp(player, recipe), drains = {} };
+	local ok, condition, sharpness, repaired = pcall(itemStateOf, item);
+
+	if ok
+	then
+		state.condition, state.sharpness, state.repaired = condition, sharpness, repaired;
+	end
+
+	return state;
+end
+
+local function inputItemsOf(action)
+	local list = {};
+	local items = action.items;
+
+	if items
+	then
+		for i = 0, items:size() - 1
+		do
+			table.insert(list, items:get(i));
+		end
+	end
+
+	return list;
+end
+
+-- the drainables among the items the game chose for the recipe (ISHandcraftAction.items: getAllInputItems of its
+-- logic) and their uses now
+function AutoPilotMoon.Macro.Run:addDrainables(state, action)
+	local ok, items = pcall(inputItemsOf, action);
+
+	for i, item in ipairs(ok and items or {})
+	do
+		if instanceof(item, "DrainableComboItem")
+		then
+			table.insert(state.drains, { item = item, id = item:getID(), uses = item:getCurrentUsesFloat() });
+		end
+	end
+end
+
+-- what the recipe keeps changed since it was queued (see above)
+function AutoPilotMoon.Macro.Run:keptChanged(player, pending)
+	local state = pending.kept;
+
+	if state == nil
+	then
+		return false;
+	end
+
+	if pending.performed and recipeXp(player, pending.recipe) > state.xp + 0.0001
+	then
+		return true;
+	end
+
+	local inventory = player:getInventory();
+	local item = inventory:getItemWithIDRecursiv(pending.itemId) or pending.item;
+
+	if state.condition ~= nil
+	then
+		local ok, condition, sharpness, repaired = pcall(itemStateOf, item);
+
+		if ok and (condition ~= state.condition or repaired ~= state.repaired
+			or (sharpness ~= nil and state.sharpness ~= nil and math.abs(sharpness - state.sharpness) > 0.0001))
+		then
+			return true;
+		end
+	end
+
+	for i, drain in ipairs(state.drains)
+	do
+		local now = inventory:getItemWithIDRecursiv(drain.id);
+
+		if now == nil and drain.item:getContainer() == nil
+		then
+			return true;
+		end
+
+		if (now or drain.item):getCurrentUsesFloat() < drain.uses - 0.0001
+		then
+			return true;
+		end
+	end
+
+	return false;
 end
 
 -- something new in the inventory, or at the character's feet, since the action's perform
@@ -896,7 +1162,7 @@ local function confirmCraft(run, pending)
 	local inventory = run.player:getInventory();
 	local consumed = inventory:getItemWithIDRecursiv(pending.itemId) == nil and pending.item:getContainer() == nil;
 
-	if consumed or (pending.performed and hasNew(run))
+	if consumed or (pending.performed and hasNew(run)) or Run:keptChanged(run.player, pending)
 	then
 		AutoPilotMoon.Progress:setWaiting(false);
 		run.pending = nil;
@@ -1176,7 +1442,13 @@ function AutoPilotMoon.Macro.Run:probe(player, result)
 				return op.line, nil;
 			end
 
-			if reason == "noitem" and op.withText
+			if reason == "noitem" and op.work
+			then
+				return op.line, getText(op.work == "sharpen" and "IGUI_AutoPilot_E_NowNothingToSharpen" or "IGUI_AutoPilot_E_NowNothingToRepair", op.itemText);
+			elseif reason == "refused" and notKnown(player, about)
+			then
+				return op.line, getText("IGUI_AutoPilot_E_NowNotKnown", AutoPilotMoon.Macro.Names:learnHint(about));
+			elseif reason == "noitem" and op.withText
 			then
 				return op.line, getText("IGUI_AutoPilot_E_NowNoItem", op.withText);
 			elseif reason == "dark"

@@ -11,7 +11,8 @@
 --   skills:  PerkFactory.PerkList (the skills, not their groups): the translated name or the English id.
 -- The macros only do the recipes "by hand" (tag InHandCraft) and "on any surface" (AnySurfaceCraft); a workbench recipe
 -- is said with the bench's name (step M2). "smonta X": the recipes by hand whose id starts with a dismantling prefix and
--- that consume X.
+-- that consume X. repair("X") / sharpen("X") (wave 0, 13/11/2026): the game's repairs and sharpenings that keep X
+-- (Names:workRecipes, the kept input with flags[IsDamaged] / flags[IsSharpenable]).
 
 AutoPilotMoon = AutoPilotMoon or {};
 AutoPilotMoon.Macro = AutoPilotMoon.Macro or {};
@@ -42,6 +43,9 @@ local function reset()
 	Names.consumedCache = {};   -- recipe id -> set of full types of its consumed inputs
 	Names.itemCategory = {};    -- full type -> the game's DisplayCategory ("Food", "Container"...)
 	Names.slotsCache = {};      -- recipe id -> its item inputs (Names:inputSlots)
+	Names.allRecipeList = {};   -- every recipe of the game, the workbenches' too (known("...") and its suggestions)
+	Names.targetCache = {};     -- recipe id -> set of full types of the item the recipe works on (Names:targetTypes)
+	Names.clickCache = {};      -- recipe id -> set of full types the macro clicks for it (Names:clickTypes)
 end
 
 reset();
@@ -114,6 +118,7 @@ local function indexRecipe(recipe)
 
 	Names.recipeById[string.lower(id)] = recipe;
 	Names.recipeText[id] = text;
+	table.insert(Names.allRecipeList, recipe);
 
 	if list == nil
 	then
@@ -472,13 +477,15 @@ function AutoPilotMoon.Macro.Names:typesWithSameName(fullType)
 	return Names.typesByName[string.lower(Names:itemName(fullType))] or { fullType };
 end
 
--- the recipe consumes one of these types
+-- the recipe consumes one of these types, or works on one of them (the item a repair or a sharpening keeps: the one
+-- the right click is on, Names:targetTypes)
 function AutoPilotMoon.Macro.Names:acceptsAny(recipe, types)
 	local consumed = Names:consumedTypes(recipe);
+	local targets = Names:targetTypes(recipe);
 
 	for i, fullType in ipairs(types)
 	do
-		if consumed[fullType]
+		if consumed[fullType] or targets[fullType]
 		then
 			return true;
 		end
@@ -584,9 +591,31 @@ local function splitTags(line)
 	return tags;
 end
 
+-- the flags of an input that say it is the item the recipe works on (InputScript.isDamaged / isSharpenable of 42.22:
+-- flags[IsDamaged] of the repairs, flags[IsSharpenable] of the sharpenings); read through pcall like the extras, else
+-- from the line of the recipe ("flags[Prop2;IsDamaged]")
+local function inputTargetOf(input)
+	return input:isDamaged(), input:isSharpenable();
+end
+
+local function inputTarget(input, line)
+	local ok, damaged, sharpenable = pcall(inputTargetOf, input);
+
+	if ok
+	then
+		return damaged == true, sharpenable == true;
+	end
+
+	local flags = line and string.match(line, "flags%[([^%]]*)%]") or "";
+
+	return string.find(flags, "IsDamaged", 1, true) ~= nil, string.find(flags, "IsSharpenable", 1, true) ~= nil;
+end
+
 -- the item inputs of a recipe, cached: { keep (a tool, never used up: mode:keep), types (full types, each once, the
 -- game's order), tags (as the recipe writes them, "base:sharpknife"; empty for a list of types), amount, sharp (it must
--- cut: IsNotDull or SharpnessCheck) }. Inputs of fluids or energy are left out.
+-- cut: IsNotDull or SharpnessCheck), damaged / sharpenable (flags[IsDamaged] / flags[IsSharpenable]: the item must be
+-- damaged / not fully sharp), target (kept and one of those two: the item the recipe works on, a repair's or a
+-- sharpening's) }. Inputs of fluids or energy are left out.
 function AutoPilotMoon.Macro.Names:inputSlots(recipe)
 	local id = recipe:getName();
 	local slots = Names.slotsCache[id];
@@ -608,8 +637,10 @@ function AutoPilotMoon.Macro.Names:inputSlots(recipe)
 		if items and items:size() > 0
 		then
 			local amount, line, sharp = inputExtras(input);
-			local slot = { keep = input:isKeep() or input:isTool(), types = {}, tags = splitTags(line),
-				amount = amount > 0 and amount or 1, sharp = sharp };
+			local damaged, sharpenable = inputTarget(input, line);
+			local keep = input:isKeep() or input:isTool();
+			local slot = { keep = keep, types = {}, tags = splitTags(line), amount = amount > 0 and amount or 1, sharp = sharp,
+				damaged = damaged, sharpenable = sharpenable, target = keep and (damaged or sharpenable) };
 			local seen = {};
 
 			for j = 0, items:size() - 1
@@ -802,4 +833,212 @@ function AutoPilotMoon.Macro.Names:recipesAccepting(types, nearText, max)
 	end
 
 	return found;
+end
+
+-- ============================================================================================================
+-- Work on a kept item: repair and sharpen (wave 0, 13/11/2026, ANALISI-API-MACRO-LAVORATIVE.md A0.1-A0.3)
+-- ============================================================================================================
+
+-- the full types of the item a recipe works on and keeps (a repair's damaged item, a sharpening's blade: the kept
+-- inputs with flags[IsDamaged] or flags[IsSharpenable]), a set, cached; empty for the other recipes
+function AutoPilotMoon.Macro.Names:targetTypes(recipe)
+	local id = recipe:getName();
+	local set = Names.targetCache[id];
+
+	if set
+	then
+		return set;
+	end
+
+	set = {};
+
+	for i, slot in ipairs(Names:inputSlots(recipe))
+	do
+		if slot.target
+		then
+			for j, fullType in ipairs(slot.types)
+			do
+				set[fullType] = true;
+			end
+		end
+	end
+
+	Names.targetCache[id] = set;
+
+	return set;
+end
+
+-- the full types the macro clicks for a recipe when the line does not say which item (craft("R") without using=): the
+-- item the recipe works on when it keeps one (the right click on the damaged bat, never on the tape: the game would
+-- then choose the bat itself, maybe a favourite), else what it uses up (Names:consumedTypes); a set, cached
+function AutoPilotMoon.Macro.Names:clickTypes(recipe)
+	local id = recipe:getName();
+	local set = Names.clickCache[id];
+
+	if set
+	then
+		return set;
+	end
+
+	local targets = Names:targetTypes(recipe);
+	local any = false;
+
+	for i, slot in ipairs(Names:inputSlots(recipe))
+	do
+		any = any or slot.target;
+	end
+
+	set = any and targets or Names:consumedTypes(recipe);
+	Names.clickCache[id] = set;
+
+	return set;
+end
+
+-- the order of the game's recipes when more than one repairs or sharpens the item and the line does not choose the
+-- material: the richest first (resin, duct tape, glue, adhesive tape, zip ties: ANALISI-API-MACRO-LAVORATIVE.md A0.2);
+-- a recipe not in the list after them, in the game's order
+Names.workOrder = {
+	repair = { "FixWithEpoxy", "FixWithDuctTape", "FixWithWoodGlue", "FixWithGlue", "FixWithAdhesiveTape", "FixWithZipties",
+		"FixWithEpoxyAndRags" },
+	sharpen = { "SharpenBlade", "SharpenBladePoorlyWithFile" },
+};
+
+local function startsWith(text, prefix)
+	return string.sub(text, 1, string.len(prefix)) == prefix;
+end
+
+-- the recipe is one of the game's repairs (its category Repair or an id Fix...) or sharpenings (an id Sharpen...)
+local function isWorkRecipe(work, recipe)
+	local id = recipe:getName();
+
+	if work == "sharpen"
+	then
+		return startsWith(id, "Sharpen") or recipe:getCategory() == "Repair";
+	end
+
+	return startsWith(id, "Fix") or recipe:getCategory() == "Repair";
+end
+
+-- The recipes the macros can do (by hand or on a surface) that repair (work = "repair": a kept input with
+-- flags[IsDamaged]) or sharpen (work = "sharpen": flags[IsSharpenable]) one of the types; with materials (a list of
+-- full types, or nil) only those that use one of them up. In the order of Names.workOrder: the first the game can do
+-- now is the one a macro uses (MacroRun's choice).
+function AutoPilotMoon.Macro.Names:workRecipes(work, types, materials)
+	local flag = work == "sharpen" and "sharpenable" or "damaged";
+	local rank = {};
+	local found = {};
+
+	for i, id in ipairs(Names.workOrder[work] or {})
+	do
+		rank[id] = i;
+	end
+
+	for i, recipe in ipairs(Names.recipeList)
+	do
+		if isWorkRecipe(work, recipe)
+		then
+			local fits = false;
+
+			for j, slot in ipairs(Names:inputSlots(recipe))
+			do
+				if slot.target and slot[flag]
+				then
+					for k, fullType in ipairs(slot.types)
+					do
+						for m, wanted in ipairs(types)
+						do
+							fits = fits or fullType == wanted;
+						end
+					end
+				end
+			end
+
+			if fits and materials
+			then
+				local consumed = Names:consumedTypes(recipe);
+				local uses = false;
+
+				for j, fullType in ipairs(materials)
+				do
+					uses = uses or consumed[fullType] == true;
+				end
+
+				fits = uses;
+			end
+
+			if fits
+			then
+				table.insert(found, { recipe = recipe, rank = rank[recipe:getName()] or (1000 + i) });
+			end
+		end
+	end
+
+	table.sort(found, function(a, b)
+		return a.rank < b.rank;
+	end);
+
+	local list = {};
+
+	for i, entry in ipairs(found)
+	do
+		table.insert(list, entry.recipe);
+	end
+
+	return list;
+end
+
+local function autoLearnOf(recipe)
+	local any = {};
+	local all = {};
+
+	for i = 0, recipe:getAutoLearnAnySkillCount() - 1
+	do
+		local skill = recipe:getAutoLearnAnySkill(i);
+
+		table.insert(any, skill:getPerk():getName() .. " " .. tostring(skill:getLevel()));
+	end
+
+	for i = 0, recipe:getAutoLearnAllSkillCount() - 1
+	do
+		local skill = recipe:getAutoLearnAllSkill(i);
+
+		table.insert(all, skill:getPerk():getName() .. " " .. tostring(skill:getLevel()));
+	end
+
+	return any, all;
+end
+
+-- how a recipe not known yet is learned, in words (CraftRecipe.getAutoLearnAnySkill / getAutoLearnAllSkill of 42.22,
+-- AutoLearnAny / AutoLearnAll of the scripts): "si impara da sola a Manutenzione 2", else from a magazine or a book
+-- "a", "a o b", "a, b o c" (key: IGUI_AutoPilot_E_Or or IGUI_AutoPilot_E_Kind_And, "%1 o %2")
+local function joined(list, key)
+	if #list <= 1
+	then
+		return list[1] or "";
+	end
+
+	local head = {};
+
+	for i = 1, #list - 1
+	do
+		table.insert(head, list[i]);
+	end
+
+	return getText(key, table.concat(head, ", "), list[#list]);
+end
+
+function AutoPilotMoon.Macro.Names:learnHint(recipe)
+	local ok, any, all = pcall(autoLearnOf, recipe);
+
+	if ok and #any > 0
+	then
+		return getText("IGUI_AutoPilot_E_LearnAny", joined(any, "IGUI_AutoPilot_E_Or"));
+	end
+
+	if ok and #all > 0
+	then
+		return getText("IGUI_AutoPilot_E_LearnAll", joined(all, "IGUI_AutoPilot_E_Kind_And"));
+	end
+
+	return getText("IGUI_AutoPilot_E_LearnRead");
 end
