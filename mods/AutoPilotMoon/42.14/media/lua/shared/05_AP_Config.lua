@@ -27,6 +27,17 @@ AutoPilotMoon.Config = {
         MacroActionsPerRun = { default = 200, min = 1, max = 2000 },
         MacroLoopsPerRun = { default = 100, min = 1, max = 1000 },
         MacroActionsPerMinute = { default = 20, min = 1, max = 60 },
+        -- wave 1 of the work skills (13/11/2026, MACRO-AUTOPILOT.md 13): how far from the macro's start a workbench may
+        -- be; real minutes of one run (0 = no limit); levels one skill may gain in one run (0 = no limit)
+        MacroBenchRadius = { default = 6, min = 2, max = 15 },
+        MacroMinutesPerRun = { default = 120, min = 0, max = 600 },
+        MacroLevelsPerRun = { default = 0, min = 0, max = 10 },
+    },
+
+    -- text server options (sandbox-options.txt "type = string"): their default when missing
+    sandboxStrings = {
+        -- the skills no macro works for, separated by ";" or "," (game ids: "Reloading;Doctor"), empty = none
+        MacroExcludedSkills = { default = "" },
     },
 
     icons = {
@@ -86,6 +97,26 @@ function AutoPilotMoon.Sandbox:getInteger(key)
     elseif value > spec.max
     then
         return spec.max;
+    end
+
+    return value;
+end
+
+-- a text option of AutoPilotMoon.Config.sandboxStrings (its default when missing or not a text)
+function AutoPilotMoon.Sandbox:getString(key)
+    local spec = AutoPilotMoon.Config.sandboxStrings[key];
+
+    if not spec
+    then
+        return nil;
+    end
+
+    local page = AutoPilotMoon.Sandbox:getPage();
+    local value = page and page[key];
+
+    if type(value) ~= "string"
+    then
+        return spec.default;
     end
 
     return value;

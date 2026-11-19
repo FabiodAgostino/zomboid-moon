@@ -20,7 +20,8 @@
 --               and after "(" the names its first argument holds (craft( -> the recipes, written with the quotes)
 --   recipe, anyRecipe, item, skill, exercise, seat, amount   inside the quotes of an argument that holds that kind of
 --               name, or right after its "=" without the quotes (anyRecipe: every recipe, the workbenches' too, for
---               known("..."))
+--               known("..."); bench: the workbenches of at="..." and bench_free("...", wave 1), their window's name or
+--               their id; inside craft(" also the recipes of the benches, with the bench beside the id)
 -- Searching: without accents and case (an accented e = e), every word typed; the name in the player's language
 -- first (the whole name, then a word of it, then every word anywhere), then the game's id (AssembleShortImplement,
 -- Base.ClawhammerHead: "short implement", "clawhammer" find them, in any language); the last two from 3 letters; at
@@ -802,6 +803,17 @@ function AutoPilotMoon.Macro.Suggest:getIndex()
 			fold = fold(name), alt = S.idWords(id) });
 	end
 
+	-- the recipes of the workbenches too (wave 1: craft("...", at="...")), the bench's name beside the id
+	for i, recipe in ipairs(N.benchRecipeList and N:benchRecipeList() or {})
+	do
+		local name = N:recipeName(recipe);
+		local id = N:recipeId(recipe);
+		local bench = N:benchesFor(recipe)[1];
+
+		table.insert(recipes, { label = name, value = N:isAmbiguousRecipe(recipe) and id or name, id = id,
+			detail = bench and (id .. " - " .. bench.text) or id, fold = fold(name), alt = S.idWords(id) });
+	end
+
 	table.sort(recipes, byFold);
 
 	-- every recipe of the game, the workbenches' too (known("...")), the same way
@@ -836,7 +848,18 @@ function AutoPilotMoon.Macro.Suggest:getIndex()
 
 	table.sort(items, byFold);
 
-	S.index = { source = N.recipeList, recipe = recipes, anyRecipe = anyRecipes, item = items };
+	-- the workbenches (wave 1): their window's name, their id
+	local benches = {};
+
+	for i, bench in ipairs(N.benchList or {})
+	do
+		table.insert(benches, { label = bench.text, value = N:benchWritable(bench.id), id = bench.id, fold = fold(bench.text),
+			alt = S.idWords(bench.id) });
+	end
+
+	table.sort(benches, byFold);
+
+	S.index = { source = N.recipeList, recipe = recipes, anyRecipe = anyRecipes, item = items, bench = benches };
 
 	return S.index;
 end
@@ -904,7 +927,7 @@ local function nameEntries(ctx, kind, q, words)
 		end
 	end
 
-	if kind == "recipe" or kind == "anyRecipe" or kind == "item"
+	if kind == "recipe" or kind == "anyRecipe" or kind == "item" or kind == "bench"
 	then
 		local index = S:getIndex();
 
@@ -928,8 +951,10 @@ local function nameEntries(ctx, kind, q, words)
 						value = e.value, text = quotedText(ctx, e.value), helpText = getText("IGUI_AutoPilot_E_Sug_ItemMany", e.count, e.id),
 						count = e.count });
 				else
-					table.insert(buckets[b], { label = e.label, detail = e.id, class = "string", value = e.value, text = quotedText(ctx, e.value),
-						helpKey = kind == "item" and "IGUI_AutoPilot_E_Sug_Item" or "IGUI_AutoPilot_E_Sug_Recipe", helpArg = e.id });
+					local helpKey = kind == "item" and "IGUI_AutoPilot_E_Sug_Item" or (kind == "bench" and "IGUI_AutoPilot_E_Sug_Bench" or "IGUI_AutoPilot_E_Sug_Recipe");
+
+					table.insert(buckets[b], { label = e.label, detail = e.detail or e.id, class = "string", value = e.value, text = quotedText(ctx, e.value),
+						helpKey = helpKey, helpArg = e.id });
 				end
 			end
 

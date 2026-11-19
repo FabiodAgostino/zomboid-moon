@@ -51,6 +51,8 @@ Store.examples = {
 	{ nameKey = "IGUI_AutoPilot_MA_Ex3_Name", textKey = "IGUI_AutoPilot_MA_Ex3_Text" },
 	{ nameKey = "IGUI_AutoPilot_MA_Ex4_Name", textKey = "IGUI_AutoPilot_MA_Ex4_Text" },
 	{ nameKey = "IGUI_AutoPilot_MA_Ex5_Name", textKey = "IGUI_AutoPilot_MA_Ex5_Text" },
+	-- wave 1 (13/11/2026): the blacksmith's closed loop at the benches, melt -> forge -> melt again
+	{ nameKey = "IGUI_AutoPilot_MA_Ex6_Name", textKey = "IGUI_AutoPilot_MA_Ex6_Text" },
 };
 
 -- a text of the translations with " <LINE> " between its lines, as lines with "\n"

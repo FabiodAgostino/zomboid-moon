@@ -47,5 +47,15 @@
     "Sandbox_AutoPilot_MacroLoopsPerRun": "Macro: giri per esecuzione",
     "Sandbox_AutoPilot_MacroLoopsPerRun_tooltip": "Giri al massimo di tutti i \"repeat\" e \"while\" di una esecuzione, anche \"while True\"",
     "Sandbox_AutoPilot_MacroActionsPerMinute": "Macro: azioni al minuto",
-    "Sandbox_AutoPilot_MacroActionsPerMinute_tooltip": "Azioni avviate al massimo in un minuto da una macro; oltre, la macro aspetta. Contro il lag del server"
+    "Sandbox_AutoPilot_MacroActionsPerMinute_tooltip": "Azioni avviate al massimo in un minuto da una macro; oltre, la macro aspetta. Contro il lag del server",
+    "Sandbox_AutoPilot_EnableMacroBenches": "Macro: banchi da lavoro (sperimentale)",
+    "Sandbox_AutoPilot_EnableMacroBenches_tooltip": "Sperimentale, serve anche Macro. Le macro fanno le ricette dei banchi da lavoro (forgia, fornace, tornio, forno, pressa...) come a mano: il personaggio va al banco, lo segna \"in uso\" come la finestra del banco, fa la ricetta e lo lascia alla fine. Un banco usato da un altro giocatore: la macro aspetta 30 secondi, poi si ferma. Spento: nessuna macro usa i banchi",
+    "Sandbox_AutoPilot_MacroBenchRadius": "Macro: distanza dei banchi",
+    "Sandbox_AutoPilot_MacroBenchRadius_tooltip": "Caselle al massimo tra il punto dove parte la macro e il banco che usa (stesso piano)",
+    "Sandbox_AutoPilot_MacroMinutesPerRun": "Macro: minuti per esecuzione",
+    "Sandbox_AutoPilot_MacroMinutesPerRun_tooltip": "Minuti veri al massimo di una esecuzione di una macro; poi la macro finisce. 0 = nessun limite",
+    "Sandbox_AutoPilot_MacroLevelsPerRun": "Macro: livelli per esecuzione",
+    "Sandbox_AutoPilot_MacroLevelsPerRun_tooltip": "Livelli al massimo che una abilità sale in una esecuzione di una macro; poi la macro finisce. 0 = nessun limite",
+    "Sandbox_AutoPilot_MacroExcludedSkills": "Macro: abilità escluse",
+    "Sandbox_AutoPilot_MacroExcludedSkills_tooltip": "Abilità per cui nessuna macro lavora, con gli id del gioco separati da punto e virgola (per esempio Reloading;Doctor). La macro si ferma prima di un'azione che le premierebbe. Vuoto: nessuna"
 }

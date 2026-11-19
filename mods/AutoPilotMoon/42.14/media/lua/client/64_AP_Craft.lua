@@ -313,3 +313,140 @@ function AutoPilotMoon.Craft:confirm(pending, player)
 
 	return "done", consumed, outputs;
 end
+
+-- ============================================================================================================
+-- At a workbench (wave 1 of the macros, 13/11/2026, MACRO-AUTOPILOT.md 13): the way the bench's window does it. The
+-- window (ISCraftBenchPanel > ISHandCraftPanel of 42.22) builds HandcraftLogic.new(player, craftBench, entity) with the
+-- containers the player reaches, and its "Crea" (ISWidgetHandCraftControl:startHandcraft) moves the inputs into the
+-- inventory, calls ISEntityUI.HandcraftStart (an ISHandcraftAction with the bench and its object) and puts the tools
+-- back; the server checks that the player is using the bench (ISHandcraftAction:isValid: isoObject:isUsingPlayer).
+-- Marking the bench "in use" is the macro's (AutoPilotMoon.Macro.Bench), as the window does when it opens. Nothing
+-- of the recipe is ours: inputs, charcoal, tools, time, experience, darkness.
+-- bench: { object (the master IsoObject), component (its CraftBench) }
+-- ============================================================================================================
+
+-- the logic of the bench's window for a recipe chosen on an item (or on none: the game picks the inputs)
+function AutoPilotMoon.Craft:newBenchLogic(player, recipe, item, bench)
+	local logic = HandcraftLogic.new(player, bench.component, bench.object);
+
+	logic:setContainers(ISInventoryPaneContextMenu.getContainers(player));
+
+	if item
+	then
+		logic:setRecipeFromContextClick(recipe, item);
+	else
+		logic:setRecipe(recipe);
+	end
+
+	return logic;
+end
+
+-- the fire a recipe takes from the character (charcoal, what starts a fire: the input the bench window shows red when
+-- it is missing, BaseCraftingLogic.isInputSatisfied of 42.22)
+local function missingFuel(logic, recipe)
+	local Names = AutoPilotMoon.Macro and AutoPilotMoon.Macro.Names;
+	local inputs = recipe:getInputs();
+	local slots = Names and Names:inputSlots(recipe) or {};
+	local slot = 0;
+
+	for i = 0, inputs:size() - 1
+	do
+		local input = inputs:get(i);
+		local items = input:getPossibleInputItems();
+
+		if items and items:size() > 0
+		then
+			slot = slot + 1;
+
+			if slots[slot] and Names:isFuelSlot(slots[slot]) and not logic:isInputSatisfied(input)
+			then
+				return true;
+			end
+		end
+	end
+
+	return false;
+end
+
+-- nil when the game would start the recipe at the bench now, else "dark", "fuel" (its charcoal or fire is missing) or
+-- "refused" (anything else the recipe asks: a material, a tool, a skill, the recipe not known...)
+function AutoPilotMoon.Craft:checkAtBench(player, recipe, item, bench)
+	if not recipe:canBeDoneInDark() and player:tooDarkToRead()
+	then
+		return "dark";
+	end
+
+	local logic = Craft:newBenchLogic(player, recipe, item, bench);
+
+	if logic:canPerformCurrentRecipe()
+	then
+		return nil;
+	end
+
+	local ok, fuel = pcall(missingFuel, logic, recipe);
+
+	if ok and fuel
+	then
+		return "fuel";
+	end
+
+	return "refused";
+end
+
+-- Starts the recipe at the bench the game's way (the inputs moved into the inventory first unless the recipe is done
+-- from the floor, ISEntityUI.HandcraftStart, the tools put back): the ISHandcraftAction the game queued, or nil.
+function AutoPilotMoon.Craft:queueAtBench(player, recipe, item, bench)
+	local logic = Craft:newBenchLogic(player, recipe, item, bench);
+
+	if not logic:canPerformCurrentRecipe()
+	then
+		return nil;
+	end
+
+	local items = logic:getRecipeData():getAllInputItems();
+	local itemsToReturn = logic:getRecipeData():getAllPutBackInputItems();
+	local returnToContainer = {};
+
+	if not recipe:isCanBeDoneFromFloor()
+	then
+		local moved = false;
+
+		for i = 0, items:size() - 1
+		do
+			local input = items:get(i);
+
+			if input:getContainer() ~= player:getInventory()
+			then
+				ISInventoryPaneContextMenu.transferIfNeeded(player, input);
+				moved = true;
+
+				if itemsToReturn:contains(input)
+				then
+					table.insert(returnToContainer, input);
+				end
+			end
+		end
+
+		if moved
+		then
+			if item
+			then
+				logic:setRecipeFromContextClick(recipe, item);
+			else
+				logic:setRecipe(recipe);
+			end
+		end
+	end
+
+	local action = ISEntityUI.HandcraftStart(player, logic, false, true);
+
+	if action
+	then
+		action:setOnComplete(ISInventoryPaneContextMenu.OnNewCraftComplete, logic);
+		logic:startCraftAction(action);
+	end
+
+	ISCraftingUI.ReturnItemsToOriginalContainer(player, returnToContainer);
+
+	return action;
+end

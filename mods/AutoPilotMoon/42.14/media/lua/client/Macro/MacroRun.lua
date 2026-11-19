@@ -16,6 +16,12 @@
 -- Never a step given for done; no retry of a failed step: the macro stops and says the line and why. The server's
 -- limits are read at every step: actions per run, loops per run, actions per minute (a pause, not a stop).
 --
+-- The workbenches (wave 1, 13/11/2026, MacroBench.lua): an action at a bench finds it, waits for a friend at it (30 s),
+-- walks to it, marks it in use, then the same recipe confirmation; the bench is released at every end and stop. The
+-- server's new limits of every macro, read at every step: real minutes of a run (MacroMinutesPerRun), levels of one
+-- skill in a run (MacroLevelsPerRun), skills no macro works for (MacroExcludedSkills: the macro stops before an action
+-- that would reward one).
+--
 -- The hooks on the game's ISHandcraftAction (perform and stop, installed once at OnGameStart, also used by the
 -- recorder): the game's method is always called, ours only reads (inside pcall, an error of ours never breaks the
 -- player's recipe); the "before" snapshot of the inventory is taken just before the game's perform, because in single
@@ -53,6 +59,51 @@ Run.limits = limits;
 
 local function Body()
 	return AutoPilotMoon.Macro.Body;
+end
+
+local function Bench()
+	return AutoPilotMoon.Macro.Bench;
+end
+
+-- the skills the server keeps out of the macros (MacroExcludedSkills: game ids or names, separated by ";" or ","): a
+-- set of lower perk ids, read at the moment
+function AutoPilotMoon.Macro.Run:excludedSkills()
+	local text = AutoPilotMoon.Sandbox:getString("MacroExcludedSkills") or "";
+	local set = {};
+
+	for word in string.gmatch(text, "[^;,]+")
+	do
+		local name = AutoPilotMoon.Macro.Lang.trim(word);
+
+		if name ~= ""
+		then
+			set[string.lower(name)] = true;
+
+			local perk = AutoPilotMoon.Macro.Names:resolveSkill(name);
+
+			if perk
+			then
+				set[string.lower(perk:getId())] = true;
+			end
+		end
+	end
+
+	return set;
+end
+
+-- where the benches are looked for: the place the running macro started from, else the character's square (the
+-- editor's checks)
+function AutoPilotMoon.Macro.Run:center(player)
+	local run = Run.current;
+
+	if run and run.player == player and run.center
+	then
+		return run.center;
+	end
+
+	local square = player:getSquare();
+
+	return square and { x = square:getX(), y = square:getY(), z = square:getZ() } or nil;
 end
 
 -- ============================================================================================================
@@ -249,6 +300,9 @@ function AutoPilotMoon.Macro.Run:evalCondition(player, cond)
 	elseif k == "known"
 	then
 		return Run:knows(player, cond.recipes);
+	elseif k == "benchFree"
+	then
+		return Bench():isFree(player, Run:center(player), cond.benches);
 	elseif k == "not"
 	then
 		return not Run:evalCondition(player, cond.a);
@@ -351,6 +405,46 @@ function AutoPilotMoon.Macro.Run:choose(player, op)
 	return nil, nil, reason or "noitem", about or op.recipes[1];
 end
 
+-- the same choice at a bench (wave 1): the recipes of the set this bench does, the first suitable item, the game's
+-- check with the bench's logic (Craft:checkAtBench: "dark", "fuel", "refused")
+function AutoPilotMoon.Macro.Run:chooseAtBench(player, op, bench)
+	local containers = ISInventoryPaneContextMenu.getContainers(player);
+	local Names = AutoPilotMoon.Macro.Names;
+	local reason = nil;
+	local about = nil;
+
+	for i, recipe in ipairs(op.recipes)
+	do
+		if Names:bench(bench.id) == nil or Names:benchFits(bench.id, recipe)
+		then
+			local typeSet = op.withSet or Names:clickTypes(recipe);
+			local item = containers and findItem(player, containers, recipe, typeSet) or nil;
+
+			if item
+			then
+				local why = AutoPilotMoon.Craft:checkAtBench(player, recipe, item, bench);
+
+				if why == nil
+				then
+					return recipe, item;
+				end
+
+				if reason == nil or reason == "noitem" or (reason == "refused" and why ~= "refused")
+				then
+					reason = why;
+					about = recipe;
+				end
+			elseif reason == nil
+			then
+				reason = "noitem";
+				about = recipe;
+			end
+		end
+	end
+
+	return nil, nil, reason or "noitem", about or op.recipes[1];
+end
+
 -- ============================================================================================================
 -- Texts
 -- ============================================================================================================
@@ -384,6 +478,9 @@ local function reasonText(op, reason, recipe, player)
 	elseif reason == "refused" and notKnown(player, recipe)
 	then
 		return getText("IGUI_AutoPilot_A_MacroR_NotKnown", name, AutoPilotMoon.Macro.Names:learnHint(recipe));
+	elseif reason == "fuel"
+	then
+		return getText("IGUI_AutoPilot_A_MacroR_NoFuel", name);
 	end
 
 	return getText("IGUI_AutoPilot_A_MacroR_Refused", name);
@@ -404,6 +501,16 @@ local function describe(op)
 	if op.dismantle
 	then
 		return getText("IGUI_AutoPilot_P_Now_MacroDismantle", op.itemText);
+	end
+
+	if op.smelt
+	then
+		return getText("IGUI_AutoPilot_P_Now_MacroSmelt", op.itemText, Bench():opText(op));
+	end
+
+	if op.bench
+	then
+		return getText("IGUI_AutoPilot_P_Now_MacroCraftAt", op.recipeText, Bench():opText(op));
 	end
 
 	return getText("IGUI_AutoPilot_P_Now_MacroCraft", op.recipeText);
@@ -590,7 +697,8 @@ end
 function AutoPilotMoon.Macro.Run:check(player, text)
 	local maxActions, maxLoops = limits();
 
-	return AutoPilotMoon.Macro.Lang:check(text, AutoPilotMoon.Macro.Names, { player = player, maxActions = maxActions, maxLoops = maxLoops });
+	return AutoPilotMoon.Macro.Lang:check(text, AutoPilotMoon.Macro.Names, { player = player, maxActions = maxActions, maxLoops = maxLoops,
+		benches = Bench():isEnabled(), excluded = Run:excludedSkills() });
 end
 
 -- the sets of "using" and the skills of an op list (the main program or a "when")
@@ -612,6 +720,8 @@ local function prepareOps(run, ops, seen)
 			op.desc = describe(op);
 
 			local perks = {};
+
+			op.perks = perks;
 
 			if op.kind == "craft"
 			then
@@ -643,6 +753,7 @@ local function prepareOps(run, ops, seen)
 					seen[id] = true;
 					table.insert(run.perks, perk);
 					table.insert(run.xpStart, run.player:getXp():getXP(perk));
+					run.levelStart[id] = run.player:getPerkLevel(perk);
 				end
 			end
 		end
@@ -700,7 +811,14 @@ function AutoPilotMoon.Macro.Run:start(player, macro)
 		perks = {},
 		xpStart = {},
 		xpBase = {},
+		levelStart = {},
 		outer = nil,
+		-- the benches (wave 1): around the place the macro starts from; the bench in use, a walk done, a wait
+		center = { x = square:getX(), y = square:getY(), z = square:getZ() },
+		bench = nil,
+		benchWalk = nil,
+		benchWait = nil,
+		startedAt = getTimestampMs(),
 	};
 	local seen = {};
 
@@ -882,6 +1000,158 @@ local function actionDone(run, frame)
 	AutoPilotMoon.Progress:setDoneText(#xp > 0 and table.concat(xp, " - ") or nil);
 end
 
+-- the recipe at a bench (wave 1, MacroBench.lua): the bench, the wait for a friend at it, the walk, "in use", the
+-- recipe of the set the game can do there now on the first suitable item, then the same confirmation as by hand
+local function actAtBench(run, frame, op, time)
+	local player = run.player;
+	local B = Bench();
+
+	if not B:isEnabled()
+	then
+		fail(run, op, getText("IGUI_AutoPilot_A_MacroR_BenchesOff"));
+
+		return;
+	end
+
+	local benchText = B:opText(op);
+	local list = B:find(player, run.center, op.benchSet, op.recipes);
+
+	if #list == 0
+	then
+		fail(run, op, getText("IGUI_AutoPilot_A_MacroR_NoBench", benchText, B:radius()));
+
+		return;
+	end
+
+	local bench, user = B:firstFree(list, player);
+
+	if bench == nil
+	then
+		-- a friend at the bench: wait up to Bench.busyWaitMs, then stop with the name (decision Q6)
+		local wait = run.benchWait;
+
+		if wait == nil or wait.op ~= op
+		then
+			wait = { op = op, since = time };
+			run.benchWait = wait;
+		end
+
+		local name = B:playerName(user);
+
+		if time - wait.since >= B.busyWaitMs
+		then
+			run.benchWait = nil;
+			fail(run, op, getText("IGUI_AutoPilot_A_MacroR_BenchBusy", B:nameOf(list[1].object, list[1].id), name, math.floor(B.busyWaitMs / 1000)));
+
+			return;
+		end
+
+		AutoPilotMoon.Progress:setActivity("IGUI_AutoPilot_P_Now_MacroBenchBusy", name, math.ceil((wait.since + B.busyWaitMs - time) / 1000));
+
+		return;
+	end
+
+	run.benchWait = nil;
+
+	local object = bench.object;
+	local name = B:nameOf(object, bench.id);
+
+	if not B:isNear(player, object)
+	then
+		if run.benchWalk == object
+		then
+			-- walked once already and still not there
+			run.benchWalk = nil;
+			fail(run, op, getText("IGUI_AutoPilot_A_MacroR_BenchFar", name));
+
+			return;
+		end
+
+		if not ISEntityUI.WalkToEntity(player, object, B.walkDistance)
+		then
+			fail(run, op, getText("IGUI_AutoPilot_A_MacroR_BenchFar", name));
+
+			return;
+		end
+
+		run.benchWalk = object;
+		run.pending = { kind = "walk", op = op, frame = frame };
+		AutoPilotMoon.Progress:setActivity("IGUI_AutoPilot_P_Now_MacroBenchWalk", name);
+
+		return;
+	end
+
+	run.benchWalk = nil;
+
+	if not ISEntityUI.CanOpenWindowFor(player, object)
+	then
+		fail(run, op, getText("IGUI_AutoPilot_A_MacroR_BenchClosed", name));
+
+		return;
+	end
+
+	local recipe, item, reason, about = Run:chooseAtBench(player, op, bench);
+
+	if recipe == nil
+	then
+		if op.possibleFirst and (reason == "noitem" or ((reason == "refused" or reason == "fuel") and not notKnown(player, about)))
+		then
+			finish(run, getText(reason == "fuel" and "IGUI_AutoPilot_A_MacroDoneNoFuel" or "IGUI_AutoPilot_A_MacroDoneCannot", recipeName(about)));
+		else
+			fail(run, op, reasonText(op, reason, about, player));
+		end
+
+		return;
+	end
+
+	B:hold(run, object);
+
+	local kept = Run:keptState(player, recipe, item);
+	local action = AutoPilotMoon.Craft:queueAtBench(player, recipe, item, bench);
+
+	if action == nil
+	then
+		fail(run, op, getText("IGUI_AutoPilot_A_MacroR_NotQueued", recipeName(recipe)));
+
+		return;
+	end
+
+	Run:addDrainables(kept, action);
+	action.autopilotMacro = true;
+	run.actions = run.actions + 1;
+	table.insert(run.starts, time);
+	run.pending = { kind = "craft", action = action, item = item, itemId = item:getID(), recipe = recipe, op = op, frame = frame,
+		performed = false, kept = kept };
+	AutoPilotMoon.Progress:setActivity("IGUI_AutoPilot_P_Now_MacroLine", op.line, op.desc);
+end
+
+-- the levels and the excluded skills of the server (wave 1): true when the action may go on, else the macro ended
+local function skillLimits(run, op)
+	local maxLevels = AutoPilotMoon.Sandbox:getInteger("MacroLevelsPerRun");
+	local excluded = Run:excludedSkills();
+
+	for i, perk in ipairs(op.perks or {})
+	do
+		local id = perk:getId();
+
+		if excluded[string.lower(id)]
+		then
+			fail(run, op, getText("IGUI_AutoPilot_A_MacroR_Excluded", perk:getName()));
+
+			return false;
+		end
+
+		if maxLevels > 0 and run.levelStart[id] and run.player:getPerkLevel(perk) - run.levelStart[id] >= maxLevels
+		then
+			finish(run, getText("IGUI_AutoPilot_A_MacroDoneLevels", maxLevels, perk:getName()));
+
+			return false;
+		end
+	end
+
+	return true;
+end
+
 -- the action at frame.pc: limits, choice, start
 local function act(run, frame, op)
 	local maxActions, maxLoops, perMinute = limits();
@@ -891,6 +1161,11 @@ local function act(run, frame, op)
 	then
 		finish(run, getText("IGUI_AutoPilot_A_MacroDoneLimit", maxActions));
 
+		return;
+	end
+
+	if not skillLimits(run, op)
+	then
 		return;
 	end
 
@@ -915,6 +1190,16 @@ local function act(run, frame, op)
 
 		return;
 	end
+
+	if op.bench
+	then
+		actAtBench(run, frame, op, time);
+
+		return;
+	end
+
+	-- an action away from the bench: the bench is left to the others, as closing its window
+	Bench():release(run);
 
 	if op.kind ~= "craft"
 	then
@@ -1188,6 +1473,14 @@ end
 local function confirm(run)
 	local pending = run.pending;
 
+	-- the walk to a bench is over (the character is idle again): the same action again, now near it
+	if pending.kind == "walk"
+	then
+		run.pending = nil;
+
+		return;
+	end
+
 	if pending.kind == "craft"
 	then
 		confirmCraft(run, pending);
@@ -1260,6 +1553,16 @@ function AutoPilotMoon.Macro.Run:step(player)
 	if run.pending
 	then
 		confirm(run);
+
+		return "busy";
+	end
+
+	-- real minutes of a run (MacroMinutesPerRun, 0 = none): the macro ends between two actions
+	local maxMinutes = AutoPilotMoon.Sandbox:getInteger("MacroMinutesPerRun");
+
+	if maxMinutes > 0 and now() - run.startedAt >= maxMinutes * 60000
+	then
+		finish(run, getText("IGUI_AutoPilot_A_MacroDoneMinutes", maxMinutes));
 
 		return "busy";
 	end
@@ -1390,6 +1693,12 @@ function AutoPilotMoon.Automation:stopMacro()
 		Body():onStop(run);
 	end
 
+	-- the bench is left at every end and stop, as closing its window
+	if run and Bench()
+	then
+		Bench():release(run);
+	end
+
 	table.wipe(Run.beforeIds);
 	AutoPilotMoon.Automation:stopSquareProcessingQueue("macroWorking");
 end
@@ -1435,6 +1744,11 @@ function AutoPilotMoon.Macro.Run:probe(player, result)
 				end
 			end
 
+			if op.bench
+			then
+				return op.line, Run:probeBench(player, op);
+			end
+
 			local recipe, item, reason, about = Run:choose(player, op);
 
 			if recipe
@@ -1464,6 +1778,54 @@ function AutoPilotMoon.Macro.Run:probe(player, result)
 	end
 
 	return nil, nil;
+end
+
+-- "Adesso si puo' fare?" for an action at a bench: the server's switch, a bench within the distance, a friend at it,
+-- then the recipe with the bench's logic (nothing queued, no walk, the bench not marked): nil = yes, else why
+function AutoPilotMoon.Macro.Run:probeBench(player, op)
+	local B = Bench();
+
+	if not B:isEnabled()
+	then
+		return getText("IGUI_AutoPilot_E_NowBenchesOff");
+	end
+
+	local list = B:find(player, Run:center(player), op.benchSet, op.recipes);
+
+	if #list == 0
+	then
+		return getText("IGUI_AutoPilot_E_NowNoBench", B:opText(op), B:radius());
+	end
+
+	local bench, user = B:firstFree(list, player);
+
+	if bench == nil
+	then
+		return getText("IGUI_AutoPilot_E_NowBenchBusy", B:playerName(user));
+	end
+
+	local recipe, item, reason, about = Run:chooseAtBench(player, op, bench);
+
+	if recipe
+	then
+		return nil;
+	end
+
+	if reason == "refused" and notKnown(player, about)
+	then
+		return getText("IGUI_AutoPilot_E_NowNotKnown", AutoPilotMoon.Macro.Names:learnHint(about));
+	elseif reason == "noitem" and op.withText
+	then
+		return getText("IGUI_AutoPilot_E_NowNoItem", op.withText);
+	elseif reason == "dark"
+	then
+		return getText("IGUI_AutoPilot_E_NowDark");
+	elseif reason == "fuel"
+	then
+		return getText("IGUI_AutoPilot_E_NowNoFuel");
+	end
+
+	return getText("IGUI_AutoPilot_E_NowRefused");
 end
 
 AutoPilotMoon.Automation:register("macro", {

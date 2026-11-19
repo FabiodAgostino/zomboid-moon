@@ -4,8 +4,9 @@
 -- Crafting window, "Crea tutto" too) and writes the macro. Through the hooks on ISHandcraftAction (MacroRun.lua):
 -- before the game's perform it notes the recipe, the input items with their InputScript and the ids of the inventory;
 -- the line is written only when the inventory confirms it (an input gone or something new; up to Recorder.confirmMs
--- for the server in multiplayer, else "Non registrata: il gioco non ha fatto ..."). A workbench's recipe is not
--- recorded in step M1 (said with the bench's name); the other actions of the player are only counted for the line
+-- for the server in multiplayer, else "Non registrata: il gioco non ha fatto ..."). A workbench's recipe (wave 1,
+-- 13/11/2026) is recorded with its bench, craft("R", at="Forgia primitiva") or smelt("X", at="..."), when the server
+-- lets the macros use the benches (else it is only said, with the bench's name); the other actions are only counted for the line
 -- "Non registrate" (ISTimedActionQueue.add is wrapped only while recording, and the actions queued together with a
 -- recipe, its materials' transfers, belong to the recipe and are not counted).
 -- Generalized (3.3): the recipe by its name (its id when the name stands for several recipes), "smonta X" when the
@@ -258,10 +259,12 @@ function AutoPilotMoon.Macro.Recorder:beforePerform(action)
 	end
 
 	local Names = AutoPilotMoon.Macro.Names;
+	local Bench = AutoPilotMoon.Macro.Bench;
+	local benchId = action.craftBench ~= nil and action.isoObject and Bench:idOf(action.isoObject) or nil;
 
-	if action.craftBench ~= nil or not Names:isAllowed(recipe)
+	if (action.craftBench ~= nil or not Names:isAllowed(recipe)) and not (benchId and Bench:isEnabled())
 	then
-		-- step M2: a workbench's recipe is only said
+		-- a workbench's recipe with the benches off on the server (or no bench the macros know): only said
 		local key = recipe:getName();
 		local entry = session.benches[key];
 
@@ -307,6 +310,7 @@ function AutoPilotMoon.Macro.Recorder:beforePerform(action)
 		inputs = inputs,
 		before = AutoPilotMoon.Macro.Hooks:snapshot(player, {}),
 		at = getTimestampMs(),
+		benchId = benchId,
 	};
 end
 
@@ -365,15 +369,29 @@ function AutoPilotMoon.Macro.Recorder:generalize(token, gone)
 
 	for i, input in ipairs(token.inputs)
 	do
-		if not input.keep and gone[input.id]
+		-- at a bench its fire (charcoal) is never the item of the line (wave 1)
+		if not input.keep and gone[input.id] and not (token.benchId and Names:isFuelInput(input.script, input.fullType))
 		then
 			table.insert(consumed, input);
 		end
 	end
 
 	local first = consumed[1];
+	-- at a bench (wave 1): its name when no other bench has it, else its id
+	local at = token.benchId and Names:benchWritable(token.benchId) or nil;
 
-	if first and Names.isDismantleId(recipe:getName())
+	if first and at and Names:isSmeltId(recipe:getName())
+	then
+		local recipes = Names:smeltRecipes({ first.fullType }, { [token.benchId] = true });
+
+		if #recipes == 1 and recipes[1] == recipe
+		then
+			return { kind = "smelt", withText = itemText(first.fullType, first.script), count = 1, recipe = recipe,
+				mainType = first.fullType, at = at };
+		end
+	end
+
+	if first and not at and Names.isDismantleId(recipe:getName())
 	then
 		local recipes = Names:dismantleRecipes({ first.fullType });
 
@@ -383,7 +401,7 @@ function AutoPilotMoon.Macro.Recorder:generalize(token, gone)
 		end
 	end
 
-	local step = { kind = "craft", count = 1, recipe = recipe, mainType = first and first.fullType or nil };
+	local step = { kind = "craft", count = 1, recipe = recipe, mainType = first and first.fullType or nil, at = at };
 
 	if Names:isAmbiguousRecipe(recipe)
 	then
@@ -408,14 +426,14 @@ function AutoPilotMoon.Macro.Recorder:generalize(token, gone)
 end
 
 function AutoPilotMoon.Macro.Recorder:stepText(step, times)
-	return AutoPilotMoon.Macro.Lang:formatAction(step.kind, step.recipeText, step.withText, times or step.count);
+	return AutoPilotMoon.Macro.Lang:formatAction(step.kind, step.recipeText, step.withText, times or step.count, step.at);
 end
 
 -- adds a confirmed step: equal to the last one = "N volte"
 function AutoPilotMoon.Macro.Recorder:addStep(session, step)
 	local last = session.steps[#session.steps];
 
-	if last and last.kind == step.kind and last.recipeText == step.recipeText and last.withText == step.withText
+	if last and last.kind == step.kind and last.recipeText == step.recipeText and last.withText == step.withText and last.at == step.at
 	then
 		last.count = last.count + 1;
 	else

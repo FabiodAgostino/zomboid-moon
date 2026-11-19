@@ -2270,6 +2270,14 @@ function W:onInsert(button)
 		workMenu:addOption(line, self, W.onInsertLine, line);
 	end
 
+	-- the workbenches (wave 1, 13/11/2026): the forge loop's three lines, the grindstone, a friend at the forge
+	for i, line in ipairs({ "smelt(\"Base.CrudeBlade\", at=\"Primitive_Furnace\")",
+		"craft(\"Forge_Bar_Quarter_From_Chunk\", at=\"Forge_Primitive_Forge\")", "craft(\"Forge_Crude_Blade\", at=\"Forge_Primitive_Forge\")",
+		"sharpen(\"Base.KitchenKnife\", at=\"Grindstone\")", "stop_if(not bench_free(\"Forge_Primitive_Forge\"))" })
+	do
+		workMenu:addOption(line, self, W.onInsertLine, line);
+	end
+
 	local whenMenu = sub("IGUI_AutoPilot_E_InsertWhen");
 
 	for i, pair in ipairs({ { "when hungry >= 2:", "eat(open_cans=True)" }, { "when thirsty >= 2:", "drink()" },
@@ -2305,7 +2313,8 @@ function W:onInsert(button)
 		end
 	end
 
-	-- the conditions of the work (wave 0): the words (dark, hour) and the calls xp_gained, condition, has damaged, known
+	-- the conditions of the work (wave 0): the words (dark, hour) and the calls xp_gained, condition, has damaged, known;
+	-- bench_free (wave 1)
 	local workOption = condMenu:addOption(getText("IGUI_AutoPilot_E_CondGroup_work"), nil, nil);
 	local workGroup = condMenu:getNew(condMenu);
 
@@ -2319,7 +2328,7 @@ function W:onInsert(button)
 	end
 
 	for i, text in ipairs({ "xp_gained(\"" .. skill .. "\") >= 100", "condition(\"Base.KitchenKnife\") < 15",
-		"has(\"Base.BaseballBat\", damaged=True)", "known(\"CarvePlank\")" })
+		"has(\"Base.BaseballBat\", damaged=True)", "known(\"CarvePlank\")", "bench_free(\"Forge_Primitive_Forge\")" })
 	do
 		workGroup:addOption(text, self, W.onInsertText, text);
 	end

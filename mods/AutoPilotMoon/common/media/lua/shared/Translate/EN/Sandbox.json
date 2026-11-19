@@ -47,5 +47,15 @@
     "Sandbox_AutoPilot_MacroLoopsPerRun": "Macros: loops per run",
     "Sandbox_AutoPilot_MacroLoopsPerRun_tooltip": "Most loops of all the \"repeat\" and \"while\" blocks in one run, \"while True\" too",
     "Sandbox_AutoPilot_MacroActionsPerMinute": "Macros: actions per minute",
-    "Sandbox_AutoPilot_MacroActionsPerMinute_tooltip": "Most actions a macro starts in one minute; past it, the macro waits. Against server lag"
+    "Sandbox_AutoPilot_MacroActionsPerMinute_tooltip": "Most actions a macro starts in one minute; past it, the macro waits. Against server lag",
+    "Sandbox_AutoPilot_EnableMacroBenches": "Macros: workbenches (experimental)",
+    "Sandbox_AutoPilot_EnableMacroBenches_tooltip": "Experimental, needs Macros too. Macros do the recipes of the workbenches (forge, furnace, pottery wheel, kiln, press...) as by hand: the character walks to the bench, marks it \"in use\" like the bench's window, does the recipe and leaves it at the end. A bench another player is using: the macro waits 30 seconds, then stops. Off: no macro uses the benches",
+    "Sandbox_AutoPilot_MacroBenchRadius": "Macros: workbench distance",
+    "Sandbox_AutoPilot_MacroBenchRadius_tooltip": "Most squares between the place where the macro starts and the bench it uses (same floor)",
+    "Sandbox_AutoPilot_MacroMinutesPerRun": "Macros: minutes per run",
+    "Sandbox_AutoPilot_MacroMinutesPerRun_tooltip": "Most real minutes of one run of a macro; then the macro ends. 0 = no limit",
+    "Sandbox_AutoPilot_MacroLevelsPerRun": "Macros: levels per run",
+    "Sandbox_AutoPilot_MacroLevelsPerRun_tooltip": "Most levels one skill gains in one run of a macro; then the macro ends. 0 = no limit",
+    "Sandbox_AutoPilot_MacroExcludedSkills": "Macros: excluded skills",
+    "Sandbox_AutoPilot_MacroExcludedSkills_tooltip": "Skills no macro works for, the game's ids separated by semicolons (for example Reloading;Doctor). The macro stops before an action that would reward them. Empty: none"
 }

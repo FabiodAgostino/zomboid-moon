@@ -18,6 +18,8 @@
 --   stressed, bored, sad, pain, tired, panic (moodle levels 0-4; alone = at least 1), endurance (percent 0-100);
 --   xp_gained("Maintenance") >= 100, condition("Item") < 15, has("Item", damaged=True), dark, hour >= 20,
 --   known("Recipe")
+--   craft("Recipe", at="Forge")   smelt("Item", at="Furnace")   sharpen("Item", at="Grindstone")   bench_free("Forge")
+--   (wave 1 of the work skills, 13/11/2026: the workbenches)
 --
 -- Lang:check(text, resolver, opts) -> result
 --   result.ops        the main flat program: ACTION / WAIT / LOOP / END / STOPIF / IF / JUMP, jumps already worked out
@@ -35,7 +37,9 @@
 -- Operations (indexes into the same list; the handlers have lists of their own):
 --   ACTION  line, kind "craft" / "exercise" / "rest" / "eat" / "drink" / "smoke" / "read", possibleFirst
 --           craft: recipes (list), recipeText, withTypes, withText, dismantle, itemText; repair() and sharpen() are
---           craft actions too, with work = "repair" / "sharpen", the item in withTypes, materialText (using=)
+--           craft actions too, with work = "repair" / "sharpen", the item in withTypes, materialText (using=);
+--           at a workbench (wave 1): bench = true, benchSet (the bench ids of at=, a set; nil = any bench that fits),
+--           benchText (at= as written); smelt() is a craft action at a bench with smelt = true
 --           exercise: exercise (the game's id), minutes;  rest: seat "nearest" / "ground", untilPct
 --           eat / drink / smoke / read: itemTypes (list or nil), itemText, openCans (eat), amount (drink: 1 / 0.5 / 0.25)
 --   WAIT    line, ms, seconds
@@ -46,7 +50,7 @@
 --   JUMP    line, target
 -- A condition is a small tree, evaluated by Run:evalCondition: { k = "const", v } / "has" (types, n, damaged) / "count"
 -- (types) / "skill" (perk) / "moodle" (name) / "percent" (name) / "word" (name: dark, hour) / "xp" (perk) /
--- "condition" (types) / "known" (recipes) / "num" (v) / "not" (a) / "and" / "or" (a, b) / "cmp" (op, a, b); text = the
+-- "condition" (types) / "known" (recipes) / "benchFree" (benches: ids) / "num" (v) / "not" (a) / "and" / "or" (a, b) / "cmp" (op, a, b); text = the
 -- condition as written. result.xpPerks: the skills xp_gained() reads (their experience is noted at the start).
 --
 -- Kahlua: the file is ASCII; the accented and typographic characters are written as UTF-8 byte escapes, which the
@@ -260,9 +264,9 @@ end
 -- text argument holds ("recipe", "item", "skill", "exercise", "seat", "amount": the editor's suggestions offer those
 -- names inside its quotes, the checker resolves them the same way)
 Lang.calls = {
-	craft = { pos = { "recipe" }, kw = { recipe = "str", using = "str", times = "num" }, req = { "recipe" },
+	craft = { pos = { "recipe" }, kw = { recipe = "str", using = "str", at = "str", times = "num" }, req = { "recipe" },
 		usage = "craft(\"Recipe\", using=\"Item\", times=3)", action = true,
-		names = { recipe = "recipe", using = "item" } },
+		names = { recipe = "recipe", using = "item", at = "bench" } },
 	dismantle = { pos = { "item" }, kw = { item = "str", times = "num" }, req = { "item" },
 		usage = "dismantle(\"Item\", times=3)", action = true, names = { item = "item" } },
 	wait = { pos = { "seconds" }, kw = { seconds = "num" }, req = { "seconds" }, usage = "wait(5)" },
@@ -279,12 +283,16 @@ Lang.calls = {
 	smoke = { pos = { "item" }, kw = { item = "str" }, req = {}, usage = "smoke()", action = true, names = { item = "item" } },
 	-- wave 0 of the work skills (13/11/2026): the game's repairs and sharpenings of an item it keeps, and reading a
 	-- book or a magazine as the inventory's "Read" does
-	repair = { pos = { "item" }, kw = { item = "str", using = "str", times = "num" }, req = { "item" },
-		usage = "repair(\"Item\", using=\"Material\")", action = true, names = { item = "item", using = "item" } },
-	sharpen = { pos = { "item" }, kw = { item = "str", times = "num" }, req = { "item" }, usage = "sharpen(\"Item\")",
-		action = true, names = { item = "item" } },
+	repair = { pos = { "item" }, kw = { item = "str", using = "str", at = "str", times = "num" }, req = { "item" },
+		usage = "repair(\"Item\", using=\"Material\")", action = true, names = { item = "item", using = "item", at = "bench" } },
+	sharpen = { pos = { "item" }, kw = { item = "str", at = "str", times = "num" }, req = { "item" }, usage = "sharpen(\"Item\")",
+		action = true, names = { item = "item", at = "bench" } },
 	read = { pos = { "item" }, kw = { item = "str" }, req = { "item" }, usage = "read(\"Book\")", action = true,
 		names = { item = "item" } },
+	-- wave 1 (13/11/2026): the smelting recipes of a furnace that take the item, like dismantle() finds the one that
+	-- dismantles; at= (here and in craft, repair, sharpen): the workbench, by id or by the name of its window
+	smelt = { pos = { "item" }, kw = { item = "str", at = "str", times = "num" }, req = { "item" },
+		usage = "smelt(\"Item\", at=\"Furnace\")", action = true, names = { item = "item", at = "bench" } },
 };
 
 -- what a condition can call; value: "bool" (alone, true or false) or "number" (to compare); names "anyRecipe": every
@@ -302,6 +310,9 @@ Lang.condCalls = {
 		names = { item = "item" }, value = "number" },
 	known = { pos = { "recipe" }, kw = { recipe = "str" }, req = { "recipe" }, usage = "known(\"Recipe\")",
 		names = { recipe = "anyRecipe" }, value = "bool" },
+	-- wave 1: a bench of that kind within the server's distance that no other player is using
+	bench_free = { pos = { "bench" }, kw = { bench = "str" }, req = { "bench" }, usage = "bench_free(\"Forge\")",
+		names = { bench = "bench" }, value = "bool" },
 };
 
 -- The statements of a line other than the calls, as the editor's suggestions write them (MACRO-AUTOPILOT.md 4.12; the
@@ -343,7 +354,7 @@ Lang.italian = {
 	finche = "while ...:", hai = "has(\"...\")", non = "not", e = "and", o = "or", allenati = "exercise(\"pushups\")",
 	esercizio = "exercise(\"pushups\")", flessioni = "exercise(\"pushups\")", vero = "True", falso = "False",
 	sempre = "while True:", altrimentise = "elif ...:", fai = "craft(\"...\")", ripara = "repair(\"...\")",
-	affila = "sharpen(\"...\")", leggi = "read(\"...\")",
+	affila = "sharpen(\"...\")", leggi = "read(\"...\")", fondi = "smelt(\"...\")",
 };
 
 -- ============================================================================================================
@@ -596,6 +607,97 @@ local function resolveItem(ctx, token)
 	end
 
 	return types;
+end
+
+-- at="..." (wave 1): the workbench by its id or the name of its window: the set of its ids and their list, or nil (the
+-- problem is added; a resolver without benches, a program of its own, knows no bench)
+local function resolveBenchArg(ctx, token)
+	local resolver = ctx.resolver;
+	local ids, suggestions = nil, nil;
+
+	if resolver.resolveBench
+	then
+		ids, suggestions = resolver:resolveBench(token.text);
+	end
+
+	if ids == nil
+	then
+		lineError(ctx, withMaybe(getText("IGUI_AutoPilot_E_P_UnknownBench", ctx.line, token.text), suggestions), token);
+
+		return nil;
+	end
+
+	if #ids == 1
+	then
+		noteId(ctx, token, "bench", ids[1]);
+	end
+
+	local set = {};
+
+	for i, id in ipairs(ids)
+	do
+		set[id] = true;
+	end
+
+	return set, ids;
+end
+
+-- the workbenches are off on the server (EnableMacroBenches, opts.benches == false; nil: not known, ZomBOT): the error
+local function benchesOff(ctx, token)
+	if ctx.opts.benches == false
+	then
+		lineError(ctx, getText("IGUI_AutoPilot_E_P_BenchesOff", ctx.line), token);
+
+		return true;
+	end
+
+	return false;
+end
+
+-- the names of the benches that do one of the recipes, "a o b" (empty when none)
+local function benchNamesOf(resolver, recipes, set)
+	local names = {};
+	local seen = {};
+
+	if resolver.benchesFor == nil
+	then
+		return "", {};
+	end
+
+	for i, recipe in ipairs(recipes)
+	do
+		for j, bench in ipairs(resolver:benchesFor(recipe))
+		do
+			if (set == nil or set[bench.id]) and not seen[bench.id]
+			then
+				seen[bench.id] = true;
+				table.insert(names, bench);
+			end
+		end
+	end
+
+	local texts = {};
+	local ids = {};
+
+	for i, bench in ipairs(names)
+	do
+		table.insert(texts, bench.text);
+		table.insert(ids, bench.id);
+	end
+
+	if #texts <= 1
+	then
+		return texts[1] or "", ids;
+	end
+
+	local head = {};
+
+	for i = 1, #texts - 1
+	do
+		table.insert(head, texts[i]);
+	end
+
+	return getText("IGUI_AutoPilot_E_Or", table.concat(head, ", "), texts[#texts]), ids;
 end
 
 -- ============================================================================================================
@@ -905,7 +1007,10 @@ end
 -- sharpening works on (slot.target) is not a tool: entry.target, "su ..." (targetText: the item of the line, when the
 -- line names it). alternatives: the other recipes of a repair() / sharpen() line, in the order the macro tries them
 -- (entry.alternatives = their ids, "oppure: ..." with their names).
-local function requirementsOf(ctx, recipe, recipeText, targetText, alternatives)
+-- At a workbench (wave 1, benchSet: the benches of at=, nil = any; atBench: the line works at a bench): entry.bench =
+-- { text ("Forgia primitiva o Forgia"), ids } and the fire of the recipe (charcoal, what starts a fire:
+-- resolver:isFuelSlot) in entry.fuel (also among the materials, with fuel = true), "combustibile: Carbone".
+local function requirementsOf(ctx, recipe, recipeText, targetText, alternatives, benchSet, atBench)
 	local resolver = ctx.resolver;
 
 	if resolver.inputSlots == nil
@@ -916,6 +1021,7 @@ local function requirementsOf(ctx, recipe, recipeText, targetText, alternatives)
 	local entry = { line = ctx.line, recipe = resolver:recipeId(recipe), recipeText = recipeText, materials = {}, tools = {},
 		skills = {} };
 	local materialWords = {};
+	local fuelWords = {};
 	local toolWords = {};
 	local skillWords = {};
 	local targetWords = {};
@@ -936,6 +1042,13 @@ local function requirementsOf(ctx, recipe, recipeText, targetText, alternatives)
 		then
 			table.insert(entry.tools, item);
 			table.insert(toolWords, text);
+		elseif atBench and resolver.isFuelSlot and resolver:isFuelSlot(slot)
+		then
+			item.fuel = true;
+			entry.fuel = entry.fuel or {};
+			table.insert(entry.fuel, item);
+			table.insert(entry.materials, item);
+			table.insert(fuelWords, text);
 		else
 			table.insert(entry.materials, item);
 			table.insert(materialWords, text);
@@ -954,6 +1067,14 @@ local function requirementsOf(ctx, recipe, recipeText, targetText, alternatives)
 
 	local parts = {};
 
+	if atBench
+	then
+		local benchText, ids = benchNamesOf(resolver, { recipe }, benchSet);
+
+		entry.bench = { text = benchText, ids = ids };
+		table.insert(parts, getText("IGUI_AutoPilot_E_NeedsBench", benchText));
+	end
+
 	if #targetWords > 0
 	then
 		table.insert(parts, getText("IGUI_AutoPilot_E_NeedsOn", table.concat(targetWords, ", ")));
@@ -962,6 +1083,11 @@ local function requirementsOf(ctx, recipe, recipeText, targetText, alternatives)
 	if #materialWords > 0
 	then
 		table.insert(parts, getText("IGUI_AutoPilot_E_NeedsUses", table.concat(materialWords, ", ")));
+	end
+
+	if #fuelWords > 0
+	then
+		table.insert(parts, getText("IGUI_AutoPilot_E_NeedsFuel", table.concat(fuelWords, ", ")));
 	end
 
 	if #toolWords > 0
@@ -1564,6 +1690,18 @@ compileBool = function(ctx, node)
 		-- damaged=True: only the damaged ones the macro may work on (condition below the most, never a favourite, an
 		-- equipped or a worn one: what repair() takes)
 		return types and { k = "has", types = types, n = n, damaged = bound.damaged ~= nil and bound.damaged.v == true } or nil;
+	elseif node.k == "call" and node.fn == "bench_free"
+	then
+		local bound = bindArgs(ctx, "bench_free", Lang.condCalls.bench_free, node.args);
+
+		if bound == nil
+		then
+			return nil;
+		end
+
+		local set, ids = resolveBenchArg(ctx, bound.bench.tok);
+
+		return set and { k = "benchFree", benches = ids } or nil;
 	elseif node.k == "call" and node.fn == "known"
 	then
 		local bound = bindArgs(ctx, "known", Lang.condCalls.known, node.args);
@@ -1824,8 +1962,11 @@ end
 -- Statements
 -- ============================================================================================================
 
--- the recipes of a name (allowed for the macros), or nil (the problem is added)
-local function resolveRecipe(ctx, token)
+-- The recipes of a name the macros can do, or nil (the problem is added), and true when they are done at a workbench
+-- (wave 1). benchSet / benchToken: the benches of at= (the recipes those benches do; a recipe by hand with at= is an
+-- error). Without at=: the recipes by hand or on a surface; when the name has none, those of the benches (any bench
+-- that fits, the nearest at the run), unless the server turned the benches off.
+local function resolveRecipe(ctx, token, benchSet, benchToken)
 	local resolver = ctx.resolver;
 	local recipes, suggestions = resolver:resolveRecipe(token.text);
 
@@ -1837,17 +1978,84 @@ local function resolveRecipe(ctx, token)
 	end
 
 	local allowed = {};
+	local atBench = {};
 	local bench = nil;
 
 	for i, recipe in ipairs(recipes)
 	do
-		if resolver:isAllowed(recipe)
+		if benchSet
+		then
+			if resolver.fitsBenches and resolver:fitsBenches(recipe, benchSet)
+			then
+				table.insert(atBench, recipe);
+			end
+		elseif resolver:isAllowed(recipe)
 		then
 			table.insert(allowed, recipe);
-		elseif bench == nil
-		then
-			bench = resolver:benchName(recipe);
+		else
+			if resolver.benchesFor and #resolver:benchesFor(recipe) > 0
+			then
+				table.insert(atBench, recipe);
+			end
+
+			if bench == nil
+			then
+				bench = resolver:benchName(recipe);
+			end
 		end
+	end
+
+	if benchSet
+	then
+		if #atBench == 0
+		then
+			local where = benchNamesOf(resolver, recipes, nil);
+			local byHand = false;
+
+			for i, recipe in ipairs(recipes)
+			do
+				byHand = byHand or resolver:isAllowed(recipe);
+			end
+
+			if where ~= ""
+			then
+				lineError(ctx, getText("IGUI_AutoPilot_E_P_NotAtBench", ctx.line, token.text, benchToken.text, where), benchToken);
+			elseif byHand
+			then
+				lineError(ctx, getText("IGUI_AutoPilot_E_P_ByHand", ctx.line, token.text), benchToken);
+			else
+				lineError(ctx, getText("IGUI_AutoPilot_E_P_NotAllowedRecipe", ctx.line, token.text), token);
+			end
+
+			return nil;
+		end
+
+		if benchesOff(ctx, benchToken)
+		then
+			return nil;
+		end
+
+		if #atBench == 1
+		then
+			noteId(ctx, token, "recipe", resolver:recipeId(atBench[1]));
+		end
+
+		return atBench, true;
+	end
+
+	if #allowed == 0 and #atBench > 0
+	then
+		if benchesOff(ctx, token)
+		then
+			return nil;
+		end
+
+		if #atBench == 1
+		then
+			noteId(ctx, token, "recipe", resolver:recipeId(atBench[1]));
+		end
+
+		return atBench, true;
 	end
 
 	if #allowed == 0
@@ -1872,6 +2080,27 @@ end
 
 -- an action of the program (counted for the macro or its "when"); times > 1: a loop of that line (2.6)
 local function addAction(ctx, action, times)
+	-- a skill the server keeps out of the macros (MacroExcludedSkills, opts.excluded: lower ids): the macro will stop
+	-- before this line (wave 1, decision of 13/11/2026)
+	local excluded = ctx.opts.excluded;
+
+	if excluded and action.recipes and ctx.resolver.xpPerks
+	then
+		local said = false;
+
+		for i, recipe in ipairs(action.recipes)
+		do
+			for j, perk in ipairs(ctx.resolver:xpPerks(recipe))
+			do
+				if not said and excluded[string.lower(perk:getId())]
+				then
+					said = true;
+					warn(ctx, getText("IGUI_AutoPilot_E_P_Excluded", ctx.line, perk:getName()));
+				end
+			end
+		end
+	end
+
 	if ctx.handler
 	then
 		ctx.handler.actionCount = ctx.handler.actionCount + 1;
@@ -1906,7 +2135,19 @@ local function compileCraft(ctx, name, bound)
 	if name == "craft"
 	then
 		local recipeToken = bound.recipe.tok;
-		local allowed = resolveRecipe(ctx, recipeToken);
+		local benchSet = nil;
+
+		if bound.at
+		then
+			benchSet = resolveBenchArg(ctx, bound.at.tok);
+
+			if benchSet == nil
+			then
+				return;
+			end
+		end
+
+		local allowed, atBench = resolveRecipe(ctx, recipeToken, benchSet, bound.at and bound.at.tok);
 
 		if allowed == nil
 		then
@@ -1915,6 +2156,9 @@ local function compileCraft(ctx, name, bound)
 
 		action.recipes = allowed;
 		action.recipeText = recipeToken.text;
+		action.bench = atBench == true;
+		action.benchSet = benchSet;
+		action.benchText = bound.at and bound.at.tok.text or nil;
 
 		if bound.using
 		then
@@ -2054,7 +2298,7 @@ local function compileCraft(ctx, name, bound)
 	end
 
 	-- what the line needs ("Attrezzi e materiali"): the first recipe of the name
-	local needs = requirementsOf(ctx, action.recipes[1], action.recipeText);
+	local needs = requirementsOf(ctx, action.recipes[1], action.recipeText, nil, nil, action.benchSet, action.bench);
 
 	if needs
 	then
@@ -2102,17 +2346,40 @@ local function compileWork(ctx, name, bound)
 	end
 
 	local noRecipe = name == "sharpen" and "IGUI_AutoPilot_E_P_NoSharpen" or "IGUI_AutoPilot_E_P_NoRepair";
-	local recipes = resolver.workRecipes and resolver:workRecipes(name, types, nil) or {};
+	local benchSet = nil;
+
+	-- at= (wave 1): the repairs or sharpenings of that bench (the grindstone)
+	if bound.at
+	then
+		benchSet = resolveBenchArg(ctx, bound.at.tok);
+
+		if benchSet == nil
+		then
+			return;
+		end
+	end
+
+	local recipes = resolver.workRecipes and resolver:workRecipes(name, types, nil, benchSet) or {};
 
 	if #recipes == 0
 	then
-		lineError(ctx, getText(noRecipe, ctx.line, itemToken.text), itemToken);
+		if benchSet
+		then
+			lineError(ctx, getText("IGUI_AutoPilot_E_P_NoWorkAt", ctx.line, itemToken.text, bound.at.tok.text), bound.at.tok);
+		else
+			lineError(ctx, getText(noRecipe, ctx.line, itemToken.text), itemToken);
+		end
 
 		return;
 	end
 
+	if benchSet and benchesOff(ctx, bound.at.tok)
+	then
+		return;
+	end
+
 	local action = { op = "ACTION", kind = "craft", work = name, withTypes = types, withText = itemToken.text,
-		itemText = itemToken.text };
+		itemText = itemToken.text, bench = benchSet ~= nil, benchSet = benchSet, benchText = bound.at and bound.at.tok.text or nil };
 
 	if bound.using
 	then
@@ -2124,7 +2391,7 @@ local function compileWork(ctx, name, bound)
 			return;
 		end
 
-		local fitting = resolver:workRecipes(name, types, materials);
+		local fitting = resolver:workRecipes(name, types, materials, benchSet);
 
 		if #fitting == 0
 		then
@@ -2195,11 +2462,119 @@ local function compileWork(ctx, name, bound)
 		table.insert(alternatives, recipes[i]);
 	end
 
-	local needs = requirementsOf(ctx, recipes[1], action.recipeText, itemToken.text, alternatives);
+	local needs = requirementsOf(ctx, recipes[1], action.recipeText, itemToken.text, alternatives, benchSet, action.bench);
 
 	if needs
 	then
 		needs.work = name;
+		table.insert(ctx.result.requirements, needs);
+	end
+
+	addAction(ctx, action, times);
+end
+
+-- smelt("X", at="B", times=N) (wave 1): the smelting recipes of the furnaces that take X (Names:smeltRecipes: the
+-- extracting ones first), like dismantle() finds the one that dismantles X; a craft action at a bench on X. Several
+-- recipes (the item melts in more ways at those benches): a warning, the macro uses the first the game can do then.
+local function compileSmelt(ctx, bound)
+	local resolver = ctx.resolver;
+	local times = bound.times and bound.times.v or 1;
+
+	if bound.times and not checkNumber(ctx, times, Lang.minNumber, Lang.maxNumber)
+	then
+		return;
+	end
+
+	local itemToken = bound.item.tok;
+	local types = resolveItem(ctx, itemToken);
+
+	if types == nil
+	then
+		return;
+	end
+
+	local benchSet = nil;
+
+	if bound.at
+	then
+		benchSet = resolveBenchArg(ctx, bound.at.tok);
+
+		if benchSet == nil
+		then
+			return;
+		end
+	end
+
+	local recipes = resolver.smeltRecipes and resolver:smeltRecipes(types, benchSet) or {};
+
+	if #recipes == 0
+	then
+		local elsewhere = (benchSet and resolver.smeltRecipes) and resolver:smeltRecipes(types, nil) or {};
+
+		if #elsewhere > 0
+		then
+			lineError(ctx, getText("IGUI_AutoPilot_E_P_NoSmeltAt", ctx.line, itemToken.text, bound.at.tok.text,
+				benchNamesOf(resolver, elsewhere, nil)), bound.at.tok);
+		else
+			lineError(ctx, getText("IGUI_AutoPilot_E_P_NoSmelt", ctx.line, itemToken.text), itemToken);
+		end
+
+		return;
+	end
+
+	if benchesOff(ctx, bound.at and bound.at.tok or itemToken)
+	then
+		return;
+	end
+
+	warnAmbiguousItem(ctx, itemToken, types, takenTypes(resolver, recipes, types), "use", recipes, nil);
+
+	local action = { op = "ACTION", kind = "craft", smelt = true, bench = true, benchSet = benchSet,
+		benchText = bound.at and bound.at.tok.text or nil, recipes = recipes, recipeText = resolver:recipeName(recipes[1]),
+		withTypes = types, withText = itemToken.text, itemText = itemToken.text };
+
+	if #recipes > 1
+	then
+		local ids = {};
+		local names = {};
+
+		for i, recipe in ipairs(recipes)
+		do
+			table.insert(ids, resolver:recipeId(recipe));
+			table.insert(names, quoted(resolver:recipeName(recipe)));
+		end
+
+		warn(ctx, getText("IGUI_AutoPilot_E_P_ManySmelt", ctx.line, itemToken.text, #recipes, table.concat(names, ", ")),
+			itemToken, "manySmelt", { name = itemToken.text, recipes = ids });
+	end
+
+	if ctx.opts.player
+	then
+		local learned = false;
+
+		for i, recipe in ipairs(recipes)
+		do
+			learned = learned or resolver:isLearned(ctx.opts.player, recipe);
+		end
+
+		if not learned
+		then
+			warn(ctx, getText("IGUI_AutoPilot_E_P_NotLearned", ctx.line, action.recipeText), itemToken);
+		end
+	end
+
+	local alternatives = {};
+
+	for i = 2, #recipes
+	do
+		table.insert(alternatives, recipes[i]);
+	end
+
+	local needs = requirementsOf(ctx, recipes[1], action.recipeText, nil, alternatives, benchSet, true);
+
+	if needs
+	then
+		needs.work = "smelt";
 		table.insert(ctx.result.requirements, needs);
 	end
 
@@ -2379,6 +2754,9 @@ local function parseCall(ctx, first)
 	elseif name == "repair" or name == "sharpen"
 	then
 		compileWork(ctx, name, bound);
+	elseif name == "smelt"
+	then
+		compileSmelt(ctx, bound);
 	elseif name == "wait"
 	then
 		local n = bound.seconds.v;
@@ -2961,12 +3339,16 @@ end
 
 -- the text of an action line as the recorder and "Inserisci" write it: craft("R", using="X", times=3) /
 -- dismantle("X", times=2)
-function AutoPilotMoon.Macro.Lang:formatAction(kind, recipeText, withText, times)
+-- smelt("X", at="B"), craft("R", using="X", at="B", times=3): at = the bench (wave 1)
+function AutoPilotMoon.Macro.Lang:formatAction(kind, recipeText, withText, times, at)
 	local line = nil;
 
 	if kind == "dismantle"
 	then
 		line = "dismantle(\"" .. withText .. "\"";
+	elseif kind == "smelt"
+	then
+		line = "smelt(\"" .. withText .. "\"";
 	else
 		line = "craft(\"" .. recipeText .. "\"";
 
@@ -2974,6 +3356,11 @@ function AutoPilotMoon.Macro.Lang:formatAction(kind, recipeText, withText, times
 		then
 			line = line .. ", using=\"" .. withText .. "\"";
 		end
+	end
+
+	if at
+	then
+		line = line .. ", at=\"" .. at .. "\"";
 	end
 
 	if times and times > 1

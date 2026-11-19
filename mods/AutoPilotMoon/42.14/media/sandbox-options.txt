@@ -215,3 +215,49 @@ option AutoPilotMoon.MacroActionsPerMinute
 	page = AutoPilotMoon,
 	translation = AutoPilot_MacroActionsPerMinute,
 }
+
+option AutoPilotMoon.EnableMacroBenches
+{
+	type = boolean,
+	default = false,
+	page = AutoPilotMoon,
+	translation = AutoPilot_EnableMacroBenches,
+}
+
+option AutoPilotMoon.MacroBenchRadius
+{
+	type = integer,
+	min = 2,
+	max = 15,
+	default = 6,
+	page = AutoPilotMoon,
+	translation = AutoPilot_MacroBenchRadius,
+}
+
+option AutoPilotMoon.MacroMinutesPerRun
+{
+	type = integer,
+	min = 0,
+	max = 600,
+	default = 120,
+	page = AutoPilotMoon,
+	translation = AutoPilot_MacroMinutesPerRun,
+}
+
+option AutoPilotMoon.MacroLevelsPerRun
+{
+	type = integer,
+	min = 0,
+	max = 10,
+	default = 0,
+	page = AutoPilotMoon,
+	translation = AutoPilot_MacroLevelsPerRun,
+}
+
+option AutoPilotMoon.MacroExcludedSkills
+{
+	type = string,
+	default = ,
+	page = AutoPilotMoon,
+	translation = AutoPilot_MacroExcludedSkills,
+}

@@ -13,6 +13,11 @@
 -- is said with the bench's name (step M2). "smonta X": the recipes by hand whose id starts with a dismantling prefix and
 -- that consume X. repair("X") / sharpen("X") (wave 0, 13/11/2026): the game's repairs and sharpenings that keep X
 -- (Names:workRecipes, the kept input with flags[IsDamaged] / flags[IsSharpenable]).
+-- The workbenches (wave 1, 13/11/2026, MACRO-AUTOPILOT.md 13): every entity of the game's scripts with a CraftBench
+-- component (getScriptManager():getAllGameEntities(); GameEntityScript.containsComponent / getComponentScriptFor of
+-- 42.22), by its id ("Forge_Primitive_Forge", any case) or its name in the player's language (the bench window's own
+-- title: XuiSkin.getEntityDisplayName of its UiConfig style); a bench fits a recipe when its own recipes
+-- (CraftBenchScript.getRecipes, the tags of its "Recipes = ...") hold it.
 
 AutoPilotMoon = AutoPilotMoon or {};
 AutoPilotMoon.Macro = AutoPilotMoon.Macro or {};
@@ -46,6 +51,11 @@ local function reset()
 	Names.allRecipeList = {};   -- every recipe of the game, the workbenches' too (known("...") and its suggestions)
 	Names.targetCache = {};     -- recipe id -> set of full types of the item the recipe works on (Names:targetTypes)
 	Names.clickCache = {};      -- recipe id -> set of full types the macro clicks for it (Names:clickTypes)
+	Names.benchById = {};       -- lower id -> bench { id, text, recipes (set of recipe ids), tags (lower) }
+	Names.benchesByName = {};   -- lower name -> list of benches
+	Names.benchNameList = {};   -- the distinct names { lower, text } (suggestions of "not found")
+	Names.benchList = {};       -- every bench, by name (the editor's suggestions)
+	Names.benchesOfRecipe = {}; -- recipe id -> list of the benches that fit it (cached)
 end
 
 reset();
@@ -229,6 +239,102 @@ local function indexPerks()
 	end);
 end
 
+-- ============================================================================================================
+-- The workbenches (wave 1)
+-- ============================================================================================================
+
+-- the bench window's own title (UiConfig style of the entity, the default skin's entity name), nil when the game has
+-- none for it
+local function benchDisplayNameOf(script)
+	local ui = script:getComponentScriptFor(ComponentType.UiConfig);
+	local skin = XuiManager.GetDefaultSkin();
+	local text = ui and skin and skin:getEntityDisplayName(ui:getEntityStyle()) or nil;
+
+	if text == nil or text == "" or text == GameEntity.getDefaultEntityDisplayName()
+	then
+		return nil;
+	end
+
+	return text;
+end
+
+local function benchRecipesOf(component)
+	local set = {};
+	local list = component:getRecipes();
+
+	for i = 0, list:size() - 1
+	do
+		set[list:get(i):getName()] = true;
+	end
+
+	return set;
+end
+
+local function indexBenchScript(script)
+	if not script:containsComponent(ComponentType.CraftBench)
+	then
+		return;
+	end
+
+	local component = script:getComponentScriptFor(ComponentType.CraftBench);
+	local id = script:getName();
+	local okName, display = pcall(benchDisplayNameOf, script);
+	local text = okName and display or id;
+	local okRecipes, recipes = pcall(benchRecipesOf, component);
+	local tags = {};
+
+	for tag in string.gmatch(component:getRecipeTagQuery() or "", "[^;%s]+")
+	do
+		table.insert(tags, string.lower(tag));
+	end
+
+	local bench = { id = id, text = text, recipes = okRecipes and recipes or nil, tags = tags };
+	local lower = string.lower(text);
+	local list = Names.benchesByName[lower];
+
+	Names.benchById[string.lower(id)] = bench;
+	table.insert(Names.benchList, bench);
+
+	if list == nil
+	then
+		list = {};
+		Names.benchesByName[lower] = list;
+		table.insert(Names.benchNameList, { lower = lower, text = text });
+	end
+
+	table.insert(list, bench);
+end
+
+local function allEntitiesOf(manager)
+	return manager:getAllGameEntities();
+end
+
+-- every bench of the scripts (nothing when the game, or a program running this checker, has no entities)
+local function indexBenches()
+	local ok, entities = pcall(allEntitiesOf, getScriptManager());
+
+	if not ok or entities == nil
+	then
+		return;
+	end
+
+	for i = 0, entities:size() - 1
+	do
+		pcall(indexBenchScript, entities:get(i));
+	end
+
+	table.sort(Names.benchList, function(a, b)
+		local la, lb = string.lower(a.text), string.lower(b.text);
+
+		if la ~= lb
+		then
+			return la < lb;
+		end
+
+		return a.id < b.id;
+	end);
+end
+
 -- one slice of the building; true when everything is indexed
 local function step(max)
 	local build = Names.build;
@@ -261,6 +367,7 @@ local function step(max)
 	if build.recipeIndex >= build.recipes:size() and build.itemIndex >= build.items:size()
 	then
 		indexPerks();
+		indexBenches();
 		Names.build = nil;
 		Names.state = "ready";
 
@@ -923,17 +1030,32 @@ end
 -- flags[IsDamaged]) or sharpen (work = "sharpen": flags[IsSharpenable]) one of the types; with materials (a list of
 -- full types, or nil) only those that use one of them up. In the order of Names.workOrder: the first the game can do
 -- now is the one a macro uses (MacroRun's choice).
-function AutoPilotMoon.Macro.Names:workRecipes(work, types, materials)
+-- benchIds (wave 1): a set of bench ids (at="Grindstone"): then the recipes of those benches instead of the ones by hand.
+function AutoPilotMoon.Macro.Names:workRecipes(work, types, materials, benchIds)
 	local flag = work == "sharpen" and "sharpenable" or "damaged";
 	local rank = {};
 	local found = {};
+	local source = Names.recipeList;
 
 	for i, id in ipairs(Names.workOrder[work] or {})
 	do
 		rank[id] = i;
 	end
 
-	for i, recipe in ipairs(Names.recipeList)
+	if benchIds
+	then
+		source = {};
+
+		for i, recipe in ipairs(Names.allRecipeList)
+		do
+			if Names:fitsBenches(recipe, benchIds)
+			then
+				table.insert(source, recipe);
+			end
+		end
+	end
+
+	for i, recipe in ipairs(source)
 	do
 		if isWorkRecipe(work, recipe)
 		then
@@ -1041,4 +1163,281 @@ function AutoPilotMoon.Macro.Names:learnHint(recipe)
 	end
 
 	return getText("IGUI_AutoPilot_E_LearnRead");
+end
+
+-- ============================================================================================================
+-- The workbenches (wave 1, 13/11/2026, ANALISI-API-MACRO-LAVORATIVE.md 3.2)
+-- ============================================================================================================
+
+-- the bench ids of a name or an id (a list), or nil and up to 3 suggestions
+function AutoPilotMoon.Macro.Names:resolveBench(text)
+	local lower = clean(text);
+	local bench = Names.benchById[lower];
+
+	if bench
+	then
+		return { bench.id };
+	end
+
+	local list = Names.benchesByName[lower];
+
+	if list
+	then
+		local ids = {};
+
+		for i, other in ipairs(list)
+		do
+			table.insert(ids, other.id);
+		end
+
+		return ids;
+	end
+
+	return nil, suggest(Names.benchNameList, lower);
+end
+
+-- the bench of an id (any case), or nil
+function AutoPilotMoon.Macro.Names:bench(id)
+	return id and Names.benchById[string.lower(id)] or nil;
+end
+
+-- the bench's name as the game shows it ("Forgia primitiva"), its id when unknown
+function AutoPilotMoon.Macro.Names:benchText(id)
+	local bench = Names:bench(id);
+
+	return bench and bench.text or id;
+end
+
+-- what to write for a bench: its name when no other bench has it, else its id (the recorder, the suggestions)
+function AutoPilotMoon.Macro.Names:benchWritable(id)
+	local bench = Names:bench(id);
+
+	if bench == nil
+	then
+		return id;
+	end
+
+	local same = Names.benchesByName[string.lower(bench.text)];
+
+	if same and #same == 1
+	then
+		return bench.text;
+	end
+
+	return bench.id;
+end
+
+-- the bench (or its id) does this recipe: its recipes hold it (else the tags of its "Recipes = ..." match the recipe's)
+function AutoPilotMoon.Macro.Names:benchFits(bench, recipe)
+	if type(bench) == "string"
+	then
+		bench = Names:bench(bench);
+	end
+
+	if bench == nil
+	then
+		return false;
+	end
+
+	if bench.recipes
+	then
+		return bench.recipes[recipe:getName()] == true;
+	end
+
+	local tags = recipe:getTags();
+
+	if tags == nil
+	then
+		return false;
+	end
+
+	for i = 0, tags:size() - 1
+	do
+		local tag = string.lower(tags:get(i));
+
+		for j, own in ipairs(bench.tags)
+		do
+			if own == tag
+			then
+				return true;
+			end
+		end
+	end
+
+	return false;
+end
+
+-- the benches that do a recipe (a list, cached; empty for a recipe by hand that no bench lists)
+function AutoPilotMoon.Macro.Names:benchesFor(recipe)
+	local id = recipe:getName();
+	local list = Names.benchesOfRecipe[id];
+
+	if list
+	then
+		return list;
+	end
+
+	list = {};
+
+	for i, bench in ipairs(Names.benchList)
+	do
+		if Names:benchFits(bench, recipe)
+		then
+			table.insert(list, bench);
+		end
+	end
+
+	Names.benchesOfRecipe[id] = list;
+
+	return list;
+end
+
+-- one of these benches (a set of ids, any case not needed: the ids as indexed) does the recipe; nil = any bench
+function AutoPilotMoon.Macro.Names:fitsBenches(recipe, benchIds)
+	for i, bench in ipairs(Names:benchesFor(recipe))
+	do
+		if benchIds == nil or benchIds[bench.id]
+		then
+			return true;
+		end
+	end
+
+	return false;
+end
+
+-- a recipe of a workbench only: not by hand nor on a surface, and a bench of the game does it
+function AutoPilotMoon.Macro.Names:isBenchRecipe(recipe)
+	return not Names:isAllowed(recipe) and #Names:benchesFor(recipe) > 0;
+end
+
+-- the recipes of the benches (for the suggestions of craft("), built once
+function AutoPilotMoon.Macro.Names:benchRecipeList()
+	if Names.benchRecipes == nil or Names.benchRecipesOf ~= Names.allRecipeList
+	then
+		Names.benchRecipes = {};
+		Names.benchRecipesOf = Names.allRecipeList;
+
+		for i, recipe in ipairs(Names.allRecipeList)
+		do
+			if Names:isBenchRecipe(recipe)
+			then
+				table.insert(Names.benchRecipes, recipe);
+			end
+		end
+	end
+
+	return Names.benchRecipes;
+end
+
+-- the smelting recipes of the furnaces: their ids start with one of these (recipes_blacksmith_furnaces_i.txt of the
+-- game: ExtractIronFromSmallItem gives an iron chunk back, SmeltSmallIronItem fills a crucible); in this order
+Names.smeltPrefixes = { "Extract", "Smelt", "Melt" };
+
+local function smeltRank(id)
+	for i, prefix in ipairs(Names.smeltPrefixes)
+	do
+		if startsWith(id, prefix)
+		then
+			return i;
+		end
+	end
+
+	return nil;
+end
+
+function AutoPilotMoon.Macro.Names:isSmeltId(id)
+	return smeltRank(id) ~= nil;
+end
+
+-- smelt("X"): the bench recipes that melt X (they use one of the types up), done by one of the benches (a set of ids,
+-- nil = any); the extracting ones first (a chunk back), then the others, in the game's order within each
+function AutoPilotMoon.Macro.Names:smeltRecipes(types, benchIds)
+	local found = {};
+
+	for i, recipe in ipairs(Names.allRecipeList)
+	do
+		local rank = smeltRank(recipe:getName());
+
+		if rank and not Names:isAllowed(recipe) and Names:fitsBenches(recipe, benchIds)
+		then
+			-- what it melts: an input it uses up that is not its fire (charcoal melts nothing)
+			local takes = false;
+
+			for j, slot in ipairs(Names:inputSlots(recipe))
+			do
+				if not slot.keep and not Names:isFuelSlot(slot)
+				then
+					for k, fullType in ipairs(slot.types)
+					do
+						for m, wanted in ipairs(types)
+						do
+							takes = takes or fullType == wanted;
+						end
+					end
+				end
+			end
+
+			if takes
+			then
+				table.insert(found, { recipe = recipe, key = rank * 100000 + i });
+			end
+		end
+	end
+
+	table.sort(found, function(a, b)
+		return a.key < b.key;
+	end);
+
+	local list = {};
+
+	for i, entry in ipairs(found)
+	do
+		table.insert(list, entry.recipe);
+	end
+
+	return list;
+end
+
+-- an input that is the fire of a bench recipe: charcoal or what starts a fire (tags[base:charcoal],
+-- tags[base:startfire], tags[base:log;base:charcoal] of the blacksmith's recipes), a slot of Names:inputSlots
+function AutoPilotMoon.Macro.Names:isFuelSlot(slot)
+	if slot.keep
+	then
+		return false;
+	end
+
+	for i, tag in ipairs(slot.tags or {})
+	do
+		if tag == "base:charcoal" or tag == "base:startfire"
+		then
+			return true;
+		end
+	end
+
+	for i, fullType in ipairs(slot.types or {})
+	do
+		if fullType == "Base.Charcoal" or fullType == "Base.CharcoalCrafted"
+		then
+			return true;
+		end
+	end
+
+	return false;
+end
+
+-- the same for an input script of a recipe done by hand at a bench (the recorder: its charcoal is never the "using")
+function AutoPilotMoon.Macro.Names:isFuelInput(script, fullType)
+	if fullType == "Base.Charcoal" or fullType == "Base.CharcoalCrafted"
+	then
+		return true;
+	end
+
+	if script == nil
+	then
+		return false;
+	end
+
+	local amount, line = inputExtras(script);
+
+	return Names:isFuelSlot({ keep = false, tags = splitTags(line), types = {} });
 end
