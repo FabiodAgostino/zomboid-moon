@@ -7,6 +7,7 @@
 --   # AutoPilot (Moon) - macro - formato 2
 --   === macro: Manutenzione - martelli
 --   === usata: 3
+--   === posto: container 10567 9876 0 Cassa forgia     (its named places, waves 2-3: AutoPilotMoon.Macro.Places)
 --   <the macro's lines>
 --   === prima: Manutenzione - martelli
 --   <the previous version's lines>
@@ -39,7 +40,7 @@ Store.maxNameChars = 40;
 Store.minSaveMs = 2000;
 
 Store.loaded = false;
-Store.macros = {};        -- { name, text, used, previous }
+Store.macros = {};        -- { name, text, used, previous, places (waves 2-3: { name, kind, x, y, z }) }
 Store.fileText = nil;     -- the main file as it is on disk (what the backup gets)
 Store.lastSaveAt = nil;
 Store.recovered = false;
@@ -53,6 +54,8 @@ Store.examples = {
 	{ nameKey = "IGUI_AutoPilot_MA_Ex5_Name", textKey = "IGUI_AutoPilot_MA_Ex5_Text" },
 	-- wave 1 (13/11/2026): the blacksmith's closed loop at the benches, melt -> forge -> melt again
 	{ nameKey = "IGUI_AutoPilot_MA_Ex6_Name", textKey = "IGUI_AutoPilot_MA_Ex6_Text" },
+	-- waves 2-3 (19/11/2026): the crates of an electrical workshop, take -> dismantle -> put what was made
+	{ nameKey = "IGUI_AutoPilot_MA_Ex7_Name", textKey = "IGUI_AutoPilot_MA_Ex7_Text" },
 };
 
 -- a text of the translations with " <LINE> " between its lines, as lines with "\n"
@@ -168,8 +171,16 @@ function AutoPilotMoon.Macro.Store:parseFile(lines)
 		local name = string.match(line, "^=== macro: (.*)$");
 		local used = string.match(line, "^=== usata: (%d+)$");
 		local previous = string.match(line, "^=== prima: ");
+		local place = string.find(line, "^=== posto: ") and AutoPilotMoon.Macro.Places:parseLine(line) or nil;
 
-		if name
+		if place and current
+		then
+			-- a named place of the macro (a line that does not read is dropped)
+			table.insert(AutoPilotMoon.Macro.Places:list(current), place);
+		elseif string.find(line, "^=== posto: ")
+		then
+			-- a place line that does not read: dropped
+		elseif name
 		then
 			close();
 			current = { name = name, used = 0, textLines = {} };
@@ -259,6 +270,12 @@ function AutoPilotMoon.Macro.Store:format(macros)
 	do
 		table.insert(out, "=== macro: " .. macro.name);
 		table.insert(out, "=== usata: " .. (macro.used or 0));
+
+		for j, place in ipairs(macro.places or {})
+		do
+			table.insert(out, AutoPilotMoon.Macro.Places:formatLine(place));
+		end
+
 		addText(macro.text);
 
 		if macro.previous
@@ -487,8 +504,8 @@ function AutoPilotMoon.Macro.Store:touch(macro)
 	macro.used = nextUse();
 end
 
--- a new macro (a free name is made from name); nil, "full" with 50 macros
-function AutoPilotMoon.Macro.Store:add(name, text)
+-- a new macro (a free name is made from name); nil, "full" with 50 macros. places: its named places (copied)
+function AutoPilotMoon.Macro.Store:add(name, text, places)
 	Store:load();
 
 	if #Store.macros >= Store.maxMacros
@@ -496,7 +513,8 @@ function AutoPilotMoon.Macro.Store:add(name, text)
 		return nil, "full";
 	end
 
-	local macro = { name = Store:freeName(name), text = text or "", used = nextUse() };
+	local macro = { name = Store:freeName(name), text = text or "", used = nextUse(),
+		places = AutoPilotMoon.Macro.Places:copy(places) };
 
 	table.insert(Store.macros, macro);
 
@@ -548,7 +566,7 @@ function AutoPilotMoon.Macro.Store:rename(macro, name)
 end
 
 function AutoPilotMoon.Macro.Store:duplicate(macro)
-	return Store:add(getText("IGUI_AutoPilot_E_CopyName", macro.name), macro.text);
+	return Store:add(getText("IGUI_AutoPilot_E_CopyName", macro.name), macro.text, macro.places);
 end
 
 function AutoPilotMoon.Macro.Store:delete(macro)
@@ -569,13 +587,21 @@ end
 -- Copy and paste (6.3)
 -- ============================================================================================================
 
--- the clipboard's text of a macro: its name on the first line, so whoever pastes it gets the name too
-function AutoPilotMoon.Macro.Store:clipboardText(name, text)
-	return "=== macro: " .. name .. "\n" .. (text or "");
+-- the clipboard's text of a macro: its name on the first line, so whoever pastes it gets the name too; then its named
+-- places (waves 2-3: their squares are of this world; pasted on another server they are only too far)
+function AutoPilotMoon.Macro.Store:clipboardText(name, text, places)
+	local lines = { "=== macro: " .. name };
+
+	for i, place in ipairs(places or {})
+	do
+		table.insert(lines, AutoPilotMoon.Macro.Places:formatLine(place));
+	end
+
+	return table.concat(lines, "\n") .. "\n" .. (text or "");
 end
 
--- the macros of a pasted text: { name, text } (one or more "=== macro:"; without one, a single macro "Incollata");
--- the lines "=== usata" and the "=== prima" blocks are left out
+-- the macros of a pasted text: { name, text, places } (one or more "=== macro:"; without one, a single macro
+-- "Incollata"); the lines "=== usata" and the "=== prima" blocks are left out; "=== posto:" lines are its places
 function AutoPilotMoon.Macro.Store:parsePaste(text)
 	local found = {};
 	local current = nil;
@@ -587,9 +613,17 @@ function AutoPilotMoon.Macro.Store:parsePaste(text)
 
 		if name
 		then
-			current = { name = AutoPilotMoon.Macro.Lang.trim(name), lines = {} };
+			current = { name = AutoPilotMoon.Macro.Lang.trim(name), lines = {}, places = {} };
 			skipping = false;
 			table.insert(found, current);
+		elseif string.find(line, "^=== posto: ")
+		then
+			local place = AutoPilotMoon.Macro.Places:parseLine(line);
+
+			if place and current and not skipping
+			then
+				table.insert(current.places, place);
+			end
 		elseif string.find(line, "^=== usata:")
 		then
 			-- the order of use of someone else's file
@@ -600,7 +634,7 @@ function AutoPilotMoon.Macro.Store:parsePaste(text)
 		then
 			if current == nil
 			then
-				current = { name = getText("IGUI_AutoPilot_E_PastedName"), lines = {} };
+				current = { name = getText("IGUI_AutoPilot_E_PastedName"), lines = {}, places = {} };
 				table.insert(found, current);
 			end
 
@@ -619,7 +653,7 @@ function AutoPilotMoon.Macro.Store:parsePaste(text)
 		end
 
 		-- a macro of the first language pasted from Discord or an old file: converted as the file's are
-		table.insert(result, { name = macro.name, text = (Store:convertText(table.concat(macro.lines, "\n"))) });
+		table.insert(result, { name = macro.name, text = (Store:convertText(table.concat(macro.lines, "\n"))), places = macro.places });
 	end
 
 	return result;

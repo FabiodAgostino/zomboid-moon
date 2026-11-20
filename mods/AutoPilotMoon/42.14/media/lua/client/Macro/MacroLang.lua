@@ -15,11 +15,15 @@
 --   rest(seat="nearest", until=95)   eat(open_cans=True)   drink()   smoke()   pass   break
 --   repair("Item", using="Material")   sharpen("Item")   read("Book")          (wave 0 of the work skills, 13/11/2026)
 --   conditions: has("Item", at_least=20), count("Item") >= 3, skill("Maintenance") < 4, hungry >= 2, thirsty,
---   stressed, bored, sad, pain, tired, panic (moodle levels 0-4; alone = at least 1), endurance (percent 0-100);
+--   stressed, bored, sad, pain, tired, panic (moodle levels 0-4), endurance, craving (percent 0-100); a state word
+--   alone (hungry, endurance, craving) = the game shows it now (19/11/2026, MACRO-AUTOPILOT.md 16);
 --   xp_gained("Maintenance") >= 100, condition("Item") < 15, has("Item", damaged=True), dark, hour >= 20,
 --   known("Recipe")
 --   craft("Recipe", at="Forge")   smelt("Item", at="Furnace")   sharpen("Item", at="Grindstone")   bench_free("Forge")
 --   (wave 1 of the work skills, 13/11/2026: the workbenches)
+--   take("Item", from="Place", n=10)   put("Item", into="Place")   put("made", into="Place")   drop("Item", n=5)
+--   equip("Item", hand="both")   walk_to("Place");  conditions count("Item", at="Place") >= 3, space_left() < 5,
+--   space_left(at="Place")   (waves 2 and 3, 19/11/2026: items and the macro's named places)
 --
 -- Lang:check(text, resolver, opts) -> result
 --   result.ops        the main flat program: ACTION / WAIT / LOOP / END / STOPIF / IF / JUMP, jumps already worked out
@@ -42,6 +46,10 @@
 --           benchText (at= as written); smelt() is a craft action at a bench with smelt = true
 --           exercise: exercise (the game's id), minutes;  rest: seat "nearest" / "ground", untilPct
 --           eat / drink / smoke / read: itemTypes (list or nil), itemText, openCans (eat), amount (drink: 1 / 0.5 / 0.25)
+--           take / put / drop / equip / walk_to (wave 2): itemTypes (nil with made = true: "made", what the run made),
+--           itemText, n (nil = all), hand (equip: "primary" / "secondary" / "both", nil = by the item), placeKey (the
+--           place's name in lower case), placeName (as written), place (the macro's place, nil when not marked or not
+--           known: opts.places)
 --   WAIT    line, ms, seconds
 --   LOOP    line, mode "times" / "possible" / "while" / "forever", n, cond, condText, endIndex, firstAction, synthetic
 --   END     line, loopIndex
@@ -49,9 +57,13 @@
 --   IF      line, cond, falseTarget (the op to go to when the condition is false)
 --   JUMP    line, target
 -- A condition is a small tree, evaluated by Run:evalCondition: { k = "const", v } / "has" (types, n, damaged) / "count"
--- (types) / "skill" (perk) / "moodle" (name) / "percent" (name) / "word" (name: dark, hour) / "xp" (perk) /
--- "condition" (types) / "known" (recipes) / "benchFree" (benches: ids) / "num" (v) / "not" (a) / "and" / "or" (a, b) / "cmp" (op, a, b); text = the
--- condition as written. result.xpPerks: the skills xp_gained() reads (their experience is noted at the start).
+-- (types) / "skill" (perk) / "moodle" (name, word) / "percent" (name, word) / "state" (word, moodle: a state word
+-- alone, 16) / "word" (name: dark, hour) / "xp" (perk) / "condition" (types) / "known" (recipes) / "benchFree"
+-- (benches: ids) / "space" (placeKey, place: space_left()) / "num" (v) / "not" (a) / "and" / "or" (a, b) / "cmp" (op,
+-- a, b); text = the condition as written; "count" with placeKey / place: count("X", at="P"). result.xpPerks: the
+-- skills xp_gained() reads (their experience is noted at the start). result.placeRefs: { line, name, key, place } for
+-- every place the text names (Run:getStartRefusal checks them); result.placesKnown: opts.places was given (the
+-- macro's places by key).
 --
 -- Kahlua: the file is ASCII; the accented and typographic characters are written as UTF-8 byte escapes, which the
 -- game's Lua compiler decodes into one character each.
@@ -243,6 +255,20 @@ end
 
 Lang.seats = { "nearest", "ground" };
 
+-- equip(..., hand=...) (wave 2): the hands of the inventory's "Equip" (primary), "Equip secondary", "Equip two hands"
+Lang.hands = { "primary", "secondary", "both" };
+Lang.handSet = {};
+
+for i, hand in ipairs(Lang.hands)
+do
+	Lang.handSet[hand] = true;
+end
+
+-- n= of take / put / drop (wave 2): at most the server's highest MacroItemsPerRun
+Lang.maxItems = 2000;
+-- the word of put / drop for what the run itself made (by id)
+Lang.madeWord = "made";
+
 -- the typographic quotes from a phone or Discord (left and right double quote, the two guillemets) and the
 -- typographic apostrophe
 local QUOTES = { "\226\128\156", "\226\128\157", "\194\171", "\194\187" };
@@ -293,6 +319,19 @@ Lang.calls = {
 	-- dismantles; at= (here and in craft, repair, sharpen): the workbench, by id or by the name of its window
 	smelt = { pos = { "item" }, kw = { item = "str", at = "str", times = "num" }, req = { "item" },
 		usage = "smelt(\"Item\", at=\"Furnace\")", action = true, names = { item = "item", at = "bench" } },
+	-- waves 2 and 3 (19/11/2026): items in and out of the macro's named places (marked with a click in the editor),
+	-- onto the floor, into the hands; the walk to a place. names "place": a place of the macro; "cargo": the items
+	-- and "made" (what the run made); "hand": Lang.hands
+	take = { pos = { "item" }, kw = { item = "str", from = "str", n = "num" }, req = { "item", "from" },
+		usage = "take(\"Item\", from=\"Place\", n=10)", action = true, names = { item = "item", from = "place" } },
+	put = { pos = { "item" }, kw = { item = "str", into = "str", n = "num" }, req = { "item", "into" },
+		usage = "put(\"Item\", into=\"Place\")", action = true, names = { item = "cargo", into = "place" } },
+	drop = { pos = { "item" }, kw = { item = "str", n = "num" }, req = { "item" }, usage = "drop(\"Item\", n=5)", action = true,
+		names = { item = "cargo" } },
+	equip = { pos = { "item" }, kw = { item = "str", hand = "str" }, req = { "item" }, usage = "equip(\"Item\")", action = true,
+		names = { item = "item", hand = "hand" } },
+	walk_to = { pos = { "place" }, kw = { place = "str" }, req = { "place" }, usage = "walk_to(\"Place\")", action = true,
+		names = { place = "place" } },
 };
 
 -- what a condition can call; value: "bool" (alone, true or false) or "number" (to compare); names "anyRecipe": every
@@ -300,8 +339,8 @@ Lang.calls = {
 Lang.condCalls = {
 	has = { pos = { "item" }, kw = { item = "str", at_least = "num", damaged = "bool" }, req = { "item" },
 		usage = "has(\"Item\", at_least=20)", names = { item = "item" }, value = "bool" },
-	count = { pos = { "item" }, kw = { item = "str" }, req = { "item" }, usage = "count(\"Item\") >= 20", names = { item = "item" },
-		value = "number" },
+	count = { pos = { "item" }, kw = { item = "str", at = "str" }, req = { "item" }, usage = "count(\"Item\") >= 20",
+		names = { item = "item", at = "place" }, value = "number" },
 	skill = { pos = { "name" }, kw = { name = "str" }, req = { "name" }, usage = "skill(\"Maintenance\") < 4", names = { name = "skill" },
 		value = "number" },
 	xp_gained = { pos = { "name" }, kw = { name = "str" }, req = { "name" }, usage = "xp_gained(\"Maintenance\") >= 100",
@@ -313,6 +352,8 @@ Lang.condCalls = {
 	-- wave 1: a bench of that kind within the server's distance that no other player is using
 	bench_free = { pos = { "bench" }, kw = { bench = "str" }, req = { "bench" }, usage = "bench_free(\"Forge\")",
 		names = { bench = "bench" }, value = "bool" },
+	-- wave 2: the weight the character can still carry (getMaxWeight - the inventory), or the room left in a place
+	space_left = { pos = {}, kw = { at = "str" }, req = {}, usage = "space_left() < 5", names = { at = "place" }, value = "number" },
 };
 
 -- The statements of a line other than the calls, as the editor's suggestions write them (MACRO-AUTOPILOT.md 4.12; the
@@ -355,6 +396,9 @@ Lang.italian = {
 	esercizio = "exercise(\"pushups\")", flessioni = "exercise(\"pushups\")", vero = "True", falso = "False",
 	sempre = "while True:", altrimentise = "elif ...:", fai = "craft(\"...\")", ripara = "repair(\"...\")",
 	affila = "sharpen(\"...\")", leggi = "read(\"...\")", fondi = "smelt(\"...\")",
+	prendi = "take(\"...\", from=\"...\")", metti = "put(\"...\", into=\"...\")", posa = "drop(\"...\")",
+	lascia = "drop(\"...\")", equipaggia = "equip(\"...\")", impugna = "equip(\"...\")", vai = "walk_to(\"...\")",
+	cammina = "walk_to(\"...\")", conta = "count(\"...\")",
 };
 
 -- ============================================================================================================
@@ -654,6 +698,84 @@ local function benchesOff(ctx, token)
 	return false;
 end
 
+-- items and places are off on the server (EnableMacroTransfers, opts.transfers == false; nil: not known, ZomBOT):
+-- the error (waves 2 and 3)
+local function transfersOff(ctx, token)
+	if ctx.opts.transfers == false
+	then
+		lineError(ctx, getText("IGUI_AutoPilot_E_P_TransfersOff", ctx.line), token);
+
+		return true;
+	end
+
+	return false;
+end
+
+-- the macro's places closest to a name not marked (at most 3)
+local function closestPlaces(ctx, key)
+	local found = {};
+
+	for other, place in pairs(ctx.opts.places or {})
+	do
+		local d = distance(key, other);
+
+		if string.find(other, key, 1, true) or string.find(key, other, 1, true) or d * 2 <= string.len(key)
+		then
+			table.insert(found, { name = place.name, d = d });
+		end
+	end
+
+	table.sort(found, function(a, b)
+		if a.d ~= b.d
+		then
+			return a.d < b.d;
+		end
+
+		return a.name < b.name;
+	end);
+
+	local names = {};
+
+	for i = 1, math.min(3, #found)
+	do
+		table.insert(names, found[i].name);
+	end
+
+	return names;
+end
+
+-- A place's name (from=, into=, at= of count and space_left, walk_to): its key and the macro's place, or nil when the
+-- name is empty (the problem is added). With the macro's places known (opts.places, the editor and the start) a name
+-- not marked is a warning ("unknownPlace"): the macro does not start until it is marked (Run:getStartRefusal);
+-- without them (ZomBOT) nothing is said. Every place named is noted in result.placeRefs.
+local function resolvePlace(ctx, node)
+	local key = string.lower(trim(node.v or ""));
+
+	if key == ""
+	then
+		lineError(ctx, getText("IGUI_AutoPilot_E_P_EmptyPlace", ctx.line), node.tok);
+
+		return nil, nil;
+	end
+
+	local place = nil;
+
+	if ctx.opts.places
+	then
+		place = ctx.opts.places[key];
+
+		if place == nil
+		then
+			warn(ctx, withMaybe(getText("IGUI_AutoPilot_E_P_UnknownPlace", ctx.line, node.v), closestPlaces(ctx, key)), node.tok,
+				"unknownPlace", { name = node.v });
+		end
+	end
+
+	table.insert(ctx.result.placeRefs, { line = ctx.line, name = node.v, key = key, place = place });
+
+	return key, place;
+end
+
 -- the names of the benches that do one of the recipes, "a o b" (empty when none)
 local function benchNamesOf(resolver, recipes, set)
 	local names = {};
@@ -807,8 +929,8 @@ local function ranked(resolver, types)
 end
 
 -- An item name that stands for several types (2.9). relevant: the types that matter on this line (those the recipes
--- take; all of them for has / count); use: "use" (craft using=, dismantle: the macro takes the first it finds) or
--- "count" (has, count: all counted together); recipes / recipeText: the line's recipes and the recipe as written (for
+-- take; all of them for has / count); use: "use" (craft using=, dismantle, equip: the macro takes the first it finds),
+-- "count" (has, count: all counted together) or "move" (take, put, drop: all moved together, wave 2); recipes / recipeText: the line's recipes and the recipe as written (for
 -- a name of one item they take, and the other recipe a similar name goes with). Nothing when fewer than 2 matter.
 local function warnAmbiguousItem(ctx, token, types, relevant, use, recipes, recipeText)
 	if #relevant < 2
@@ -835,8 +957,10 @@ local function warnAmbiguousItem(ctx, token, types, relevant, use, recipes, reci
 
 	-- what the macro does with them: the first it finds ("use"), all counted together ("count"), the best condition
 	-- among all of them ("best", condition())
-	local what = { use = "IGUI_AutoPilot_E_P_FirstFound", count = "IGUI_AutoPilot_E_P_CountsAll", best = "IGUI_AutoPilot_E_P_BestOfAll" };
-	local writeOne = { use = "IGUI_AutoPilot_E_P_WriteOne", count = "IGUI_AutoPilot_E_P_CountOne", best = "IGUI_AutoPilot_E_P_WatchOne" };
+	local what = { use = "IGUI_AutoPilot_E_P_FirstFound", count = "IGUI_AutoPilot_E_P_CountsAll", best = "IGUI_AutoPilot_E_P_BestOfAll",
+		move = "IGUI_AutoPilot_E_P_MovesAll" };
+	local writeOne = { use = "IGUI_AutoPilot_E_P_WriteOne", count = "IGUI_AutoPilot_E_P_CountOne", best = "IGUI_AutoPilot_E_P_WatchOne",
+		move = "IGUI_AutoPilot_E_P_MoveOne" };
 
 	text = text .. getText(what[use]);
 
@@ -1512,7 +1636,7 @@ local function compileNum(ctx, node)
 				ctx.moodlesSeen.ENDURANCE = true;
 			end
 
-			return { k = "percent", name = node.lower };
+			return { k = "percent", name = node.lower, word = node.lower };
 		elseif Lang.condWords[node.lower]
 		then
 			if Lang.condWords[node.lower].value == "number"
@@ -1556,8 +1680,36 @@ local function compileNum(ctx, node)
 			return nil;
 		end
 
+		if node.fn == "space_left"
+		then
+			-- wave 2: the weight still carried, or the room of a place
+			local tree = { k = "space" };
+
+			if bound.at
+			then
+				if transfersOff(ctx, bound.at.tok)
+				then
+					return nil;
+				end
+
+				tree.placeKey, tree.place = resolvePlace(ctx, bound.at);
+
+				if tree.placeKey == nil
+				then
+					return nil;
+				end
+			end
+
+			return tree;
+		end
+
 		if node.fn == "count" or node.fn == "condition"
 		then
+			if bound.at and transfersOff(ctx, bound.at.tok)
+			then
+				return nil;
+			end
+
 			local types = resolveItem(ctx, bound.item.tok);
 
 			if types
@@ -1570,7 +1722,20 @@ local function compileNum(ctx, node)
 				return nil;
 			end
 
-			return { k = node.fn, types = types };
+			local tree = { k = node.fn, types = types };
+
+			-- count("X", at="P") (wave 2): what the place holds
+			if bound.at
+			then
+				tree.placeKey, tree.place = resolvePlace(ctx, bound.at);
+
+				if tree.placeKey == nil
+				then
+					return nil;
+				end
+			end
+
+			return tree;
 		end
 
 		local perk = ctx.resolver:resolveSkill(bound.name.v);
@@ -1627,6 +1792,145 @@ local function compareExample(ctx, node)
 	return (node.v or node.tok.text) .. " < 30";
 end
 
+-- The comparisons of a state word with a number that the game says more simply (19/11/2026, MACRO-AUTOPILOT.md 16.4):
+-- a warning, never an error (every macro written before keeps working), with the form to write. Moodles: the levels a
+-- living character can have (Lang.stateInfo[word].reach) the comparison holds for are all of them, none, all but 0
+-- (= the word alone) or only 0 (= not the word). endurance and craving: a number within Lang.stateNear of one of the
+-- game's thresholds (the endurance moodle at 75 / 50 / 25 / 10%, the craving above 0).
+local FLIP = { ["<"] = ">", [">"] = "<", ["<="] = ">=", [">="] = "<=", ["=="] = "==", ["!="] = "!=" };
+
+local function holds(op, a, b)
+	if op == "<" then return a < b; end
+	if op == "<=" then return a <= b; end
+	if op == ">" then return a > b; end
+	if op == ">=" then return a >= b; end
+	if op == "!=" then return a ~= b; end
+
+	return a == b;
+end
+
+local function stateWarn(ctx, token, text, kind, word, suggestion)
+	warn(ctx, text, token, "stateForm", { word = word, kind = kind, suggestion = suggestion });
+end
+
+-- zombified: the game shows it only on a dead character, so a macro always reads 0
+local function deadWarn(ctx, token, word)
+	stateWarn(ctx, token, getText("IGUI_AutoPilot_E_P_StateDead", ctx.line, word), "dead", word, nil);
+end
+
+local function stateHint(ctx, node, a, b)
+	local stateNode, numNode, op, nameNode = a, b, node.op, node.a;
+
+	if b.k == "moodle" or b.k == "percent"
+	then
+		stateNode, numNode, op, nameNode = b, a, FLIP[node.op], node.b;
+	end
+
+	local info = (stateNode.k == "moodle" or stateNode.k == "percent") and numNode.k == "num" and Lang.stateInfo[stateNode.word] or nil;
+
+	if info == nil or op == nil
+	then
+		return;
+	end
+
+	local token = nameNode.tok;
+	local x = numNode.v;
+	local word = info.word;
+	local written = textOf(ctx, ctx.tokenIndex[node.a.tok] or 1, ctx.tokenIndex[node.b.tok]);
+
+	if info.dead
+	then
+		deadWarn(ctx, token, word);
+
+		return;
+	end
+
+	if info.kind == "moodle"
+	then
+		local count, zero, levels = 0, false, {};
+
+		for i, level in ipairs(info.reach)
+		do
+			table.insert(levels, tostring(level));
+
+			if holds(op, level, x)
+			then
+				count = count + 1;
+				zero = zero or level == 0;
+			end
+		end
+
+		local list = table.concat(levels, ", ");
+
+		if count == #info.reach
+		then
+			stateWarn(ctx, token, getText("IGUI_AutoPilot_E_P_StateAlways", ctx.line, written, word, list), "always", word, nil);
+		elseif count == 0
+		then
+			stateWarn(ctx, token, getText("IGUI_AutoPilot_E_P_StateNever", ctx.line, written, word, list), "never", word, nil);
+		elseif count == #info.reach - 1 and not zero
+		then
+			stateWarn(ctx, token, getText("IGUI_AutoPilot_E_P_StateSame", ctx.line, written, word), "same", word, word);
+		elseif count == 1 and zero
+		then
+			stateWarn(ctx, token, getText("IGUI_AutoPilot_E_P_StateSameNot", ctx.line, written, word), "sameNot", word, "not " .. word);
+		end
+
+		return;
+	end
+
+	-- endurance, craving: the game's threshold nearest the number, within Lang.stateNear
+	local near, nearLevel = nil, nil;
+
+	for i, at in ipairs(info.near or {})
+	do
+		if math.abs(x - at) <= Lang.stateNear and (near == nil or math.abs(x - at) < math.abs(x - near))
+		then
+			near, nearLevel = at, i;
+		end
+	end
+
+	if near == nil
+	then
+		return;
+	end
+
+	local below = op == "<" or op == "<=";
+	local above = op == ">" or op == ">=";
+	local suggestion, nearText = nil, nil;
+
+	if word == "endurance"
+	then
+		local same = info.same;
+
+		if below
+		then
+			suggestion = nearLevel == 1 and same or (same .. " >= " .. nearLevel);
+		elseif above
+		then
+			suggestion = nearLevel == 1 and ("not " .. same) or (same .. " < " .. nearLevel);
+		end
+
+		nearText = getText("IGUI_AutoPilot_E_St_NearEndurance", near, Lang.stateLevelName(info.levels[nearLevel]));
+	else
+		-- craving: above 0 = alone (>= 0 and < 0 are always and never, said by nobody: left as written)
+		if (op == ">" or (op == ">=" and x > 0) or (op == "!=" and x == 0))
+		then
+			suggestion = word;
+		elseif (op == "<" and x > 0) or op == "<=" or (op == "==" and x == 0)
+		then
+			suggestion = "not " .. word;
+		end
+
+		nearText = getText("IGUI_AutoPilot_E_St_NearCraving");
+	end
+
+	if suggestion
+	then
+		stateWarn(ctx, token, getText("IGUI_AutoPilot_E_P_StateNear", ctx.line, written, suggestion, nearText), "near", word, suggestion);
+	end
+end
+
 -- a node as a condition, or nil
 compileBool = function(ctx, node)
 	if node.k == "bool"
@@ -1648,13 +1952,34 @@ compileBool = function(ctx, node)
 		local a = compileNum(ctx, node.a);
 		local b = a and compileNum(ctx, node.b);
 
+		if b
+		then
+			stateHint(ctx, node, a, b);
+		end
+
 		return b and { k = "cmp", op = node.op, a = a, b = b } or nil;
 	elseif node.k == "name" and Lang.moodles[node.lower]
 	then
-		-- a moodle alone: at least level 1
+		-- a moodle alone (19/11/2026, 16.1): the game shows it now, its level is 1 or more; a yes / no of the pass's
+		-- states (Run:newStates), the game's own level so the game's own thresholds
 		ctx.moodlesSeen[Lang.moodles[node.lower]] = true;
 
-		return { k = "cmp", op = ">=", a = { k = "moodle", name = Lang.moodles[node.lower], word = node.lower }, b = { k = "num", v = 1 } };
+		if Lang.stateInfo[node.lower] and Lang.stateInfo[node.lower].dead
+		then
+			deadWarn(ctx, node.tok, node.lower);
+		end
+
+		return { k = "state", word = node.lower, moodle = Lang.moodles[node.lower] };
+	elseif node.k == "name" and Lang.percents[node.lower]
+	then
+		-- endurance alone: the endurance moodle is shown (as exerted); craving alone: the game has started the
+		-- nicotine withdrawal (16.1). endurance still tells the engine the macro rests by itself (11.4)
+		if node.lower == "endurance"
+		then
+			ctx.moodlesSeen.ENDURANCE = true;
+		end
+
+		return { k = "state", word = node.lower };
 	elseif node.k == "name" and Lang.condWords[node.lower] and Lang.condWords[node.lower].value == "bool"
 	then
 		-- dark: alone
@@ -2581,6 +2906,83 @@ local function compileSmelt(ctx, bound)
 	addAction(ctx, action, times);
 end
 
+-- take / put / drop / equip / walk_to (waves 2 and 3): the items (or "made" in put and drop), the place, n=, hand=
+local function compileItems(ctx, name, bound)
+	local action = { op = "ACTION", kind = name };
+	local placeNode = bound.from or bound.into or bound.place;
+	local first = (bound.item and bound.item.tok) or (placeNode and placeNode.tok) or nil;
+
+	if transfersOff(ctx, first)
+	then
+		return;
+	end
+
+	if bound.n
+	then
+		if not checkNumber(ctx, bound.n.v, 1, Lang.maxItems)
+		then
+			return;
+		end
+
+		action.n = bound.n.v;
+	end
+
+	if bound.item
+	then
+		action.itemText = bound.item.v;
+
+		if string.lower(trim(bound.item.v)) == Lang.madeWord
+		then
+			if name ~= "put" and name ~= "drop"
+			then
+				lineError(ctx, getText("IGUI_AutoPilot_E_P_MadeHere", ctx.line, name), bound.item.tok);
+
+				return;
+			end
+
+			action.made = true;
+		else
+			local types = resolveItem(ctx, bound.item.tok);
+
+			if types == nil
+			then
+				return;
+			end
+
+			warnAmbiguousItem(ctx, bound.item.tok, types, types, name == "equip" and "use" or "move");
+			action.itemTypes = types;
+		end
+	end
+
+	if bound.hand
+	then
+		local hand = string.lower(trim(bound.hand.v));
+
+		if not Lang.handSet[hand]
+		then
+			lineError(ctx, getText("IGUI_AutoPilot_E_P_BadHand", ctx.line), bound.hand.tok);
+
+			return;
+		end
+
+		action.hand = hand;
+	end
+
+	if placeNode
+	then
+		local key, place = resolvePlace(ctx, placeNode);
+
+		if key == nil
+		then
+			return;
+		end
+
+		action.placeKey, action.place, action.placeName = key, place, placeNode.v;
+	end
+
+	addAction(ctx, action, 1);
+end
+
 -- exercise / rest / eat / drink / smoke / read
 local function compileBody(ctx, name, bound)
 	local action = { op = "ACTION", kind = name };
@@ -2757,6 +3159,9 @@ local function parseCall(ctx, first)
 	elseif name == "smelt"
 	then
 		compileSmelt(ctx, bound);
+	elseif name == "take" or name == "put" or name == "drop" or name == "equip" or name == "walk_to"
+	then
+		compileItems(ctx, name, bound);
 	elseif name == "wait"
 	then
 		local n = bound.seconds.v;
@@ -3108,7 +3513,7 @@ function AutoPilotMoon.Macro.Lang:check(text, resolver, opts)
 	opts = opts or {};
 
 	local result = { ops = {}, handlers = {}, problems = {}, all = {}, errors = 0, warnings = 0, more = 0, actionCount = 0,
-		lineCount = 0, uses = {}, requirements = {}, xpPerks = {} };
+		lineCount = 0, uses = {}, requirements = {}, xpPerks = {}, placeRefs = {}, placesKnown = opts.places ~= nil };
 
 	if resolver == nil or not resolver:isReady()
 	then
@@ -3514,4 +3919,289 @@ function AutoPilotMoon.Macro.Lang:rawColumn(raw, column)
 	end
 
 	return string.len(raw or "");
+end
+
+-- ============================================================================================================
+-- The states (19/11/2026, MACRO-AUTOPILOT.md 16, MACRO-STATI-ANALISI.md): what a state word means alone and at each
+-- level, for the hover of the editor, the suggestions' help, the warnings of the checker and ZomBOT's web editor
+-- ============================================================================================================
+--
+-- A state word alone (if hungry:, when craving:, while not tired:, stop_if(bleeding)) is a yes / no the run works out
+-- once per pass (MacroRun.lua, Run:newStates): "the game shows this state now". A moodle word: the game's own level
+-- (Moodles.getMoodleLevel) is 1 or more, so the game's thresholds are never copied here; endurance: as exerted (the
+-- endurance moodle, at 75% or less); craving: the game has started adding the nicotine withdrawal (above 0). With a
+-- number: a moodle's level, endurance and craving in percent, as before.
+--
+-- Lang.stateInfo[word] (built below, read by ZomBOT too; the texts are translation keys, the game's level names its
+-- own keys Moodles_<game>_lvl<n>):
+--   word, kind ("moodle" / "percent" / "word"), key (MoodleType or CharacterStat name), game (the moodle's
+--   translation name), good (the game's only good moodle), dead (shown only on a dead character), min / max (the
+--   lowest and the highest level the game shows), reach (the levels a living character can have, 0 included),
+--   bool = { key, level } (the yes / no in plain words; level: the game's level whose name and meaning go in it),
+--   levels = { { n, name (the game's key), meaning (key, with at as %1), at (the game's number), never (never shown) } },
+--   use (key: what a number means), note (key or nil), help (key of the suggestions' one line), same (endurance:
+--   the moodle it reads alone), near (the game's thresholds a number of the word is compared with, for the warnings)
+-- Lang:hover(word) -> nil or the lines, translated; Lang:stateBool(word), Lang:stateHelp(word) -> one line.
+
+-- The game's own numbers of every moodle word (42.22 jar, javap -c: MoodleStat's thresholds, Moodle.Update's
+-- comparisons; MACRO-STATI-ANALISI.md 2). at: what the game measures at each level, as the hover says it; levels: the
+-- levels the game can show (default 1-4); own: the levels with a text of their own (IGUI_AutoPilot_E_St_V_<word>_<own>);
+-- note: a note line (IGUI_AutoPilot_E_St_Note_<word>).
+Lang.stateNumbers = {
+	hungry = { game = "Hungry", at = { 15, 25, 45, 70 } },
+	thirsty = { game = "Thirst", at = { 12, 25, 70, 84 } },
+	full = { game = "FoodEaten", at = { 0, 1600, 3200, 4800 }, own = { [1] = "1" }, good = true, note = true },
+	drunk = { game = "Drunk", at = { 10, 30, 50, 70 } },
+	exerted = { game = "Endurance", at = { 75, 50, 25, 10 }, note = true },
+	tired = { game = "Tired", at = { 60, 70, 80, 90 }, note = true },
+	heavy_load = { game = "HeavyLoad", at = { 100, 125, 150, 175 }, own = { [2] = "from", [3] = "from", [4] = "from" } },
+	restricted = { game = "CantSprint", levels = { 1 }, own = { [1] = "1" }, note = true },
+	stressed = { game = "Stress", at = { 25, 50, 75, 90 }, note = true },
+	sad = { game = "Unhappy", at = { 20, 45, 60, 80 } },
+	bored = { game = "Bored", at = { 25, 50, 75, 90 } },
+	panic = { game = "Panic", at = { 6, 30, 65, 80 } },
+	angry = { game = "Angry", at = { 10, 25, 50, 75 } },
+	pain = { game = "Pain", at = { 10, 20, 50, 75 }, note = true },
+	sick = { game = "Sick", at = { 25, 50, 75, 90 }, note = true },
+	injured = { game = "Injured", at = { 80, 60, 40, 25 } },
+	bleeding = { game = "Bleeding", at = { 1, 2, 3, 4 }, own = { [1] = "1", [4] = "4" } },
+	has_cold = { game = "HasACold", at = { 20, 40, 60, 75 } },
+	zombified = { game = "Zombie", levels = { 4 }, own = { [4] = "4" }, dead = true },
+	hot = { game = "Hyperthermia", at = { 37.5, 39, 40, 41 }, own = { [1] = "1" } },
+	cold = { game = "Hypothermia", at = { 36.5, 35, 30, 25 }, own = { [1] = "1", [2] = "2" }, note = true },
+	wet = { game = "Wet", at = { 15, 40, 70, 90 } },
+	windchill = { game = "Windchill", at = { [2] = 10, [3] = 15, [4] = 20 }, levels = { 2, 3, 4 }, own = { [1] = "1" },
+		note = true },
+	uncomfortable = { game = "Uncomfortable", at = { 20, 40, 60, 80 } },
+	smelly = { game = "NoxiousSmell", own = { [1] = "1", [2] = "2", [3] = "3", [4] = "4" }, note = true },
+};
+
+-- a number written within this many of one of the game's thresholds of endurance or craving: the warning suggests the
+-- game's own form (MACRO-AUTOPILOT.md 16.4)
+Lang.stateNear = 5;
+
+-- craving: the game's most of the nicotine withdrawal (CharacterStat.NICOTINE_WITHDRAWAL, 0-0.51) and the percent from
+-- which it alone gives the stress moodle (0.25 / 0.51)
+Lang.cravingMax = 0.51;
+Lang.cravingStressAt = 49;
+
+Lang.stateInfo = {};
+
+local function buildStateInfo()
+	for i, entry in ipairs(Lang.moodleList)
+	do
+		local numbers = Lang.stateNumbers[entry.name] or {};
+		local shown = numbers.levels or { 1, 2, 3, 4 };
+		local reached = {};
+
+		for k, n in ipairs(shown)
+		do
+			reached[n] = true;
+		end
+
+		local info = { word = entry.name, kind = "moodle", key = entry.moodle, game = numbers.game, good = numbers.good == true,
+			dead = numbers.dead == true, min = shown[1], max = shown[#shown], reach = { 0 }, levels = {},
+			use = (#shown > 1) and "IGUI_AutoPilot_E_St_Use_moodle" or "IGUI_AutoPilot_E_St_Use_one",
+			note = numbers.note and ("IGUI_AutoPilot_E_St_Note_" .. entry.name) or nil };
+
+		for n = 1, 4
+		do
+			local own = numbers.own and numbers.own[n] or nil;
+
+			if reached[n] or own
+			then
+				table.insert(info.levels, { n = n, at = numbers.at and numbers.at[n] or nil,
+					name = numbers.game and ("Moodles_" .. numbers.game .. "_lvl" .. n) or nil,
+					meaning = "IGUI_AutoPilot_E_St_V_" .. entry.name .. (own and ("_" .. own) or ""), never = not reached[n] });
+			end
+
+			if reached[n] and not info.dead
+			then
+				table.insert(info.reach, n);
+			end
+		end
+
+		if info.dead
+		then
+			info.bool = { key = "IGUI_AutoPilot_E_St_Bool_dead" };
+			info.use = nil;
+			info.help = "IGUI_AutoPilot_E_St_Bool_dead";
+		else
+			info.bool = { key = (#shown > 1) and "IGUI_AutoPilot_E_St_Bool" or "IGUI_AutoPilot_E_St_Bool_one", level = info.min };
+			info.help = (#shown > 1) and "IGUI_AutoPilot_E_St_Help_moodle" or "IGUI_AutoPilot_E_St_Help_one";
+		end
+
+		Lang.stateInfo[entry.name] = info;
+	end
+
+	-- endurance: alone the endurance moodle (exerted); its numbers are exerted's thresholds in percent
+	local exerted = Lang.stateInfo.exerted;
+
+	Lang.stateInfo.endurance = { word = "endurance", kind = "percent", key = "ENDURANCE", same = "exerted",
+		bool = { key = "IGUI_AutoPilot_E_St_Bool_endurance", level = 1 }, levels = exerted.levels,
+		use = "IGUI_AutoPilot_E_St_Use_endurance", note = "IGUI_AutoPilot_E_St_Note_endurance",
+		help = "IGUI_AutoPilot_E_St_Help_endurance", near = { 75, 50, 25, 10 } };
+	-- craving: the nicotine withdrawal of a smoker; no moodle of its own (it adds to the stress)
+	Lang.stateInfo.craving = { word = "craving", kind = "percent", key = "NICOTINE_WITHDRAWAL",
+		bool = { key = "IGUI_AutoPilot_E_St_Bool_craving" }, levels = {}, use = "IGUI_AutoPilot_E_St_Use_craving",
+		note = "IGUI_AutoPilot_E_St_Note_craving", help = "IGUI_AutoPilot_E_St_Help_craving", near = { 0 } };
+
+	-- dark, hour: the words of the work (their help as the suggestions say it)
+	for i, entry in ipairs(Lang.condWordList)
+	do
+		Lang.stateInfo[entry.name] = { word = entry.name, kind = "word", bool = { key = "IGUI_AutoPilot_E_Sug_Cond_" .. entry.name },
+			levels = {} };
+	end
+end
+
+buildStateInfo();
+
+-- the game's name of a level (its own translation, when the game has it), else "livello N"
+local function stateLevelName(level)
+	local name = level and level.name and getTextOrNull(level.name) or nil;
+
+	if name == nil or name == "" or name == level.name
+	then
+		return getText("IGUI_AutoPilot_E_St_Level", level and level.n or 0);
+	end
+
+	return name;
+end
+
+local function stateLevelMeaning(level)
+	return getText(level.meaning, level.at);
+end
+
+local function stateLevel(info, n)
+	for i, level in ipairs(info.levels)
+	do
+		if level.n == n
+		then
+			return level;
+		end
+	end
+
+	return nil;
+end
+
+-- the level after the first one the game shows (the example of a number: hungry >= 2), or nil
+local function secondLevel(info)
+	for i, level in ipairs(info.levels)
+	do
+		if not level.never and level.n > info.min
+		then
+			return level;
+		end
+	end
+
+	return nil;
+end
+
+Lang.stateLevelName = stateLevelName;
+
+-- the yes / no of a state word in plain words ("Da solo: vero quando il gioco lo mostra, da ..."), or nil
+function AutoPilotMoon.Macro.Lang:stateBool(word)
+	local info = word and Lang.stateInfo[string.lower(word)];
+
+	if info == nil
+	then
+		return nil;
+	end
+
+	local level = info.bool.level and stateLevel(info, info.bool.level) or nil;
+
+	if level
+	then
+		return getText(info.bool.key, stateLevelName(level), stateLevelMeaning(level));
+	end
+
+	return getText(info.bool.key);
+end
+
+-- the one line of the suggestions' help for a state word (nil: a word of the work, which has its own)
+function AutoPilotMoon.Macro.Lang:stateHelp(word)
+	local info = word and Lang.stateInfo[string.lower(word)];
+
+	if info == nil or info.help == nil
+	then
+		return nil;
+	end
+
+	if info.kind == "moodle" and not info.dead
+	then
+		local first = stateLevel(info, info.min);
+		local second = secondLevel(info);
+
+		-- at most 4 arguments for a text (the game's getText takes more, the tests' one 4: kept for both)
+		if second
+		then
+			return getText(info.help, stateLevelName(first), stateLevelMeaning(first), info.word .. " >= " .. second.n, stateLevelName(second));
+		end
+
+		return getText(info.help, stateLevelName(first), stateLevelMeaning(first));
+	end
+
+	return getText(info.help);
+end
+
+-- The hover of a state word (the editor shows it, MACRO-AUTOPILOT.md 16.5): nil for a word that is not a state, else
+-- the lines already translated: the word and its name, what it means alone, one line per level ("1 = <the game's name
+-- of the level>: <from which value>"), what a number means, a note
+function AutoPilotMoon.Macro.Lang:hover(word)
+	local info = word and Lang.stateInfo[string.lower(word)];
+
+	if info == nil
+	then
+		return nil;
+	end
+
+	local lines = {};
+
+	if info.kind == "moodle"
+	then
+		local label = getText("IGUI_AutoPilot_E_Moodle_" .. info.word);
+
+		if info.min == info.max
+		then
+			table.insert(lines, getText("IGUI_AutoPilot_E_St_Title_one", info.word, label, info.min));
+		else
+			table.insert(lines, getText("IGUI_AutoPilot_E_St_Title_moodle", info.word, label, info.min, info.max));
+		end
+	elseif info.kind == "percent"
+	then
+		table.insert(lines, getText("IGUI_AutoPilot_E_St_Title_percent", info.word, getText("IGUI_AutoPilot_E_Moodle_" .. info.word)));
+	else
+		table.insert(lines, getText("IGUI_AutoPilot_E_St_Title_percent", info.word, getText("IGUI_AutoPilot_E_Cond_" .. info.word)));
+	end
+
+	table.insert(lines, Lang:stateBool(info.word));
+
+	for i, level in ipairs(info.levels)
+	do
+		if info.kind == "moodle"
+		then
+			table.insert(lines, getText("IGUI_AutoPilot_E_St_LevelLine", level.n, stateLevelName(level), stateLevelMeaning(level)));
+		else
+			table.insert(lines, getText("IGUI_AutoPilot_E_St_PctLine", level.at, stateLevelName(level), level.n));
+		end
+	end
+
+	if info.use
+	then
+		local second = info.kind == "moodle" and secondLevel(info) or nil;
+
+		if second
+		then
+			table.insert(lines, getText(info.use, info.word, second.n, stateLevelName(second)));
+		else
+			table.insert(lines, getText(info.use, info.word, info.max));
+		end
+	end
+
+	if info.note
+	then
+		table.insert(lines, getText(info.note, Lang.cravingStressAt));
+	end
+
+	return lines;
 end

@@ -61,6 +61,11 @@ View.underline = rgb(241, 76, 76);      -- #F14C4C the word an error is about
 View.warnUnderline = rgb(204, 167, 0);  -- #CCA700 the word a warning is about (VS Code's warning squiggle)
 -- UITextBox2.textEntryCursorColour of 42.22: Color(170, 170, 220, 240)
 View.caret = { r = 170 / 255, g = 170 / 255, b = 220 / 255, a = 240 / 255 };
+-- [editor-smart 19/11/2026] the indentation guides (VS Code Dark+ editorIndentGuide #404040) and the cursor's line
+-- (see-through white: over #1E1E1E about #282828, VS Code's line highlight); view.decorations = false leaves them out
+View.guide = rgb(64, 64, 64);
+View.currentRow = { r = 1, g = 1, b = 1, a = 0.045 };
+View.guideUnit = 4;
 -- UITextBox2.Paginate: the room it leaves for the scroll bar when it wraps
 View.scrollBarRoom = 17;
 View.maxCachedLines = 1000;
@@ -73,7 +78,7 @@ View.Methods = Methods;
 -- a view for one text box; font: a UIFont
 function AutoPilotMoon.Macro.CodeView:new()
 	local o = { lineCache = {}, cacheCount = 0, wrapCache = {}, advances = {}, rows = {}, firstRow = {}, lines = {},
-		problemLines = {}, errorLines = {}, spans = {}, generation = 0 };
+		problemLines = {}, errorLines = {}, spans = {}, generation = 0, guides = {}, decorations = true };
 
 	setmetatable(o, Meta);
 
@@ -256,8 +261,55 @@ function Methods:sync(text, width, wrap)
 	self.lines = lines;
 	self.rows = rows;
 	self.firstRow = firstRow;
+	self.guides = View.guideCounts(lines);
 
 	return true;
+end
+
+-- [editor-smart 19/11/2026] the indentation guides of each line: one at every 4 columns of its leading spaces (VS
+-- Code draws them so); a blank line takes the fewer of the lines with code around it, so the guides go on through it
+function AutoPilotMoon.Macro.CodeView.guideCounts(lines)
+	local unit = View.guideUnit;
+	local counts = {};
+	local leads = {};
+
+	for L, line in ipairs(lines)
+	do
+		if string.find(line, "[^ \t\r]")
+		then
+			leads[L] = string.len(string.match(line, "^ *") or "");
+		end
+	end
+
+	local previous = 0;
+
+	for L = 1, #lines
+	do
+		local lead = leads[L];
+
+		if lead == nil
+		then
+			local following = 0;
+
+			for k = L + 1, #lines
+			do
+				if leads[k]
+				then
+					following = leads[k];
+
+					break;
+				end
+			end
+
+			lead = math.min(previous, following);
+		else
+			previous = lead;
+		end
+
+		counts[L] = math.ceil(lead / unit);
+	end
+
+	return counts;
 end
 
 -- the row (1-based) of an offset in the whole text: UITextBox2.toDisplayLine (the first row whose start <= offset <=
@@ -496,8 +548,9 @@ function Methods:setProblems(text, problems)
 				local Lang = AutoPilotMoon.Macro.Lang;
 
 				spans[problem.line] = spans[problem.line] or {};
+				-- text: what the help under the mouse says over the word (MacroHover.lua)
 				table.insert(spans[problem.line], { s = Lang:rawColumn(raw, problem.s), e = Lang:rawColumn(raw, problem.e),
-					warn = problem.warn == true });
+					warn = problem.warn == true, text = problem.text });
 			end
 		end
 	end
@@ -577,9 +630,21 @@ function Methods:drawFront(entry, cursor, runningLine)
 
 	entry:setStencilRect(inset, inset, width - 2 * inset, height - 2 * inset);
 
+	-- [editor-smart] the cursor's line, lightly (only with the keyboard, not on a line with its own colour)
+	local currentLine = nil;
+
+	if cursor and self.decorations and self.caretIndex and self.rows[self.caretIndex]
+	then
+		currentLine = self.rows[self.caretIndex].line;
+	end
+
+	local space = self.decorations and self:advance(" ") or 0;
+	local guide = View.guide;
+
 	for k, draw in ipairs(draws)
 	do
-		local line = self.rows[top + k].line;
+		local row = self.rows[top + k];
+		local line = row.line;
 		local c = nil;
 
 		if runningLine and line == runningLine
@@ -588,11 +653,23 @@ function Methods:drawFront(entry, cursor, runningLine)
 		elseif self.errorLines[line]
 		then
 			c = View.errorRow;
+		elseif line == currentLine
+		then
+			c = View.currentRow;
 		end
 
 		if c
 		then
 			entry:drawRect(inset - 1, inset + (top + k - 1) * lh, width - 2 * inset + 2, lh, c.a, c.r, c.g, c.b);
+		end
+
+		-- the indentation guides on the first row of a line (the rows a long line wraps to have no indentation)
+		if row.first and space > 0
+		then
+			for g = 0, (self.guides[line] or 0) - 1
+			do
+				entry:drawRect(inset + g * View.guideUnit * space, inset + (top + k - 1) * lh, 1, lh, 1, guide.r, guide.g, guide.b);
+			end
 		end
 	end
 

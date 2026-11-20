@@ -12,7 +12,12 @@
 --   eat       the inventory's "Eat > All": ISInventoryPaneContextMenu.eatItem (and "Open and Eat" for a can)
 --   drink     the inventory's "Drink": ISInventoryPaneContextMenu.onDrinkFluid
 --   smoke     the inventory's "Smoke": eatItem for a cigarette, takePill for a pack; a fire as the menu asks for it
--- Every action counts only when the character shows it (stats, the item gone, sitting), within a timeout.
+-- Every action counts only when the character shows it (stats, the item gone, sitting), with the engine's wait
+-- (AutoPilotMoon.Wait, 1.2.1): the game's actions watched from the moment they are queued (a refusal of the server, an
+-- action the game did not queue: said at once), the effect looked at with the character idle up to Wait.timeoutMs
+-- ("Open and Eat": Body.canConfirmMs, the meal is queued by a command of the server that is not ordered with the rest);
+-- the item read by its id (the game moves a bottle, a pack or a book from a bag into the inventory and back: in
+-- multiplayer another object each time).
 --
 -- Body:start(run, op) -> pending, or nil + reason text + "nothing" (nothing to eat / drink / smoke: a "while
 --   possible" ends well) / "skip" (nothing to do: already rested) / nil (a refusal: the macro stops)
@@ -29,8 +34,7 @@ Body.seatRadius = 8;            -- the nearest seat within this many squares (sa
 Body.sitTimeoutMs = 20000;      -- idle and still not sitting after this: the macro stops
 Body.restMaxMs = 600000;        -- at most 10 real minutes on a seat, then up again (the endurance may not come back)
 Body.standTimeoutMs = 4000;
-Body.confirmMs = 3000;          -- no effect after this, idle: the macro stops
-Body.canConfirmMs = 8000;       -- "Open and Eat": the server queues the eating after the can is open
+Body.canConfirmMs = 8000;       -- "Open and Eat": the server queues the eating after the can is open (Wait's exception)
 Body.maxDrinkCapacity = 3.0;    -- the game's "Too big to drink from" (ISInventoryPaneContextMenu.doDrinkFluidMenu)
 Body.notPerishable = 100000000; -- getOffAgeMax of the food that never spoils
 
@@ -210,20 +214,15 @@ function AutoPilotMoon.Macro.Body:reequip(run)
 	end
 end
 
-local function confirmExercise(run, pending, waited)
+-- the effect of an exercise: experience, or endurance spent
+local function exercised(run, pending)
 	local player = run.player;
 
-	if xpSum(player, pending.op) > pending.xp0 + 0.0001 or stat(player, "ENDURANCE") < pending.endurance0 - 0.0001
-	then
-		return "done";
-	end
+	return xpSum(player, pending.op) > pending.xp0 + 0.0001 or stat(player, "ENDURANCE") < pending.endurance0 - 0.0001;
+end
 
-	if waited < Body.confirmMs
-	then
-		return "busy";
-	end
-
-	return "fail", getText("IGUI_AutoPilot_A_MacroR_ExerciseNoEffect", pending.op.exercise);
+local function exerciseFailed(run, pending)
+	return getText("IGUI_AutoPilot_A_MacroR_ExerciseNoEffect", pending.op.exercise);
 end
 
 -- ============================================================================================================
@@ -577,20 +576,21 @@ local function gone(player, pending)
 	return player:getInventory():getItemWithIDRecursiv(pending.itemId) == nil;
 end
 
-local function confirmEat(run, pending, waited)
+-- eaten: less hungry, or the food used up (by id); a can: only the hunger (opening it uses the closed can up)
+local function eaten(run, pending)
 	local player = run.player;
 
-	if stat(player, "HUNGER") < pending.hunger0 - 0.0001 or (not pending.can and gone(player, pending))
+	return stat(player, "HUNGER") < pending.hunger0 - 0.0001 or (not pending.can and gone(player, pending));
+end
+
+local function eatFailed(run, pending)
+	if pending.can and gone(run.player, pending)
 	then
-		return "done";
+		-- opened (the closed can is gone), the meal never came: the server's command did not arrive
+		return getText("IGUI_AutoPilot_A_MacroR_CanNoMeal", pending.name);
 	end
 
-	if waited < (pending.can and Body.canConfirmMs or Body.confirmMs)
-	then
-		return "busy";
-	end
-
-	return "fail", getText("IGUI_AutoPilot_A_MacroR_NotEaten", pending.name);
+	return getText("IGUI_AutoPilot_A_MacroR_NotEaten", pending.name);
 end
 
 -- a drink that is safe (11.5): not empty, small enough for the game, not poisonous nor tainted, not sealed; without a
@@ -645,28 +645,31 @@ local function startDrink(run, op)
 		return nil, why, kind;
 	end
 
-	local pending = { kind = "drink", item = item, name = item:getDisplayName(), thirst0 = stat(player, "THIRST"), amount0 = item:getFluidContainer():getAmount() };
+	local pending = { kind = "drink", item = item, itemId = item:getID(), name = item:getDisplayName(), thirst0 = stat(player, "THIRST"),
+		amount0 = item:getFluidContainer():getAmount() };
 
 	ISInventoryPaneContextMenu.onDrinkFluid(item, op.amount, player, nil, item);
 
 	return pending;
 end
 
-local function confirmDrink(run, pending, waited)
-	local player = run.player;
-	local fluid = pending.item:getFluidContainer();
+-- the item now, by id (in multiplayer a bottle from a bag comes back as another object); nil: used up or gone
+local function current(pending)
+	local wait = pending.wait;
 
-	if stat(player, "THIRST") < pending.thirst0 - 0.0001 or (fluid and fluid:getAmount() < pending.amount0 - 0.0001)
-	then
-		return "done";
-	end
+	return wait and wait:resolve(pending.itemId) or nil;
+end
 
-	if waited < Body.confirmMs
-	then
-		return "busy";
-	end
+-- drunk: less thirsty, or less in the bottle (the bottle found again by id)
+local function drunk(run, pending)
+	local item = current(pending);
+	local fluid = item and item:getFluidContainer();
 
-	return "fail", getText("IGUI_AutoPilot_A_MacroR_NotDrunk", pending.name);
+	return stat(run.player, "THIRST") < pending.thirst0 - 0.0001 or (fluid ~= nil and fluid:getAmount() < pending.amount0 - 0.0001);
+end
+
+local function drinkFailed(run, pending)
+	return getText("IGUI_AutoPilot_A_MacroR_NotDrunk", pending.name);
 end
 
 -- a drainable with something left (the game keeps its own copy of this local in every file that needs it)
@@ -781,20 +784,23 @@ local function startSmoke(run, op)
 	return pending;
 end
 
-local function confirmSmoke(run, pending, waited)
+-- smoked: used up, fewer uses in the pack (found again by id), or less stressed
+local function smoked(run, pending)
 	local player = run.player;
+	local item = current(pending);
 
-	if gone(player, pending) or uses(pending.item) < pending.uses0 - 0.0001 or stat(player, "STRESS") < pending.stress0 - 0.0001
-	then
-		return "done";
-	end
+	return gone(player, pending) or (item ~= nil and uses(item) < pending.uses0 - 0.0001)
+		or stat(player, "STRESS") < pending.stress0 - 0.0001;
+end
 
-	if waited < Body.confirmMs
-	then
-		return "busy";
-	end
+-- a smoke() confirmed: the craving as the client has it now; in MP the new value comes with the next stats of the
+-- server (MacroRun.lua, Run.smokeSettleMs; MACRO-AUTOPILOT.md 16.3)
+local function noteSmoked(run)
+	run.smoked = { at = now(), raw = stat(run.player, "NICOTINE_WITHDRAWAL") };
+end
 
-	return "fail", getText("IGUI_AutoPilot_A_MacroR_NotSmoked", pending.name);
+local function smokeFailed(run, pending)
+	return getText("IGUI_AutoPilot_A_MacroR_NotSmoked", pending.name);
 end
 
 -- ============================================================================================================
@@ -949,6 +955,7 @@ local function startRead(run, op)
 
 	state.kind = "read";
 	state.book = book;
+	state.itemId = book:getID();
 	state.name = book:getDisplayName();
 	state.numberOfPages = book:getNumberOfPages();
 
@@ -957,23 +964,18 @@ end
 
 -- counted when the character read something: more pages (or the whole book), a magazine's recipes, a story read, less
 -- boredom or sadness (a comic without pages)
-local function confirmRead(run, pending, waited)
+local function read(run, pending)
 	local player = run.player;
-	local now = readState(player, pending.book);
+	-- the book by id: the game moves it from a bag into the inventory and back (another object in multiplayer)
+	local now = readState(player, current(pending) or pending.book);
 
-	if now.pages > pending.pages or (pending.numberOfPages > 0 and now.pages >= pending.numberOfPages)
+	return now.pages > pending.pages or (pending.numberOfPages > 0 and now.pages >= pending.numberOfPages)
 		or (now.readBook and not pending.readBook) or (now.literature and not pending.literature)
-		or now.boredom < pending.boredom - 0.0001 or now.unhappiness < pending.unhappiness - 0.0001
-	then
-		return "done";
-	end
+		or now.boredom < pending.boredom - 0.0001 or now.unhappiness < pending.unhappiness - 0.0001;
+end
 
-	if waited < Body.confirmMs
-	then
-		return "busy";
-	end
-
-	return "fail", getText("IGUI_AutoPilot_A_MacroR_NotRead", pending.name);
+local function readFailed(run, pending)
+	return getText("IGUI_AutoPilot_A_MacroR_NotRead", pending.name);
 end
 
 -- "Adesso si puo' fare?" for read(): nil when it can start now
@@ -998,30 +1000,60 @@ end
 -- ============================================================================================================
 
 local starts = { exercise = startExercise, rest = startRest, eat = startEat, drink = startDrink, smoke = startSmoke, read = startRead };
-local confirms = { exercise = confirmExercise, rest = confirmRest, eat = confirmEat, drink = confirmDrink, smoke = confirmSmoke,
-	read = confirmRead };
+-- what shows the action happened, and what to say when it did not
+local effects = { exercise = exercised, eat = eaten, drink = drunk, smoke = smoked, read = read };
+local failures = { exercise = exerciseFailed, eat = eatFailed, drink = drinkFailed, smoke = smokeFailed, read = readFailed };
 
 function AutoPilotMoon.Macro.Body:start(run, op)
+	local mark = AutoPilotMoon.Wait:mark(run.player);
 	local pending, why, kind = starts[op.kind](run, op);
 
 	if pending
 	then
 		pending.op = op;
+
+		if effects[pending.kind]
+		then
+			-- the engine's wait: the game's actions just queued watched (a refusal at once), the effect looked at
+			-- while idle; "Open and Eat" waits longer (the meal comes with a command of the server)
+			local wait = AutoPilotMoon.Wait:new(run.player, { label = Body:describe(op),
+				timeoutMs = pending.can and Body.canConfirmMs or nil });
+
+			wait:watchQueued(mark);
+			wait:expectTrue(function()
+				return effects[pending.kind](run, pending);
+			end);
+			pending.wait = wait;
+		end
 	end
 
 	return pending, why, kind;
 end
 
 function AutoPilotMoon.Macro.Body:confirm(run, pending)
-	local waited = AutoPilotMoon.Macro.Run:idleFor(pending);
-	local answer, text = confirms[pending.kind](run, pending, waited);
-
-	if answer == "busy" and pending.kind ~= "rest" and waited >= AutoPilotMoon.Macro.Run.waitingAfterMs
+	if pending.kind == "rest"
 	then
-		AutoPilotMoon.Progress:setWaiting(true);
+		return confirmRest(run, pending, AutoPilotMoon.Macro.Run:idleFor(pending));
 	end
 
-	return answer, text;
+	local answer, why = pending.wait:check();
+
+	if answer == "done" and pending.kind == "smoke"
+	then
+		noteSmoked(run);
+	end
+
+	if answer == "busy" or answer == "done"
+	then
+		return answer;
+	end
+
+	if why == "notqueued"
+	then
+		return "fail", getText("IGUI_AutoPilot_A_MacroR_WaitNotQueued", Body:describe(pending.op));
+	end
+
+	return "fail", failures[pending.kind](run, pending);
 end
 
 -- "Adesso si puo' fare?": nil when the action can start now, else why (nothing is queued)

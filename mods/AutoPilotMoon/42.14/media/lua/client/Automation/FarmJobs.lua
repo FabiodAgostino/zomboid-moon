@@ -231,6 +231,20 @@ local function livingPlant(square)
 	return nil;
 end
 
+-- the plant's state as the server sends it (its global object): what any farm action changes (the stencil's settle)
+local function plantState(square, player, ctx)
+	local plant = CFarmingSystem.instance:getLuaObjectOnSquare(square);
+
+	if plant == nil
+	then
+		return "none";
+	end
+
+	return tostring(plant.state) .. "|" .. tostring(plant.fertilizer) .. "|" .. tostring(plant.compost) .. "|"
+		.. tostring(plant.hasVegetable) .. "|" .. tostring(plant.mildewLvl) .. "|" .. tostring(plant.fliesLvl) .. "|"
+		.. tostring(plant.slugsLvl) .. "|" .. tostring(plant.aphidLvl) .. "|" .. tostring(plant.typeOfSeed);
+end
+
 local function level(plant, field)
 	return tonumber(plant[field]) or 0;
 end
@@ -301,6 +315,7 @@ Stencil:define("farmDig", {
 	counterKey = "IGUI_AutoPilot_P_C_Furrows",
 	activityKey = "IGUI_AutoPilot_P_Now_Digging",
 	needsEndurance = true,
+	settle = plantState,
 	hasWork = function(square, player, ctx)
 		return ISFarmingMenu.canDigHereSquare(square) == true;
 	end,
@@ -343,6 +358,7 @@ Stencil:define("farmSow", {
 	unitKey = "IGUI_AutoPilot_S_Unit_Squares",
 	counterKey = "IGUI_AutoPilot_P_C_Sown",
 	activityKey = "IGUI_AutoPilot_P_Now_Sowing",
+	settle = plantState,
 	hasWork = function(square, player, ctx)
 		local plant = Farm:getPlant(square);
 
@@ -375,6 +391,7 @@ Stencil:define("farmFertilize", {
 	unitKey = "IGUI_AutoPilot_S_Unit_Plants",
 	counterKey = "IGUI_AutoPilot_P_C_Fertilized",
 	activityKey = "IGUI_AutoPilot_P_Now_Fertilizing",
+	settle = plantState,
 	hasWork = function(square, player, ctx)
 		local plant = livingPlant(square);
 
@@ -418,6 +435,7 @@ Stencil:define("farmTreat", {
 	unitKey = "IGUI_AutoPilot_S_Unit_Plants",
 	counterKey = "IGUI_AutoPilot_P_C_Treated",
 	activityKey = "IGUI_AutoPilot_P_Now_Treating",
+	settle = plantState,
 	maxSteps = 8,
 	hasWork = function(square, player, ctx)
 		local plant = livingPlant(square);
@@ -481,6 +499,7 @@ Stencil:define("farmHarvest", {
 	unitKey = "IGUI_AutoPilot_S_Unit_Plants",
 	counterKey = "IGUI_AutoPilot_P_C_Harvested",
 	activityKey = "IGUI_AutoPilot_P_Now_Harvesting",
+	settle = plantState,
 	needsEndurance = true,
 	hasWork = function(square, player, ctx)
 		local plant = livingPlant(square);
@@ -516,6 +535,7 @@ Stencil:define("farmRemove", {
 	unitKey = "IGUI_AutoPilot_S_Unit_Plants",
 	counterKey = "IGUI_AutoPilot_P_C_Removed",
 	activityKey = "IGUI_AutoPilot_P_Now_Removing",
+	settle = plantState,
 	needsEndurance = true,
 	hasWork = function(square, player, ctx)
 		local plant = Farm:getPlant(square);

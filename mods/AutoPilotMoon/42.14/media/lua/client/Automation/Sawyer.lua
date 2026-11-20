@@ -47,7 +47,6 @@ Sawyer.outputs = { ["Base.Plank"] = true };
 Sawyer.maxTries = 3;          -- recipes started on the same log that do not saw it before it is left
 Sawyer.carryPerJob = 100000;  -- the planks carried are bounded by the logs per job, not by the Gatherer's limit
 Sawyer.floorLimit = 50;       -- ISDropWorldItemAction:isValid of 42.22: no more than 50 of weight on the square
-Sawyer.dropGraceMs = 1500;    -- the drops ended and a plank is still in the inventory: the server may still answer
 Sawyer.maxDropTries = 3;      -- drops of the same plank that do not happen before it is left in the bag
 Sawyer.maxWalks = 3;          -- walks towards the same log that do not bring it within reach before it is left
 
@@ -120,7 +119,7 @@ function AutoPilotMoon.Automation.startSawyer(player, squares, startSquare, ctx)
 			leave = dest == nil,   -- no destination: the planks stay on the ground next to the log
 			logFrom = {},          -- log id -> { x, y, z } of the square where it lay (sawn there)
 			walks = {},            -- log id -> walks towards it
-			drop = nil,            -- the planks being put down: { from, entries = { item, id, done }, idleSince }
+			drop = nil,            -- the planks being put down: { from, entries = { id }, wait } (the engine's wait)
 			dropTries = {},        -- plank id -> drops that did not happen
 		};
 
@@ -298,6 +297,7 @@ end
 local function startDrop(S, player, items, from)
 	local targets = dropTargets(player, from);
 	local entries = {};
+	local wait = AutoPilotMoon.Wait:new(player, { label = getText("IGUI_AutoPilot_W_Dropped") });
 
 	for i, item in ipairs(items)
 	do
@@ -313,8 +313,11 @@ local function startDrop(S, player, items, from)
 
 				action.isPlaceItem = true;
 				ISTimedActionQueue.add(action);
+				wait:watch(action);
+				-- out of the inventory, by id (on the square it is another object of the game)
+				wait:expectOut(item, "inventory");
 				target.weight = target.weight + weight;
-				table.insert(entries, { item = item, id = item:getID(), done = false });
+				table.insert(entries, { id = item:getID() });
 
 				break;
 			end
@@ -326,7 +329,7 @@ local function startDrop(S, player, items, from)
 		return false;
 	end
 
-	S.drop = { from = from, entries = entries, idleSince = nil };
+	S.drop = { from = from, entries = entries, wait = wait };
 	AutoPilotMoon.Progress:setActivity("IGUI_AutoPilot_P_Now_LeavingPlanks", #entries);
 
 	return true;
@@ -337,48 +340,33 @@ end
 local function confirmDrop(S, player)
 	local drop = S.drop;
 	local inventory = player:getInventory();
-	local now = getTimestampMs();
-	local waiting = false;
+	local answer, why, info = drop.wait:check();
 
-	for i, entry in ipairs(drop.entries)
-	do
-		if not entry.done
-		then
-			if inventory:getItemWithIDRecursiv(entry.id) == nil
-			then
-				entry.done = true;
-				AutoPilotMoon.Progress:count("IGUI_AutoPilot_P_C_PlanksLeft");
-			else
-				waiting = true;
-			end
-		end
-	end
-
-	drop.idleSince = drop.idleSince or now;
-
-	if waiting and now - drop.idleSince < Sawyer.dropGraceMs
+	if answer == "busy"
 	then
-		AutoPilotMoon.Progress:setWaiting(true);
-
 		return "busy";
 	end
 
-	AutoPilotMoon.Progress:setWaiting(false);
 	S.drop = nil;
 
 	local again = {};
 
 	for i, entry in ipairs(drop.entries)
 	do
-		if not entry.done
+		if info.ids[entry.id]
 		then
+			AutoPilotMoon.Progress:count("IGUI_AutoPilot_P_C_PlanksLeft");
+		else
 			S.dropTries[entry.id] = (S.dropTries[entry.id] or 0) + 1;
+
+			local item = inventory:getItemWithIDRecursiv(entry.id);
 
 			if S.dropTries[entry.id] >= Sawyer.maxDropTries
 			then
 				AutoPilotMoon.Progress:warn("IGUI_AutoPilot_A_Reason_ServerRefused");
-			else
-				table.insert(again, entry.item);
+			elseif item
+			then
+				table.insert(again, item);
 			end
 		end
 	end
@@ -398,7 +386,7 @@ end
 
 -- what a finished recipe did: the log gone (sawn, counted), the planks made (cargo, or put down next to the log)
 local function confirmSaw(S, player)
-	local result, consumed, outputs = Craft:confirm(S.craft, player);
+	local result, consumed, outputs, atFeet = Craft:confirm(S.craft, player);
 
 	if result == "busy"
 	then
@@ -415,6 +403,9 @@ local function confirmSaw(S, player)
 		do
 			Haul:addCargo(S.hauler, item);
 		end
+
+		-- the planks the game laid at the feet (no room): picked up and carried too
+		Haul:addAtFeet(S.hauler, atFeet);
 	end
 
 	if consumed
@@ -441,6 +432,12 @@ local function confirmSaw(S, player)
 		end
 
 		return "stop";
+	end
+
+	if not S.leave and #atFeet > 0
+	then
+		-- the next step picks them up (Haul:update)
+		return "busy";
 	end
 
 	return nil;

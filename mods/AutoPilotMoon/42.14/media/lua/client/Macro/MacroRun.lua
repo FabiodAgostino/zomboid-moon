@@ -12,7 +12,8 @@
 -- game's own (Craft:queueAction = the right click's OnNewCraft, the ISHandcraftAction the server checks and performs)
 -- on the first suitable item, never a favourite, an equipped or a worn one; exercise, rest, eat, drink and smoke are
 -- the game's own actions as by hand (MacroBody.lua). Every action counts only when the game says so (the inventory, the
--- character's stats), waiting up to Run.confirmMs for the server, "aspetta il server..." after Run.waitingAfterMs.
+-- character's stats), with the engine's wait (AutoPilotMoon.Wait, 1.2.1): up to Wait.timeoutMs idle for the server,
+-- "aspetta il server: ..." after Wait.waitingAfterMs.
 -- Never a step given for done; no retry of a failed step: the macro stops and says the line and why. The server's
 -- limits are read at every step: actions per run, loops per run, actions per minute (a pause, not a stop).
 --
@@ -22,10 +23,17 @@
 -- skill in a run (MacroLevelsPerRun), skills no macro works for (MacroExcludedSkills: the macro stops before an action
 -- that would reward one).
 --
+-- Items and places (waves 2 and 3, 19/11/2026, MacroItems.lua, MacroPlaces.lua): take, put, drop, equip and walk_to are
+-- the game's own transfers, drop, equip and walk, confirmed by what arrived; a named place is checked at the start
+-- (marked in the macro, within MacroPlaceRadius of the start) and before every use; at most MacroItemsPerRun items
+-- moved in a run. Switch EnableMacroTransfers, read at every step.
+--
 -- The hooks on the game's ISHandcraftAction (perform and stop, installed once at OnGameStart, also used by the
 -- recorder): the game's method is always called, ours only reads (inside pcall, an error of ours never breaks the
--- player's recipe); the "before" snapshot of the inventory is taken just before the game's perform, because in single
--- player perform makes the recipe at once.
+-- player's recipe). A recipe is confirmed by id (1.2.1): the item clicked used up (not in the inventory, not on the
+-- 3x3 at the feet, not in its container), or something new since the recipe was QUEUED (in the inventory or at the
+-- feet: in multiplayer the outputs arrive before the client's perform, a photo there saw them already), or what the
+-- recipe keeps changed.
 
 AutoPilotMoon = AutoPilotMoon or {};
 AutoPilotMoon.Macro = AutoPilotMoon.Macro or {};
@@ -37,8 +45,6 @@ local Hooks = AutoPilotMoon.Macro.Hooks;
 local A = AutoPilotMoon.Automation;
 
 Run.maxControlOps = 64;       -- LOOP / END / STOPIF / IF / JUMP per frame at most
-Run.confirmMs = 3000;         -- the action ended without a result: give up after this
-Run.waitingAfterMs = 1500;    -- "aspetta il server..." from this
 Run.handlerInRow = 3;         -- a "when" that runs this many times with no action of the macro between: stop
 Run.severeLevel = 4;          -- a moodle a "when" looks after stops the macro only at this level (11.4)
 -- the engine's "unwell" moodles a "when" can look after (eat, drink, stop calmly...): the others (injured, bleeding)
@@ -46,7 +52,6 @@ Run.severeLevel = 4;          -- a moodle a "when" looks after stops the macro o
 Run.relaxable = { HUNGRY = true, THIRST = true, PANIC = true };
 Run.current = nil;            -- the running macro
 Run.last = nil;               -- how the last run ended, for the editor: { name, reason, line, text }
-Run.beforeIds = {};           -- the ids of the inventory (and of the items at the feet) at the action's perform
 
 -- the server's limits of the macros (shared/05_AP_Config.lua, sandbox-options.txt), read at every step
 local function limits()
@@ -63,6 +68,14 @@ end
 
 local function Bench()
 	return AutoPilotMoon.Macro.Bench;
+end
+
+local function Items()
+	return AutoPilotMoon.Macro.Items;
+end
+
+local function Places()
+	return AutoPilotMoon.Macro.Places;
 end
 
 -- the skills the server keeps out of the macros (MacroExcludedSkills: game ids or names, separated by ";" or ","): a
@@ -107,7 +120,7 @@ function AutoPilotMoon.Macro.Run:center(player)
 end
 
 -- ============================================================================================================
--- Conditions (2.2, 11.2): the character's inventory (bags and favourites included), a skill's level, the moodles
+-- Conditions (2.2, 11.2, 16): the character's inventory (bags and favourites included), a skill's level, the states
 -- ============================================================================================================
 
 function AutoPilotMoon.Macro.Run:countItems(player, types)
@@ -135,13 +148,8 @@ function AutoPilotMoon.Macro.Run:moodleLevel(player, name)
 	return moodles:getMoodleLevel(moodleType) or 0;
 end
 
--- endurance and the smoker's craving in percent (0-100)
-function AutoPilotMoon.Macro.Run:percent(player, name)
-	if name == "endurance"
-	then
-		return AutoPilotMoon.Rest:getEndurancePercent(player);
-	end
-
+-- the smoker's nicotine withdrawal as the game keeps it (CharacterStat.NICOTINE_WITHDRAWAL, 0-0.51)
+function AutoPilotMoon.Macro.Run:nicotine(player)
 	local stats = player:getStats();
 	local stat = CharacterStat.NICOTINE_WITHDRAWAL;
 
@@ -150,7 +158,129 @@ function AutoPilotMoon.Macro.Run:percent(player, name)
 		return 0;
 	end
 
-	return math.floor((stats:get(stat) or 0) / 0.51 * 100 + 0.5);
+	return stats:get(stat) or 0;
+end
+
+local function cravingPercent(raw)
+	return math.floor(raw / AutoPilotMoon.Macro.Lang.cravingMax * 100 + 0.5);
+end
+
+-- endurance and the smoker's craving in percent (0-100)
+function AutoPilotMoon.Macro.Run:percent(player, name)
+	if name == "endurance"
+	then
+		return AutoPilotMoon.Rest:getEndurancePercent(player);
+	end
+
+	return cravingPercent(Run:nicotine(player));
+end
+
+-- The states of one pass (19/11/2026, MACRO-AUTOPILOT.md 16.2): a new snapshot at every step of the macro (one per
+-- pause check) and at every evaluation outside a run; each state is read from the game at most once in it, at its
+-- first use, and every condition of the pass sees the same values. Run.stateReads counts the reads (the tests).
+Run.stateReads = 0;
+-- after a smoke() confirmed, the craving reads 0 this long while its value is still the one of the confirmation: in
+-- MP the server sends the stats every second and the cigarette goes before them (MACRO-STATI-ANALISI.md 3), so a
+-- "when craving:" would smoke a second one
+Run.smokeSettleMs = 3000;
+
+function AutoPilotMoon.Macro.Run:newStates(player)
+	return { player = player, level = {}, percent = {}, on = {} };
+end
+
+-- a moodle's level (0-4) in the pass, by its MoodleType name
+local function stateLevel(states, moodle)
+	local level = states.level[moodle];
+
+	if level == nil
+	then
+		level = Run:moodleLevel(states.player, moodle);
+		states.level[moodle] = level;
+		Run.stateReads = Run.stateReads + 1;
+	end
+
+	return level;
+end
+
+-- the nicotine withdrawal in the pass, 0 just after a smoke() whose new value has not come yet
+local function cravingRaw(states)
+	if states.craving == nil
+	then
+		local raw = Run:nicotine(states.player);
+		local run = Run.current;
+		local smoked = run and run.player == states.player and run.smoked or nil;
+
+		if smoked and raw > 0 and raw == smoked.raw and getTimestampMs() - smoked.at < Run.smokeSettleMs
+		then
+			raw = 0;
+		end
+
+		states.craving = raw;
+		Run.stateReads = Run.stateReads + 1;
+	end
+
+	return states.craving;
+end
+
+local function statePercent(states, word)
+	local value = states.percent[word];
+
+	if value == nil
+	then
+		if word == "endurance"
+		then
+			value = AutoPilotMoon.Rest:getEndurancePercent(states.player);
+			Run.stateReads = Run.stateReads + 1;
+		else
+			value = cravingPercent(cravingRaw(states));
+		end
+
+		states.percent[word] = value;
+	end
+
+	return value;
+end
+
+-- a state word alone (16.1): the game shows it now. A moodle: its level is 1 or more (the game's own thresholds);
+-- endurance: the endurance moodle (as exerted); craving: the game has started the nicotine withdrawal (above 0)
+local function stateOn(states, word)
+	local on = states.on[word];
+
+	if on == nil
+	then
+		if word == "craving"
+		then
+			on = cravingRaw(states) > 0;
+		elseif word == "endurance"
+		then
+			on = stateLevel(states, "ENDURANCE") >= 1;
+		else
+			local moodle = AutoPilotMoon.Macro.Lang.moodles[word];
+
+			on = moodle ~= nil and stateLevel(states, moodle) >= 1;
+		end
+
+		states.on[word] = on;
+	end
+
+	return on;
+end
+
+-- the value of a state word in a pass: alone (true / false) or with a number (a moodle's level, a percent)
+function AutoPilotMoon.Macro.Run:stateValue(states, word, alone)
+	if alone
+	then
+		return stateOn(states, word);
+	end
+
+	local moodle = AutoPilotMoon.Macro.Lang.moodles[word];
+
+	if moodle
+	then
+		return stateLevel(states, moodle);
+	end
+
+	return statePercent(states, word);
 end
 
 -- the conditions of the work (wave 0, 13/11/2026, ANALISI-API-MACRO-LAVORATIVE.md A0.3): read only, nothing queued
@@ -248,7 +378,7 @@ function AutoPilotMoon.Macro.Run:knows(player, recipes)
 	return false;
 end
 
-local function value(player, node)
+local function value(player, node, states)
 	local k = node.k;
 
 	if k == "num"
@@ -256,13 +386,22 @@ local function value(player, node)
 		return node.v;
 	elseif k == "moodle"
 	then
-		return Run:moodleLevel(player, node.name);
+		return stateLevel(states, node.name);
 	elseif k == "percent"
 	then
-		return Run:percent(player, node.name);
+		return statePercent(states, node.word or node.name);
 	elseif k == "count"
 	then
+		-- count("X", at="P") (wave 2): what the place holds
+		if node.placeKey
+		then
+			return Items():countAt(player, node.types, node.place);
+		end
+
 		return Run:countItems(player, node.types);
+	elseif k == "space"
+	then
+		return Items():spaceLeft(player, node.place);
 	elseif k == "skill"
 	then
 		return player:getPerkLevel(node.perk);
@@ -280,12 +419,18 @@ local function value(player, node)
 	return 0;
 end
 
-function AutoPilotMoon.Macro.Run:evalCondition(player, cond)
+-- a condition: true or false; states (optional): the pass's states (Run:newStates), a new snapshot when nil
+function AutoPilotMoon.Macro.Run:evalCondition(player, cond, states)
 	local k = cond.k;
+
+	states = states or Run:newStates(player);
 
 	if k == "const"
 	then
 		return cond.v == true;
+	elseif k == "state"
+	then
+		return stateOn(states, cond.word);
 	elseif k == "has"
 	then
 		if cond.damaged
@@ -305,17 +450,17 @@ function AutoPilotMoon.Macro.Run:evalCondition(player, cond)
 		return Bench():isFree(player, Run:center(player), cond.benches);
 	elseif k == "not"
 	then
-		return not Run:evalCondition(player, cond.a);
+		return not Run:evalCondition(player, cond.a, states);
 	elseif k == "and"
 	then
-		return Run:evalCondition(player, cond.a) and Run:evalCondition(player, cond.b);
+		return Run:evalCondition(player, cond.a, states) and Run:evalCondition(player, cond.b, states);
 	elseif k == "or"
 	then
-		return Run:evalCondition(player, cond.a) or Run:evalCondition(player, cond.b);
+		return Run:evalCondition(player, cond.a, states) or Run:evalCondition(player, cond.b, states);
 	elseif k == "cmp"
 	then
-		local a = value(player, cond.a);
-		local b = value(player, cond.b);
+		local a = value(player, cond.a, states);
+		local b = value(player, cond.b, states);
 		local op = cond.op;
 
 		if op == "<" then return a < b; end
@@ -488,6 +633,11 @@ end
 
 -- "smonta Martello a granchio" / "crea Assembla utensile medio" / "flessioni, 10 minuti" (the panel's "Ora:" line)
 local function describe(op)
+	if Items():handles(op.kind)
+	then
+		return Items():describe(op);
+	end
+
 	if op.kind ~= "craft"
 	then
 		return Body():describe(op);
@@ -677,6 +827,14 @@ function AutoPilotMoon.Macro.Run:getStartRefusal(player, result)
 		then
 			return getText("IGUI_AutoPilot_E_RunEmpty");
 		end
+
+		-- the named places (wave 2): marked in this macro, within MacroPlaceRadius of where it starts
+		local refusal = Run:placeRefusal(player, result);
+
+		if refusal
+		then
+			return refusal;
+		end
 	end
 
 	Run.checking = result;
@@ -693,12 +851,39 @@ function AutoPilotMoon.Macro.Run:getStartRefusal(player, result)
 	return nil;
 end
 
--- checks a macro's text for a player with the server's limits of now
-function AutoPilotMoon.Macro.Run:check(player, text)
+-- why the places of a checked macro stop it from starting here (nil: they do not): a place the text names that the
+-- macro has not marked, a place farther than MacroPlaceRadius from the character (where the macro would start)
+function AutoPilotMoon.Macro.Run:placeRefusal(player, result)
+	if not result.placesKnown or player == nil
+	then
+		return nil;
+	end
+
+	local center = Run:center(player);
+
+	for i, ref in ipairs(result.placeRefs or {})
+	do
+		if ref.place == nil
+		then
+			return getText("IGUI_AutoPilot_E_RunNoPlace", ref.line, ref.name);
+		end
+
+		if center and not Places():isInRange(ref.place, center)
+		then
+			return getText("IGUI_AutoPilot_E_RunPlaceFar", ref.place.name, Places():distance(ref.place, center), Places():radius());
+		end
+	end
+
+	return nil;
+end
+
+-- checks a macro's text for a player with the server's limits of now; places: the macro's named places by key
+-- (Places:map; nil = not known: no place is said missing)
+function AutoPilotMoon.Macro.Run:check(player, text, places)
 	local maxActions, maxLoops = limits();
 
 	return AutoPilotMoon.Macro.Lang:check(text, AutoPilotMoon.Macro.Names, { player = player, maxActions = maxActions, maxLoops = maxLoops,
-		benches = Bench():isEnabled(), excluded = Run:excludedSkills() });
+		benches = Bench():isEnabled(), excluded = Run:excludedSkills(), transfers = Places():isEnabled(), places = places });
 end
 
 -- the sets of "using" and the skills of an op list (the main program or a "when")
@@ -770,7 +955,7 @@ function AutoPilotMoon.Macro.Run:start(player, macro)
 
 	AutoPilotMoon.Macro.Names:buildNow();
 
-	local result = Run:check(player, macro.text);
+	local result = Run:check(player, macro.text, Places():map(macro));
 	local refusal = Run:getStartRefusal(player, result);
 
 	if refusal
@@ -819,6 +1004,12 @@ function AutoPilotMoon.Macro.Run:start(player, macro)
 		benchWalk = nil,
 		benchWait = nil,
 		startedAt = getTimestampMs(),
+		-- items and places (wave 2): items moved, what was in the inventory at the start ("made" is the rest, not
+		-- taken), the line a walk to a place was for
+		itemsMoved = 0,
+		startIds = Items():inventoryIds(player),
+		takenIds = {},
+		placeWalk = nil,
 	};
 	local seen = {};
 
@@ -934,7 +1125,7 @@ Run.fail = fail;
 -- ============================================================================================================
 
 -- a new turn of the loop at index i of the frame, or out of it; false when the macro ended (the loops' limit)
-local function iterate(run, frame, i)
+local function iterate(run, frame, i, states)
 	local op = frame.ops[i];
 	local go = false;
 
@@ -943,7 +1134,7 @@ local function iterate(run, frame, i)
 		go = (frame.counters[i] or 0) < op.n;
 	elseif op.mode == "while"
 	then
-		go = Run:evalCondition(run.player, op.cond);
+		go = Run:evalCondition(run.player, op.cond, states);
 	else
 		go = true;
 	end
@@ -1120,8 +1311,44 @@ local function actAtBench(run, frame, op, time)
 	action.autopilotMacro = true;
 	run.actions = run.actions + 1;
 	table.insert(run.starts, time);
-	run.pending = { kind = "craft", action = action, item = item, itemId = item:getID(), recipe = recipe, op = op, frame = frame,
-		performed = false, kept = kept };
+	run.pending = Run:craftPending(run, action, item, recipe, op, frame, kept);
+	AutoPilotMoon.Progress:setActivity("IGUI_AutoPilot_P_Now_MacroLine", op.line, op.desc);
+end
+
+-- take / put / drop / equip / walk_to (wave 2, MacroItems.lua): a walk to the place first (not an action), a container
+-- asked for (a wait), nothing to do (the line after), nothing of that kind ("while possible" ends well), the server's
+-- limit of the items (the macro ends well), a refusal (stopped); else the game's actions are queued
+local function actItems(run, frame, op, time)
+	local pending, why, kind = Items():start(run, op);
+
+	if pending == nil
+	then
+		if kind == "walk"
+		then
+			run.pending = { kind = "walk", op = op, frame = frame };
+		elseif kind == "wait"
+		then
+			return;
+		elseif kind == "skip"
+		then
+			frame.pc = frame.pc + 1;
+		elseif kind == "limit"
+		then
+			finish(run, why);
+		elseif kind == "nothing" and op.possibleFirst
+		then
+			finish(run, getText("IGUI_AutoPilot_A_MacroDoneCannot", op.desc));
+		else
+			fail(run, op, why);
+		end
+
+		return;
+	end
+
+	pending.frame = frame;
+	run.actions = run.actions + 1;
+	table.insert(run.starts, time);
+	run.pending = pending;
 	AutoPilotMoon.Progress:setActivity("IGUI_AutoPilot_P_Now_MacroLine", op.line, op.desc);
 end
 
@@ -1201,6 +1428,13 @@ local function act(run, frame, op)
 	-- an action away from the bench: the bench is left to the others, as closing its window
 	Bench():release(run);
 
+	if Items():handles(op.kind)
+	then
+		actItems(run, frame, op, time);
+
+		return;
+	end
+
 	if op.kind ~= "craft"
 	then
 		local pending, why, kind = Body():start(run, op);
@@ -1261,8 +1495,7 @@ local function act(run, frame, op)
 	action.autopilotMacro = true;
 	run.actions = run.actions + 1;
 	table.insert(starts, time);
-	run.pending = { kind = "craft", action = action, item = item, itemId = item:getID(), recipe = recipe, op = op, frame = frame,
-		performed = false, kept = kept };
+	run.pending = Run:craftPending(run, action, item, recipe, op, frame, kept);
 	AutoPilotMoon.Progress:setActivity("IGUI_AutoPilot_P_Now_MacroLine", op.line, op.desc);
 end
 
@@ -1386,42 +1619,53 @@ function AutoPilotMoon.Macro.Run:keptChanged(player, pending)
 	return false;
 end
 
--- something new in the inventory, or at the character's feet, since the action's perform
-local function hasNew(run)
-	local before = Run.beforeIds;
-	local items = run.player:getInventory():getAllEvalRecurse(function(item)
-		return before[item:getID()] == nil;
-	end);
+-- the ids of the items the game chose for the recipe (ISHandcraftAction.items), as a set
+local function inputIds(action)
+	local ids = {};
+	local ok, items = pcall(inputItemsOf, action);
 
-	if items:size() > 0
-	then
-		return true;
+	for i, item in ipairs(ok and items or {})
+	do
+		ids[item:getID()] = true;
 	end
 
-	local square = run.player:getSquare();
-	local objects = square and square:getWorldObjects();
+	return ids;
+end
 
-	if objects
-	then
-		for i = 0, objects:size() - 1
-		do
-			local item = objects:get(i):getItem();
+-- The pending recipe and its wait (1.2.1, "wait for the object"), made when the recipe is QUEUED: done when one of
+--   - the item clicked is used up: by id, not in the inventory, not on the 3x3 at the character's feet, not in the
+--     container it was in (an item on the floor sits in the loot window's floor list, which the game never empties:
+--     1.2.0 looked at its container and never saw it used up)
+--   - something new, in the inventory or on the 3x3 at the feet (Actions.addOrDropItem lays there what does not fit),
+--     whose id was not there when the recipe was queued (the recipe's own materials and tools excluded: a material
+--     moved in from a container nearby keeps its id). 1.2.0 took this photo at the client's perform, which in
+--     multiplayer comes after the outputs arrived: a recipe that gives no experience was "not done"
+--   - what the recipe keeps changed (Run:keptChanged)
+function AutoPilotMoon.Macro.Run:craftPending(run, action, item, recipe, op, frame, kept)
+	local player = run.player;
+	local pending = { kind = "craft", action = action, item = item, itemId = item:getID(), recipe = recipe, op = op,
+		frame = frame, performed = false, kept = kept };
+	local exclude = inputIds(action);
+	local wait = AutoPilotMoon.Wait:new(player, { label = recipeName(recipe) });
 
-			if item and before[item:getID()] == nil
-			then
-				return true;
-			end
-		end
-	end
+	exclude[item:getID()] = true;
+	wait:expectAny({
+		AutoPilotMoon.Wait.make.gone(player, item, { square = player:getSquare(), container = item:getContainer() }),
+		AutoPilotMoon.Wait.make.new(player, nil, { floor = true, exclude = exclude }, 1),
+		AutoPilotMoon.Wait.make.isTrue(player, function()
+			return Run:keptChanged(player, pending);
+		end),
+	});
+	pending.wait = wait;
 
-	return false;
+	return pending;
 end
 
 -- the time the character has been idle since the action ended (a gap: the auto-rest, a pause, restarts it)
 function AutoPilotMoon.Macro.Run:idleFor(pending)
 	local time = now();
 
-	if pending.lastSeen == nil or time - pending.lastSeen > 500
+	if pending.lastSeen == nil or time - pending.lastSeen > AutoPilotMoon.Wait.idleGapMs
 	then
 		pending.idleSince = time;
 	end
@@ -1433,40 +1677,31 @@ end
 
 -- the character is idle again after a recipe: done, still waiting for the server, or a stop
 local function confirmCraft(run, pending)
-	local waited = Run:idleFor(pending);
 	local op = pending.op;
 
 	if pending.interrupted and not pending.performed
 	then
-		AutoPilotMoon.Progress:setWaiting(false);
+		pending.wait:cancel();
 		fail(run, op, getText("IGUI_AutoPilot_A_MacroR_Interrupted"));
 
 		return;
 	end
 
-	local inventory = run.player:getInventory();
-	local consumed = inventory:getItemWithIDRecursiv(pending.itemId) == nil and pending.item:getContainer() == nil;
+	local answer = pending.wait:check();
 
-	if consumed or (pending.performed and hasNew(run)) or Run:keptChanged(run.player, pending)
+	if answer == "busy"
 	then
-		AutoPilotMoon.Progress:setWaiting(false);
+		return;
+	end
+
+	if answer == "done"
+	then
 		run.pending = nil;
 		actionDone(run, pending.frame);
 
 		return;
 	end
 
-	if waited < Run.confirmMs
-	then
-		if waited >= Run.waitingAfterMs
-		then
-			AutoPilotMoon.Progress:setWaiting(true);
-		end
-
-		return;
-	end
-
-	AutoPilotMoon.Progress:setWaiting(false);
 	fail(run, op, getText("IGUI_AutoPilot_A_MacroR_NoEffect", recipeName(pending.recipe)));
 end
 
@@ -1488,7 +1723,14 @@ local function confirm(run)
 		return;
 	end
 
-	local answer, text = Body():confirm(run, pending);
+	local answer, text = nil, nil;
+
+	if pending.module == "items"
+	then
+		answer, text = Items():confirm(run, pending);
+	else
+		answer, text = Body():confirm(run, pending);
+	end
 
 	if answer == "done"
 	then
@@ -1503,8 +1745,8 @@ local function confirm(run)
 end
 
 -- the "when" blocks, in a pause of the macro itself (never inside another "when"): the first whose condition is true
--- starts; false when the macro stopped
-local function checkHandlers(run)
+-- starts; false when the macro stopped. states: the pass's states (16.2)
+local function checkHandlers(run, states)
 	if run.frame ~= run.main
 	then
 		return true;
@@ -1512,7 +1754,7 @@ local function checkHandlers(run)
 
 	for i, handler in ipairs(run.result.handlers)
 	do
-		if Run:evalCondition(run.player, handler.cond)
+		if Run:evalCondition(run.player, handler.cond, states)
 		then
 			handler.inRow = (handler.inRow or 0) + 1;
 
@@ -1567,7 +1809,10 @@ function AutoPilotMoon.Macro.Run:step(player)
 		return "busy";
 	end
 
-	if not checkHandlers(run)
+	-- the states of this pass: every condition of the step reads the same snapshot (16.2)
+	local states = Run:newStates(player);
+
+	if not checkHandlers(run, states)
 	then
 		return "busy";
 	end
@@ -1625,19 +1870,19 @@ function AutoPilotMoon.Macro.Run:step(player)
 		then
 			frame.counters[frame.pc] = 0;
 
-			if not iterate(run, frame, frame.pc)
+			if not iterate(run, frame, frame.pc, states)
 			then
 				return "busy";
 			end
 		elseif op.op == "END"
 		then
-			if not iterate(run, frame, op.loopIndex)
+			if not iterate(run, frame, op.loopIndex, states)
 			then
 				return "busy";
 			end
 		elseif op.op == "STOPIF"
 		then
-			if Run:evalCondition(player, op.cond)
+			if Run:evalCondition(player, op.cond, states)
 			then
 				finish(run, getText(op.plain and "IGUI_AutoPilot_A_MacroDoneStop" or "IGUI_AutoPilot_A_MacroDoneStopIf", op.line));
 
@@ -1647,7 +1892,7 @@ function AutoPilotMoon.Macro.Run:step(player)
 			frame.pc = frame.pc + 1;
 		elseif op.op == "IF"
 		then
-			if Run:evalCondition(player, op.cond)
+			if Run:evalCondition(player, op.cond, states)
 			then
 				frame.pc = frame.pc + 1;
 			else
@@ -1699,7 +1944,6 @@ function AutoPilotMoon.Automation:stopMacro()
 		Bench():release(run);
 	end
 
-	table.wipe(Run.beforeIds);
 	AutoPilotMoon.Automation:stopSquareProcessingQueue("macroWorking");
 end
 
@@ -1729,6 +1973,11 @@ function AutoPilotMoon.Macro.Run:probe(player, result)
 	do
 		if op.op == "ACTION"
 		then
+			if Items():handles(op.kind)
+			then
+				return op.line, Items():probe(player, op);
+			end
+
 			if op.kind ~= "craft"
 			then
 				return op.line, Body():probe(player, op);
@@ -1882,7 +2131,6 @@ function AutoPilotMoon.Macro.Hooks.beforePerform(action)
 
 	if action.autopilotMacro and run and run.pending and run.pending.action == action
 	then
-		Hooks:snapshot(action.character, Run.beforeIds);
 		run.pending.performed = true;
 		token = "run";
 	end

@@ -314,7 +314,7 @@ local function chopNext(S, player)
 end
 
 local function confirmChop(S, player)
-	local result, consumed, outputs = Craft:confirm(S.craft, player);
+	local result, consumed, outputs, atFeet = Craft:confirm(S.craft, player);
 
 	if result == "busy"
 	then
@@ -325,6 +325,8 @@ local function confirmChop(S, player)
 	local pieces = 0;
 
 	S.craft = nil;
+	-- the pieces the game laid at the feet (no room): picked up and carried too
+	Haul:addAtFeet(S.hauler, atFeet);
 
 	for i, item in ipairs(outputs)
 	do
@@ -355,6 +357,12 @@ local function confirmChop(S, player)
 			S.unchopped[id] = true;
 			AutoPilotMoon.Progress:warn("IGUI_AutoPilot_A_Skip_GameRefused");
 		end
+	end
+
+	if #atFeet > 0
+	then
+		-- the next step picks them up (Haul:update)
+		return "busy";
 	end
 
 	return nil;

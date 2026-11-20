@@ -24,6 +24,7 @@
 --   activityKey, activityArg1, activityArg2   what the character is doing now (text key and its arguments)
 --   resting, restFrom, restTo     auto-rest: on, endurance % when it sat down and the target %
 --   waiting          an action ended and its result has not arrived yet ("waiting for the server...")
+--   waitingText      what is awaited, already translated ("aspetta il server: Carbone nello zaino (2 su 3)"), or nil
 --   lastStop         { reason, reasonText, phase }: how the last job or chain ended (reason "done" = by itself)
 --   summary          the last job or chain at its end: { titleKey, titleText, doneText, kind, reason, reasonText, phase, phaseCount, done,
 --                    skipped, counters, counterOrder, warnings, warningOrder, endedAt, startedAt }
@@ -68,6 +69,7 @@ P.state = P.state or {
 	restFrom = 0,
 	restTo = 0,
 	waiting = false,
+	waitingText = nil,
 	lastStop = nil,
 	summary = nil,
 	revision = 0,
@@ -154,6 +156,7 @@ local function resetRun(kind, name, titleKey)
 	state.activityArg2 = nil;
 	state.resting = false;
 	state.waiting = false;
+	state.waitingText = nil;
 	state.titleText = nil;
 	state.loopText = nil;
 	state.doneText = nil;
@@ -207,6 +210,7 @@ function AutoPilotMoon.Progress:beginPhase(index, jobName, total, unitKey)
 	state.ownUnits = false;
 	state.activityKey = nil;
 	state.waiting = false;
+	state.waitingText = nil;
 
 	if phase
 	then
@@ -413,16 +417,25 @@ function AutoPilotMoon.Progress:setIcon(texture)
 	setField("icon", texture);
 end
 
--- an action ended and its result has not arrived yet
-function AutoPilotMoon.Progress:setWaiting(waiting)
+-- an action ended and its result has not arrived yet; text (optional, already translated): what is awaited, for the
+-- panel's "Ora:" line ("aspetta il server: Carbone nello zaino (2 su 3)", 49_AP_Wait.lua); without it "aspetta il
+-- server..."
+function AutoPilotMoon.Progress:setWaiting(waiting, text)
 	local state = P.state;
+	local on = waiting == true;
 
-	if state.waiting == (waiting == true)
+	if not on
+	then
+		text = nil;
+	end
+
+	if state.waiting == on and state.waitingText == text
 	then
 		return;
 	end
 
-	state.waiting = waiting == true;
+	state.waiting = on;
+	state.waitingText = text;
 
 	notify("activity");
 end
@@ -530,6 +543,7 @@ function AutoPilotMoon.Progress:finish(reason, reasonText, player)
 	state.running = false;
 	state.resting = false;
 	state.waiting = false;
+	state.waitingText = nil;
 	state.activityKey = nil;
 	state.activityArg1 = nil;
 	state.activityArg2 = nil;

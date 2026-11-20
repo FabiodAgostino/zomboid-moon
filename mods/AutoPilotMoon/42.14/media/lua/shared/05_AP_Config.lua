@@ -32,6 +32,10 @@ AutoPilotMoon.Config = {
         MacroBenchRadius = { default = 6, min = 2, max = 15 },
         MacroMinutesPerRun = { default = 120, min = 0, max = 600 },
         MacroLevelsPerRun = { default = 0, min = 0, max = 10 },
+        -- waves 2 and 3 of the work skills (19/11/2026, MACRO-AUTOPILOT.md 14): items moved by take / put / drop / equip
+        -- in one run; how far from the macro's start a named place may be (squares, any floor)
+        MacroItemsPerRun = { default = 200, min = 1, max = 2000 },
+        MacroPlaceRadius = { default = 30, min = 5, max = 100 },
     },
 
     -- text server options (sandbox-options.txt "type = string"): their default when missing

@@ -154,8 +154,10 @@ function AutoPilotMoon.Item:getFullSoilBags(player)
 	return result;
 end
 
--- a worn or held bag with room for the item (its inventory), or nil
-function AutoPilotMoon.Item:getEquippedBagWithRoom(player, item)
+-- a worn or held bag with room for the item (its inventory), or nil; planned (optional): bag inventory -> weight
+-- already sent there in this step (1.2.1: the transfers are queued together, the room is shared; a second bag that does
+-- not fit is refused by the server and the refusal empties the whole queue: the walk, the shovel, the digging)
+function AutoPilotMoon.Item:getEquippedBagWithRoom(player, item, planned)
 	local bags = player:getInventory():getItemsFromCategory("Container");
 
 	for i = 0, bags:size() - 1
@@ -165,9 +167,16 @@ function AutoPilotMoon.Item:getEquippedBagWithRoom(player, item)
 		if bag ~= item and bag:isEquipped()
 		then
 			local inventory = bag:getInventory();
+			local already = planned and planned[inventory] or 0;
 
 			if inventory and inventory:hasRoomFor(player, item)
+				and (already == 0 or inventory:hasRoomFor(player, already + item:getUnequippedWeight()))
 			then
+				if planned
+				then
+					planned[inventory] = already + item:getUnequippedWeight();
+				end
+
 				return inventory;
 			end
 		end
@@ -177,10 +186,11 @@ function AutoPilotMoon.Item:getEquippedBagWithRoom(player, item)
 end
 
 -- D1: the full bags go into a worn bag with a transfer action of the game (the server checks it), never by hand;
--- only the bags keep(bag) accepts when given (the Soil bagger: the ones it filled); returns how many transfers were
--- queued
+-- only the bags keep(bag) accepts when given (the Soil bagger: the ones it filled); the room of a worn bag counted for
+-- all the bags of the step together; returns how many transfers were queued
 function AutoPilotMoon.Item:stashFullSoilBags(player, keep)
 	local queued = 0;
+	local planned = {};
 
 	for i, bag in ipairs(AutoPilotMoon.Item:getFullSoilBags(player))
 	do
@@ -188,7 +198,7 @@ function AutoPilotMoon.Item:stashFullSoilBags(player, keep)
 
 		if keep == nil or keep(bag)
 		then
-			destination = AutoPilotMoon.Item:getEquippedBagWithRoom(player, bag);
+			destination = AutoPilotMoon.Item:getEquippedBagWithRoom(player, bag, planned);
 		end
 
 		if destination
@@ -367,23 +377,30 @@ function AutoPilotMoon.Item:takeFitting(items, max, room)
 end
 
 -- one transfer action of the game per item, from the container to the floor where the player stands (as the
--- game's own "drop", ISInventoryPaneContextMenu.dropItem); returns how many were queued
-function AutoPilotMoon.Item:queueDropToFloor(player, container, items)
+-- game's own "drop", ISInventoryPaneContextMenu.dropItem); returns how many were queued. wait (optional, the engine's
+-- AutoPilotMoon.Wait): each action watched and each item awaited out of the container, by id (1.2.1: what really
+-- went out is counted, never what was queued)
+function AutoPilotMoon.Item:queueDropToFloor(player, container, items, wait)
 	local floor = ISInventoryPage.GetFloorContainer(player:getPlayerNum());
 
 	for i, item in ipairs(items)
 	do
-		ISTimedActionQueue.add(ISInventoryTransferUtil.newInventoryTransferAction(player, item, container, floor));
+		local action = ISInventoryTransferUtil.newInventoryTransferAction(player, item, container, floor);
+
+		ISTimedActionQueue.add(action);
+
+		if wait
+		then
+			wait:watch(action);
+			wait:expectOut(item, container);
+		end
 	end
 
 	return #items;
 end
 
 -- what the loot window does when a container is first opened (ISInventoryPage:checkExplored): on a server the items
--- are asked for, they arrive a moment later (N-A4)
+-- are asked for, they arrive a moment later (N-A4); the request written down by the engine's wait (Wait:loadState)
 function AutoPilotMoon.Item:explore(container, player)
-	if not container:isExplored()
-	then
-		ISInventoryPage:checkExplored(container, player);
-	end
+	AutoPilotMoon.Wait:explore(container, player);
 end

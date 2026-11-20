@@ -15,6 +15,11 @@
 --   (no favourites, nothing locked, room on the floor); otherwise the object is skipped with a message. No retry:
 --   each object is tried once per job.
 -- - A lamp gives its light bulb back before it is dismantled, as the game's own menu does (N-A7).
+-- - "Wait for the object" (1.2.1, the engine's AutoPilotMoon.Wait): a container never opened is asked for and what it
+--   holds awaited from the arrival next to it (1.2.0: 1.5 s fixed from the request, made before the walk: a full piece
+--   of furniture looked empty, the server refused the dismantling and it counted anyway); what went out to the floor
+--   counted by id once there; an object counts as dismantled when its square no longer holds a piece with its sprite
+--   (by coordinates: the client's object may be made again), never because the action was queued.
 
 require "05_AP_Config";
 require "50_AP_Automation";
@@ -24,16 +29,11 @@ require "50_AP_Automation";
 AutoPilotMoon.Automation:register("dismantler");
 
 AutoPilotMoon.Automation:addJobStateField("dismantlerTried");     -- objects handled or given up in this job
-AutoPilotMoon.Automation:addJobStateField("dismantlerScrapped");  -- objects sent to dismantling
-AutoPilotMoon.Automation:addJobStateField("dismantlerItems");     -- items taken out to empty them
-AutoPilotMoon.Automation:addJobStateField("dismantlerEmptying");  -- { object, count }: the object being emptied
-AutoPilotMoon.Automation:addJobStateField("dismantlerExplored");  -- object -> when its containers were first opened
+AutoPilotMoon.Automation:addJobStateField("dismantlerScrapped");  -- objects dismantled (confirmed) in this job
+AutoPilotMoon.Automation:addJobStateField("dismantlerItems");     -- items taken out to empty them (arrived)
 AutoPilotMoon.Automation:addJobStateField("dismantlerPlan");      -- what this step's square function does
 AutoPilotMoon.Automation:addJobStateField("dismantlerElectronics"); -- electronics only ("Smonta l'elettronica")
-AutoPilotMoon.Automation:addJobStateField("dismantlerPending");   -- the object sent to dismantling, until it is gone
-
--- how long to wait for the server's items after opening a container for the first time
-AutoPilotMoon.Automation.dismantlerExploreMs = 1500;
+AutoPilotMoon.Automation:addJobStateField("dismantlerWait");      -- { kind = "load" | "empty" | "scrap", object, moveProps, wait }
 
 -- the sprite flags (and same-named properties) of what is not furniture
 AutoPilotMoon.Automation.dismantlerStructuralFlags = {
@@ -212,20 +212,77 @@ function AutoPilotMoon.Automation.startDismantler(player, squares, startSquare, 
 	return started;
 end
 
--- the object sent to dismantling is gone from the world (getObjectIndex -1): counted (spec 7.4.1); at every step and at
--- the end
-local function confirmScrapped()
-	local pending = AutoPilotMoon.Automation.dismantlerPending;
+local skip;
 
-	if pending and pending:getObjectIndex() < 0
-	then
-		AutoPilotMoon.Progress:count("IGUI_AutoPilot_P_C_Dismantled", 1);
-		AutoPilotMoon.Automation.dismantlerPending = nil;
+-- the pieces of furniture with this sprite on the square (by coordinates and sprite: the client's object may be made
+-- again by the server, its old reference says nothing)
+local function spriteCount(square, spriteName)
+	local count = 0;
+	local objects = square and square:getObjects();
+
+	for i = 0, (objects and objects:size() or 0) - 1
+	do
+		local sprite = objects:get(i):getSprite();
+
+		if sprite and sprite:getName() == spriteName
+		then
+			count = count + 1;
+		end
 	end
+
+	return count;
+end
+
+local function countDismantled()
+	AutoPilotMoon.Automation:addJobCount("dismantlerScrapped");
+	AutoPilotMoon.Progress:count("IGUI_AutoPilot_P_C_Dismantled", 1);
+end
+
+-- the last step's wait: "busy", or nil once over (a refusal: nothing counted, the object not tried again; items that
+-- went out counted, a step that moved nothing leaves the object with "cannot be emptied")
+local function settleWait(player)
+	local A = AutoPilotMoon.Automation;
+	local pending = A.dismantlerWait;
+
+	if pending == nil
+	then
+		return nil;
+	end
+
+	local answer, why, info = pending.wait:check();
+
+	if answer == "busy"
+	then
+		return "busy";
+	end
+
+	A.dismantlerWait = nil;
+
+	if pending.kind == "scrap" and answer == "done"
+	then
+		countDismantled();
+	elseif pending.kind == "empty"
+	then
+		A:addJobCount("dismantlerItems", info.arrived);
+
+		if info.arrived == 0
+		then
+			skip(pending.object, pending.moveProps, "IGUI_AutoPilot_A_Reason_CannotEmpty");
+		end
+	end
+
+	return nil;
 end
 
 function AutoPilotMoon.Automation:stopDismantler()
-	confirmScrapped();
+	local pending = AutoPilotMoon.Automation.dismantlerWait;
+
+	if pending and pending.kind == "scrap" and pending.wait:settle() > 0
+	then
+		countDismantled();
+	end
+
+	AutoPilotMoon.Automation.dismantlerWait = nil;
 	AutoPilotMoon.Automation:stopSquareProcessingQueue("dismantlerWorking");
 end
 
@@ -242,9 +299,8 @@ local function summary(key)
 end
 
 -- skip an object for the rest of the job, with a message saying why
-local function skip(object, moveProps, reasonKey)
+skip = function(object, moveProps, reasonKey)
 	AutoPilotMoon.Automation:getJobSet("dismantlerTried")[object] = true;
-	AutoPilotMoon.Automation.dismantlerEmptying = nil;
 
 	if reasonKey
 	then
@@ -355,14 +411,6 @@ local function planEmptying(square, object, moveProps, player)
 		return nil, "IGUI_AutoPilot_A_Reason_CannotEmpty";
 	end
 
-	-- no progress since the last step: the server refused the transfers
-	local emptying = A.dismantlerEmptying;
-
-	if emptying and emptying.object == object and #all >= emptying.count
-	then
-		return nil, "IGUI_AutoPilot_A_Reason_CannotEmpty";
-	end
-
 	local budget = AutoPilotMoon.Sandbox:getInteger("UnloaderItemsPerJob") - A:getJobCount("dismantlerItems");
 
 	if #all > budget
@@ -370,7 +418,11 @@ local function planEmptying(square, object, moveProps, player)
 		return nil, "IGUI_AutoPilot_A_Reason_ItemLimit";
 	end
 
-	if AutoPilotMoon.Item:getTotalWeight(all) > AutoPilotMoon.Item:getFloorRoom(square, player)
+	-- the game lays what is dropped on the 3x3 around the character (next to the object once there)
+	local here = player:getSquare();
+	local near = here and math.abs(here:getX() - square:getX()) <= 1 and math.abs(here:getY() - square:getY()) <= 1;
+
+	if AutoPilotMoon.Item:getTotalWeight(all) > AutoPilotMoon.Item:getFloorRoom(near and here or square, player)
 	then
 		return nil, "IGUI_AutoPilot_A_Reason_NoFloorRoom";
 	end
@@ -392,8 +444,6 @@ local function planEmptying(square, object, moveProps, player)
 		table.insert(groups[container], item);
 	end
 
-	-- dismantlerEmptying is written when the transfers are queued (workDismantlerSquare): a step the engine does not
-	-- carry out (no free tile next to the square) must not look like a refusal next time
 	return { kind = "empty", square = square, object = object, moveProps = moveProps, order = order, groups = groups,
 		count = #all }, nil;
 end
@@ -403,7 +453,11 @@ function AutoPilotMoon.Automation:checkDismantlerSquare(square, player)
 	local A = AutoPilotMoon.Automation;
 
 	A.dismantlerPlan = nil;
-	confirmScrapped();
+
+	if settleWait(player) == "busy"
+	then
+		return "busy";
+	end
 
 	if AutoPilotMoon.Zones:isProtected(square, player)
 	then
@@ -442,9 +496,8 @@ function AutoPilotMoon.Automation:checkDismantlerSquare(square, player)
 		return false;
 	end
 
-	-- containers never opened: open them first (the server sends their content) and wait a moment
-	local explored = A:getJobSet("dismantlerExplored");
-
+	-- containers never opened: open them first (the server sends their content), then their answer awaited from the
+	-- arrival next to the object (the request was made before the walk)
 	if hasUnexploredContainer(object)
 	then
 		A.dismantlerPlan = { kind = "explore", square = square, object = object };
@@ -452,9 +505,23 @@ function AutoPilotMoon.Automation:checkDismantlerSquare(square, player)
 		return false;
 	end
 
-	if explored[object] and getTimestampMs() - explored[object] < A.dismantlerExploreMs
+	local loading = nil;
+
+	for i, container in ipairs(AutoPilotMoon.Item:getAllObjectContainers(object))
+	do
+		if AutoPilotMoon.Wait:loadState(container) == "loading"
+		then
+			loading = loading or AutoPilotMoon.Wait:new(player, { label = objectName(moveProps), waitingAfterMs = 0 });
+			AutoPilotMoon.Wait:restartLoad(container);
+			loading:expectLoaded(container);
+		end
+	end
+
+	if loading
 	then
-		return false;
+		A.dismantlerWait = { kind = "load", object = object, moveProps = moveProps, wait = loading };
+
+		return "busy";
 	end
 
 	local result = moveProps:canScrapObject(player);
@@ -526,8 +593,6 @@ function AutoPilotMoon.Automation:workDismantlerSquare(square, player)
 			end
 		end
 
-		A:getJobSet("dismantlerExplored")[object] = getTimestampMs();
-
 		-- a locked container stays unexplored: the object is not tried again
 		if hasUnexploredContainer(object)
 		then
@@ -541,12 +606,14 @@ function AutoPilotMoon.Automation:workDismantlerSquare(square, player)
 	then
 		if AutoPilotMoon.Square:walkTo(player, square, true)
 		then
+			local wait = AutoPilotMoon.Wait:new(player, { label = getText("IGUI_AutoPilot_W_Dropped") });
+
 			for i, container in ipairs(plan.order)
 			do
-				A:addJobCount("dismantlerItems", AutoPilotMoon.Item:queueDropToFloor(player, container, plan.groups[container]));
+				AutoPilotMoon.Item:queueDropToFloor(player, container, plan.groups[container], wait);
 			end
 
-			A.dismantlerEmptying = { object = object, count = plan.count };
+			A.dismantlerWait = { kind = "empty", object = object, moveProps = plan.moveProps, wait = wait };
 		else
 			skip(object, plan.moveProps, "IGUI_AutoPilot_A_Reason_CannotEmpty");
 		end
@@ -560,7 +627,6 @@ function AutoPilotMoon.Automation:workDismantlerSquare(square, player)
 
 		-- tried once, whatever happens (no retry)
 		A:getJobSet("dismantlerTried")[object] = true;
-		A.dismantlerEmptying = nil;
 
 		local gridReason = gridProtectionReason(moveProps, square, player);
 
@@ -585,11 +651,20 @@ function AutoPilotMoon.Automation:workDismantlerSquare(square, player)
 		end
 
 		-- the object checked above, never another one with the same sprite (N-A13)
-		local direction = moveProps:getFaceDirectionFromSpriteName(moveProps.sprite:getName());
+		local spriteName = moveProps.sprite:getName();
+		local direction = moveProps:getFaceDirectionFromSpriteName(spriteName);
+		local action = ISMoveablesAction:new(player, square, "scrap", nil, object, direction, nil, nil);
+		local wait = AutoPilotMoon.Wait:new(player, { label = objectName(moveProps) });
+		local before = spriteCount(square, spriteName);
+		local x, y, z = square:getX(), square:getY(), square:getZ();
 
-		ISTimedActionQueue.add(ISMoveablesAction:new(player, square, "scrap", nil, object, direction, nil, nil));
-		A:addJobCount("dismantlerScrapped");
-		A.dismantlerPending = object;
+		ISTimedActionQueue.add(action);
+		wait:watch(action);
+		-- dismantled when the square holds one piece fewer with that sprite (counted only then, spec 7.4.1)
+		wait:expectTrue(function()
+			return spriteCount(getCell():getGridSquare(x, y, z), spriteName) < before;
+		end);
+		A.dismantlerWait = { kind = "scrap", object = object, moveProps = moveProps, wait = wait };
 
 		AutoPilotMoon.Progress:setActivity("IGUI_AutoPilot_P_Now_Dismantling", objectName(moveProps));
 	end

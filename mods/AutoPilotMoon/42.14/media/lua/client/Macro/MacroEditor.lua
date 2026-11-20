@@ -22,6 +22,10 @@
 -- box's own.
 -- With a controller (4.9): A = Avvia / Ferma, X = Registra, Y = the macro's menu, B = close, up / down the list;
 -- writing needs a keyboard (said in the guide).
+-- The macro's named places (waves 2-3, 19/11/2026, MacroPlaces.lua): Inserisci > Oggetti e posti marks a place with the
+-- destination picker of the jobs (the window steps aside while the player clicks): a name the text already uses and
+-- that is not marked yet ("Segna Carbone"), or a new place named after what is clicked; a marked place can be marked
+-- again or removed. The checker gets the macro's places (an example has none: its places are said as not marked).
 
 AutoPilotMoon = AutoPilotMoon or {};
 AutoPilotMoon.Macro = AutoPilotMoon.Macro or {};
@@ -540,6 +544,12 @@ function AutoPilotMoon.Macro.Editor:shutdown()
 			suggest.popup:removeFromUIManager();
 			suggest.popup = nil;
 		end
+
+		-- [editor-smart] the help under the mouse too
+		if window.hover
+		then
+			window.hover:dispose();
+		end
 	end
 
 	if Macro().Picker
@@ -675,6 +685,9 @@ function W:createChildren()
 	self.entry.target = self;
 	self:addChild(self.entry);
 	self.suggest = AutoPilotMoon.Macro.SuggestView:attach(self);
+	-- [editor-smart 19/11/2026] the smart keys (MacroEditorInput.lua) and the help under the mouse (MacroHover.lua)
+	self.keys = AutoPilotMoon.Macro.EditorInput:attach(self);
+	self.hover = AutoPilotMoon.Macro.Hover:attach(self);
 
 	-- where the box draws its first line (UITextBox2.getInset of 42.22), for the line numbers
 	self.textInset = self.entry.javaObject:getInset();
@@ -693,6 +706,10 @@ function W:createChildren()
 
 	self.insertButton = newButton(self, getText("IGUI_AutoPilot_E_Insert") .. " v", W.onInsert);
 	self.checkButton = newButton(self, getText("IGUI_AutoPilot_E_Check"), W.onCheck);
+	-- [editor-smart 19/11/2026] "Nome nativo": the game's name of an object clicked (UI/IdPicker.lua)
+	self.idButton = newButton(self, getText("IGUI_AutoPilot_Pick_Button"), W.onIdPick);
+	self.idButton.tooltip = getText("IGUI_AutoPilot_Pick_Button_Tooltip");
+	self.idButtonTitle = self.idButton.title;
 
 	self.problemList = Editor.List:new(0, 0, 10, 10);
 	self.problemList:initialise();
@@ -818,6 +835,7 @@ function W:relayout()
 	self.checkButton:setY(statusY);
 	self.insertButton:setX(self.checkButton:getX() - pad / 2 - self.insertButton:getWidth());
 	self.insertButton:setY(statusY);
+	self:placeIdButton(statusY);
 	self.statusY = statusY + (sizes.button - sizes.small) / 2;
 
 	local textTop = y;
@@ -910,7 +928,9 @@ function W:makeOps()
 
 	if self.cursorText
 	then
-		op(fitText(UIFont.Small, self.cursorText, self.insertButton:getX() - pad - self.rightX), self.rightX, self.statusY, UI.textColor);
+		local beside = self.idButton and self.idButton:getIsVisible() and self.idButton or self.insertButton;
+
+		op(fitText(UIFont.Small, self.cursorText, beside:getX() - pad - self.rightX), self.rightX, self.statusY, UI.textColor);
 	end
 	op(self.limitsText, pad, self.limitsY, grey);
 	self.ops = ops;
@@ -1002,7 +1022,7 @@ end
 function W:errorsOf(macro)
 	if macro.checkedText ~= macro.text and Macro().Names:isReady()
 	then
-		local result = Macro().Run:check(self.player, macro.text);
+		local result = Macro().Run:check(self.player, macro.text, Macro().Places:map(macro));
 
 		macro.checkedText = macro.text;
 		macro.errors = result.errors;
@@ -1146,18 +1166,38 @@ end
 function W:onBoxTextChange()
 	self:onTextChange();
 
+	-- [editor-smart 19/11/2026] the smart keys first (MacroEditorInput.lua); a character they rewrote around (a closing
+	-- pair, else moved to its if) is still the one character typed for the suggestions
+	local before, at = nil, nil;
+
+	if self.keys
+	then
+		before, at = self.keys:onTyped();
+	end
+
 	if self.suggest
 	then
+		if before
+		then
+			self.suggest.text, self.suggest.caret = before, at;
+		end
+
 		self.suggest:onTyped();
 	end
 end
 
+-- Tab and Esc: the suggestions' while their list is open, else Tab / Shift+Tab are the smart keys' [editor-smart]
 function W.onEntryOtherKey(entry, key)
 	local window = entry.target;
 
-	if window and window.suggest
+	if window and window.suggest and window.suggest:onKey(key)
 	then
-		window.suggest:onKey(key);
+		return;
+	end
+
+	if window and window.keys
+	then
+		window.keys:onKey(key);
 	end
 end
 
@@ -1270,7 +1310,9 @@ function W:check()
 	end
 
 	self.waitingNames = false;
-	self.result = Macro().Run:check(self.player, text);
+	self.result = Macro().Run:check(self.player, text, self:placeMap());
+	-- the suggestions offer the macro's places inside from=, into=, at= and walk_to (waves 2-3)
+	Macro().Suggest.places = self:placeNames();
 	self.lineTotal = Model:lineCount(text);
 
 	if not self.selected.example
@@ -1582,6 +1624,17 @@ function W:update()
 		self.suggest:poll();
 	end
 
+	-- [editor-smart 19/11/2026] Enter, Home and the Ctrl keys the box does not tell; the help under the mouse
+	if self.keys
+	then
+		self.keys:poll(false);
+	end
+
+	if self.hover
+	then
+		self.hover:poll();
+	end
+
 	if not self:getIsVisible() or self.isCollapsed
 	then
 		return;
@@ -1701,6 +1754,12 @@ function W:prerender()
 	if self.suggest and self.suggest.isOpen
 	then
 		self.suggest:poll();
+	end
+
+	-- [editor-smart] an Enter rewritten with its indentation before the box draws it, the cursor's row in view
+	if self.keys
+	then
+		self.keys:poll(true);
 	end
 
 	if self.isCollapsed or self.ops == nil
@@ -1895,6 +1954,44 @@ function W:onDuplicate()
 	Store:save(true);
 	self:fillLists();
 	self:show(copy, false);
+end
+
+-- [editor-smart] "Nome nativo" left of Inserisci; on a narrow window its short title ("Id"), else not shown
+function W:placeIdButton(y)
+	local button = self.idButton;
+
+	if button == nil
+	then
+		return;
+	end
+
+	local pad = self.sizes.pad;
+
+	for i, title in ipairs({ self.idButtonTitle, getText("IGUI_AutoPilot_Pick_ButtonShort") })
+	do
+		if button.title ~= title
+		then
+			button:setTitle(title);
+			button:setWidthToTitle(self.sizes.button * (i == 1 and 2 or 1));
+		end
+
+		local x = self.insertButton:getX() - pad / 2 - button:getWidth();
+
+		if x >= self.rightX + measure(UIFont.Small, "M")
+		then
+			button:setX(x);
+			button:setY(y);
+			button:setVisible(true);
+
+			return;
+		end
+	end
+
+	button:setVisible(false);
+end
+
+function W:onIdPick()
+	AutoPilotMoon.IdPicker:begin(self.playerNum);
 end
 
 function W:onCheck()
@@ -2111,7 +2208,7 @@ function W:onCopy(withIds)
 		text = Macro().Lang:withIds(text, Macro().Names, {});
 	end
 
-	Clipboard.setClipboard(Macro().Store:clipboardText(macro.name, text));
+	Clipboard.setClipboard(Macro().Store:clipboardText(macro.name, text, macro.places));
 	AutoPilotMoon:say("plain", getText("IGUI_AutoPilot_A_MacroCopied"), self.player);
 end
 
@@ -2122,7 +2219,7 @@ function W:onPaste()
 
 	for i, entry in ipairs(pasted)
 	do
-		local macro = Store:add(entry.name, entry.text);
+		local macro = Store:add(entry.name, entry.text, entry.places);
 
 		if macro == nil
 		then
@@ -2244,7 +2341,7 @@ function W:onInsert(button)
 
 	local ifMenu = sub("IGUI_AutoPilot_E_InsertIf");
 
-	for i, header in ipairs({ "if has(\"" .. item .. "\"):", "if not has(\"" .. item .. "\", at_least=10):", "if hungry >= 2:", "if endurance < 30:" })
+	for i, header in ipairs({ "if has(\"" .. item .. "\"):", "if not has(\"" .. item .. "\", at_least=10):", "if hungry:", "if exerted >= 3:" })
 	do
 		ifMenu:addOption(header, self, W.onInsertBlock, header);
 	end
@@ -2278,15 +2375,35 @@ function W:onInsert(button)
 		workMenu:addOption(line, self, W.onInsertLine, line);
 	end
 
+	-- items and places (waves 2-3, 19/11/2026): the lines with the macro's first place (or a name to mark), the places
+	local Places = Macro().Places;
+	local macro = self:currentMacro();
+	local places = self.selected and not self.selected.example and Places:list(macro) or {};
+	local placeName = places[1] and places[1].name or getText("IGUI_AutoPilot_E_TplPlace");
+	local itemsMenu = sub("IGUI_AutoPilot_E_InsertItems");
+
+	itemsMenu:addOption("if count(\"Base.Charcoal\") < 3:", self, W.onInsertBlock, "if count(\"Base.Charcoal\") < 3:");
+
+	for i, line in ipairs({ "take(\"Base.Charcoal\", from=\"" .. placeName .. "\", n=10)", "put(\"made\", into=\"" .. placeName .. "\")",
+		"drop(\"Base.Plank\", n=5)", "equip(\"Base.Hammer\")", "walk_to(\"" .. placeName .. "\")" })
+	do
+		itemsMenu:addOption(line, self, W.onInsertLine, line);
+	end
+
+	-- the places in the same submenu (one entry more in the Insert menu, not two: at the biggest font a 720p screen
+	-- holds no more)
+	self:fillPlacesMenu(itemsMenu, places);
+
 	local whenMenu = sub("IGUI_AutoPilot_E_InsertWhen");
 
-	for i, pair in ipairs({ { "when hungry >= 2:", "eat(open_cans=True)" }, { "when thirsty >= 2:", "drink()" },
-		{ "when stressed >= 2:", "smoke()" }, { "when endurance < 30:", "rest()" }, { "when panic >= 3:", "stop()" } })
+	-- a state word alone: the game shows it (19/11/2026, MACRO-AUTOPILOT.md 16); the rest when the game stops the exercises
+	for i, pair in ipairs({ { "when hungry:", "eat(open_cans=True)" }, { "when thirsty:", "drink()" },
+		{ "when craving:", "smoke()" }, { "when exerted >= 3:", "rest()" }, { "when panic >= 3:", "stop()" } })
 	do
 		whenMenu:addOption(pair[1] .. " " .. pair[2], self, W.onInsertHandler, pair);
 	end
 
-	-- the conditions the moodles give, grouped (11.2): "hungry >= 2" at the cursor
+	-- the conditions the moodles give, grouped (11.2): the word alone at the cursor ("hungry": the game shows it, 16)
 	local condMenu = sub("IGUI_AutoPilot_E_InsertCondition");
 
 	for g, group in ipairs(Lang.moodleGroups)
@@ -2300,7 +2417,7 @@ function W:onInsert(button)
 		do
 			if entry.group == group
 			then
-				groupMenu:addOption(entry.name .. " - " .. getText("IGUI_AutoPilot_E_Moodle_" .. entry.name), self, W.onInsertText, entry.name .. " >= 2");
+				groupMenu:addOption(entry.name .. " - " .. getText("IGUI_AutoPilot_E_Moodle_" .. entry.name), self, W.onInsertText, entry.name);
 			end
 		end
 
@@ -2308,7 +2425,7 @@ function W:onInsert(button)
 		do
 			if percentGroup == group
 			then
-				groupMenu:addOption(name .. " - " .. getText("IGUI_AutoPilot_E_Moodle_" .. name), self, W.onInsertText, name .. " < 30");
+				groupMenu:addOption(name .. " - " .. getText("IGUI_AutoPilot_E_Moodle_" .. name), self, W.onInsertText, name);
 			end
 		end
 	end
@@ -2333,8 +2450,220 @@ function W:onInsert(button)
 		workGroup:addOption(text, self, W.onInsertText, text);
 	end
 
+	-- the conditions of the items (waves 2-3): what a place holds, the weight still carried, the room of a place
+	local itemsOption = condMenu:addOption(getText("IGUI_AutoPilot_E_CondGroup_items"), nil, nil);
+	local itemsGroup = condMenu:getNew(condMenu);
+
+	condMenu:addSubMenu(itemsOption, itemsGroup);
+
+	for i, text in ipairs({ "count(\"Base.Charcoal\", at=\"" .. placeName .. "\") < 3", "space_left() < 5",
+		"space_left(at=\"" .. placeName .. "\") < 5" })
+	do
+		itemsGroup:addOption(text, self, W.onInsertText, text);
+	end
+
 	context:addOption(getText("IGUI_AutoPilot_E_InsertWait"), self, W.onInsertLine, "wait(5)");
 	context:addOption(getText("IGUI_AutoPilot_E_InsertStopIf"), self, W.onInsertLine, "stop_if(has(\"" .. item .. "\", at_least=10))");
+end
+
+-- ============================================================================================================
+-- The macro's named places (waves 2-3, 19/11/2026, MacroPlaces.lua)
+-- ============================================================================================================
+
+-- the places by key for the checker: the macro's own; an example has none (its places are said as not marked)
+function W:placeMap()
+	local macro = self:currentMacro();
+
+	if macro == nil or (self.selected and self.selected.example)
+	then
+		return Macro().Places:map(nil);
+	end
+
+	return Macro().Places:map(macro);
+end
+
+-- the names of the macro's places (the suggestions)
+function W:placeNames()
+	local names = {};
+	local macro = self:currentMacro();
+
+	if macro and not (self.selected and self.selected.example)
+	then
+		for i, place in ipairs(macro.places or {})
+		do
+			table.insert(names, place.name);
+		end
+	end
+
+	return names;
+end
+
+-- the names the text uses that no place of the macro has (from the last check), each once, in the text's order
+function W:unmarkedPlaceNames()
+	local names = {};
+	local seen = {};
+
+	for i, ref in ipairs(self.result and self.result.placeRefs or {})
+	do
+		if ref.place == nil and not seen[ref.key]
+		then
+			seen[ref.key] = true;
+			table.insert(names, ref.name);
+		end
+	end
+
+	return names;
+end
+
+-- Inserisci > Oggetti e posti, after the items' lines: mark a name the text uses, mark a new place; then each place
+-- with its lines, mark it again, remove it
+function W:fillPlacesMenu(menu, places)
+	local Places = Macro().Places;
+	local full = #places >= Places.maxPlaces;
+
+	local function greyFull(option)
+		if full
+		then
+			option.notAvailable = true;
+			option.toolTip = ISWorldObjectContextMenu.addToolTip();
+			option.toolTip.description = "<BHC> " .. getText("IGUI_AutoPilot_E_PlacesFull", Places.maxPlaces);
+		end
+	end
+
+	for i, name in ipairs(self:unmarkedPlaceNames())
+	do
+		greyFull(menu:addOption(getText("IGUI_AutoPilot_E_PlaceMarkName", name), self, W.onMarkPlace, name));
+	end
+
+	greyFull(menu:addOption(getText("IGUI_AutoPilot_E_PlaceMarkNew"), self, W.onMarkPlace, nil));
+
+	local item = "Base.Charcoal";
+
+	for i, place in ipairs(places)
+	do
+		local option = menu:addOption(Places:describe(place, self.player), nil, nil);
+		local placeMenu = menu:getNew(menu);
+		local quoted = "\"" .. place.name .. "\"";
+
+		menu:addSubMenu(option, placeMenu);
+
+		for j, line in ipairs({ "walk_to(" .. quoted .. ")", "take(\"" .. item .. "\", from=" .. quoted .. ", n=10)",
+			"put(\"made\", into=" .. quoted .. ")" })
+		do
+			placeMenu:addOption(line, self, W.onInsertLine, line);
+		end
+
+		local condition = "count(\"" .. item .. "\", at=" .. quoted .. ") < 3";
+
+		placeMenu:addOption(condition, self, W.onInsertText, condition);
+		placeMenu:addOption(getText("IGUI_AutoPilot_E_PlaceMarkAgain"), self, W.onMarkAgain, place);
+		placeMenu:addOption(getText("IGUI_AutoPilot_E_PlaceRemove"), self, W.onRemovePlace, place);
+	end
+end
+
+function W:onMarkPlace(name)
+	self:markPlace(name, nil);
+end
+
+function W:onMarkAgain(place)
+	self:markPlace(place.name, place);
+end
+
+-- the picker for a place of this macro (name: the name to give it, nil = after what is clicked; place: marked again);
+-- the window steps aside while the player clicks, comes back after
+function W:markPlace(name, place)
+	local macro = self:currentMacro();
+	local Places = Macro().Places;
+
+	if macro == nil or not self.editable or (self.selected and self.selected.example)
+	then
+		return;
+	end
+
+	if place == nil and #Places:list(macro) >= Places.maxPlaces
+	then
+		AutoPilotMoon:say("bad", getText("IGUI_AutoPilot_E_PlacesFull", Places.maxPlaces), self.player);
+
+		return;
+	end
+
+	self:saveNow();
+
+	local window = self;
+	local session = Places:pick(self.player, getText("IGUI_AutoPilot_E_PlaceTitle", name or getText("IGUI_AutoPilot_E_PlaceNew")),
+		function(spot)
+			window:onPlaceMarked(macro, name, place, spot);
+		end,
+		function()
+			window:onPlaceCancelled();
+		end);
+
+	if session
+	then
+		self.marking = { macro = macro, name = name, place = place };
+		self:setVisible(false);
+	end
+end
+
+function W:onPlaceCancelled()
+	self.marking = nil;
+	self:setVisible(true);
+	self:bringToTop();
+end
+
+-- chosen: a new place (the name the text uses, else the name of what was clicked, made free), or the same place on
+-- the new square; saved now, the text checked again (the warning of the name goes away)
+function W:onPlaceMarked(macro, name, place, spot)
+	local Places = Macro().Places;
+
+	self.marking = nil;
+	self:setVisible(true);
+	self:bringToTop();
+
+	if place
+	then
+		Places:move(place, spot);
+	else
+		local wanted = name or spot.nameText;
+
+		if wanted == nil or wanted == ""
+		then
+			wanted = getText("IGUI_AutoPilot_E_PlaceGroundName");
+		end
+
+		place = Places:add(macro, wanted, spot);
+
+		if place == nil
+		then
+			AutoPilotMoon:say("bad", getText("IGUI_AutoPilot_E_PlacesFull", Places.maxPlaces), self.player);
+
+			return;
+		end
+	end
+
+	AutoPilotMoon:say("plain", getText("IGUI_AutoPilot_A_PlaceMarked", place.name), self.player);
+	Macro().Store:save(true);
+
+	if self:currentMacro() == macro
+	then
+		self:check();
+	end
+end
+
+function W:onRemovePlace(place)
+	local macro = self:currentMacro();
+
+	if macro == nil or not self.editable
+	then
+		return;
+	end
+
+	if Macro().Places:remove(macro, place)
+	then
+		AutoPilotMoon:say("plain", getText("IGUI_AutoPilot_A_PlaceRemoved", place.name), self.player);
+		Macro().Store:save(true);
+		self:check();
+	end
 end
 
 -- a new text in the box (an insertion): changed, the cursor on its line
@@ -2419,6 +2748,11 @@ function W:close()
 	if self.suggest
 	then
 		self.suggest:close();
+	end
+
+	if self.hover
+	then
+		self.hover:hide();
 	end
 
 	self:endRename(false);

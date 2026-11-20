@@ -6,13 +6,19 @@
 -- the character is idle (return "busy" to the engine while Carry:step says "busy"):
 --   check    the destination still exists, is not locked, the vehicle has not moved (spec 3.5: before every trip);
 --            not there yet -> walk (the game's walk, or the path to the vehicle's part), at most Carry.maxWalks times
---   deposit  a closed (not locked) trunk is opened with the game's own action, as by hand; then one transfer action of
---            the game per item (the server checks each, spec 7.4.5), into the first container with room; a full
---            destination -> the ground next to it (where the character stands); no room there either -> stop "the
---            destination is full"
---   confirm  only what really arrived counts (spec 7.4.1): an item still in the character's inventory waits
---            Carry.confirmGraceMs ("waiting for the server..."), then counts as a failed try; after Carry.maxTries the
---            item is left with the warning "the server does not accept the move"
+--   deposit  a closed (not locked) trunk is opened with the game's own action, as by hand (then the trunk awaited open,
+--            not "locked" at once); a container never opened is asked for and what it holds awaited (its room is
+--            known only then); then one transfer action of the game per item (the server checks each, spec 7.4.5),
+--            into the first container with room; a full destination -> the ground next to it (where the character
+--            stands); no room there either -> stop "the destination is full"
+--   confirm  only what really arrived counts (spec 7.4.1), BY ID (1.2.1, "wait for the object": in multiplayer the
+--            item in the crate is a new object with the same id, contains(old object) never saw it: "Portati 0" and
+--            the server's GathererItemsPerJob never stopped the Gatherer). The engine's AutoPilotMoon.Wait looks with
+--            the character idle, "aspetta il server: gli oggetti in Cassa (2 su 3)"; a refusal of the server is seen
+--            at once (the whole queue emptied): the refused item counts a failed try and that container is not tried
+--            again for it in this trip (the floor is the last choice), the items cancelled after it are tried again
+--            without a failed try; not arrived after Wait.timeoutMs: a failed try; after Carry.maxTries the item is
+--            left with the warning "the server does not accept the move"
 -- Limits (technical, spec 8.4): perTrip items per trip and perJob items per job (default: the server's
 -- GathererItemsPerTrip and GathererItemsPerJob).
 -- Never carried: favourites, equipped or worn items (the rule: what is blocked by hand).
@@ -24,7 +30,6 @@ local Carry = AutoPilotMoon.Carry;
 
 Carry.maxWalks = 3;          -- walks to the destination that do not get there before it counts as unreachable
 Carry.maxTries = 3;          -- transfers of the same item that do not happen before it is left
-Carry.confirmGraceMs = 1500; -- an item not arrived yet after the actions: the server may still be answering
 Carry.nearDistance = 1.5;    -- next to a container
 Carry.adjacentAxis = 1.6;    -- or as near as the game's walkAdj stops walking (each axis, square reachable)
 Carry.loadRatio = 1.0;       -- of the character's maximum weight: more and the trip starts before picking up more
@@ -93,7 +98,8 @@ end
 
 -- A trip of items (list of InventoryItem of the character) to dest (AutoPilotMoon.Destination). opts (optional):
 -- perTrip, perJob, counterKey (default "IGUI_AutoPilot_P_C_Carried"), activityKey (default
--- "IGUI_AutoPilot_P_Now_Carrying"), onCarried(item) (called once per item arrived).
+-- "IGUI_AutoPilot_P_Now_Carrying"), onCarried(id) (called once per item arrived, with its id).
+-- trip.items holds the ids (never the game's objects: they are found again in the inventory at every step).
 function AutoPilotMoon.Carry:newTrip(player, dest, items, opts)
 	opts = opts or {};
 
@@ -105,9 +111,12 @@ function AutoPilotMoon.Carry:newTrip(player, dest, items, opts)
 		state = "check",
 		walks = 0,
 		doorTried = false,
+		doorWait = nil,
+		loadWait = nil,
 		pending = nil,
-		idleSince = nil,
+		wait = nil,
 		failures = {},
+		refused = {},
 		carried = 0,
 		floorPlanned = 0,
 	};
@@ -128,7 +137,7 @@ function AutoPilotMoon.Carry:newTrip(player, dest, items, opts)
 
 		if Carry:isCarriable(item, player)
 		then
-			table.insert(trip.items, item);
+			table.insert(trip.items, item:getID());
 		end
 	end
 
@@ -197,13 +206,16 @@ local function destinationName(trip)
 	return trip.dest.nameText or "";
 end
 
--- the items not arrived yet and not given up, at most the trip's limit
+-- the items not arrived yet and not given up (found again by id in the inventory), at most the trip's limit
 local function itemsToCarry(trip)
 	local result = {};
+	local inventory = trip.player:getInventory();
 
-	for i, item in ipairs(trip.items)
+	for i, id in ipairs(trip.items)
 	do
-		if (trip.failures[item] or 0) < Carry.maxTries and Carry:isCarriable(item, trip.player)
+		local item = inventory:getItemWithIDRecursiv(id);
+
+		if item and (trip.failures[id] or 0) < Carry.maxTries and Carry:isCarriable(item, trip.player)
 		then
 			table.insert(result, item);
 		end
@@ -212,17 +224,80 @@ local function itemsToCarry(trip)
 	return result;
 end
 
-local function isArrived(entry, player)
-	local item = entry.item;
+-- the deposit's outcome (the wait is over): what arrived counted once, by id; the refused item a failed try and its
+-- container skipped for it; what the game cancelled after a refusal tried again; what never arrived a failed try
+local function settle(trip, info)
+	local wait = trip.wait;
 
-	if entry.floor
-	then
-		local container = item:getContainer();
+	for i, entry in ipairs(trip.pending)
+	do
+		if info.ids[entry.id]
+		then
+			trip.carried = trip.carried + 1;
+			AutoPilotMoon.Automation:addJobCount("carryCarried");
+			AutoPilotMoon.Progress:count(trip.opts.counterKey or "IGUI_AutoPilot_P_C_Carried");
 
-		return container == nil or not container:isInCharacterInventory(player);
+			if trip.opts.onCarried
+			then
+				trip.opts.onCarried(entry.id);
+			end
+		elseif not wait:wasCancelled(entry.action)
+		then
+			trip.failures[entry.id] = (trip.failures[entry.id] or 0) + 1;
+
+			if not entry.floor and wait:wasStopped(entry.action)
+			then
+				trip.refused[entry.id] = trip.refused[entry.id] or {};
+				trip.refused[entry.id][entry.target] = true;
+			end
+
+			if trip.failures[entry.id] >= Carry.maxTries
+			then
+				AutoPilotMoon.Progress:warn("IGUI_AutoPilot_A_Reason_ServerRefused");
+			end
+		end
 	end
 
-	return entry.target:contains(item);
+	trip.pending = nil;
+	trip.wait = nil;
+	trip.state = "check";
+end
+
+-- the destination's containers: what they hold arrived from the server (their room is known only then); false: wait
+local function contentsLoaded(trip, resolved)
+	local player = trip.player;
+
+	if trip.loadWait == nil
+	then
+		local wait = nil;
+
+		for i, container in ipairs(resolved.containers)
+		do
+			AutoPilotMoon.Wait:explore(container, player);
+
+			if AutoPilotMoon.Wait:loadState(container) ~= "loaded"
+			then
+				wait = wait or AutoPilotMoon.Wait:new(player, { label = destinationName(trip), waitingAfterMs = 0 });
+				wait:expectLoaded(container);
+			end
+		end
+
+		if wait == nil
+		then
+			return true;
+		end
+
+		trip.loadWait = wait;
+	end
+
+	if trip.loadWait:check() == "busy"
+	then
+		return false;
+	end
+
+	trip.loadWait = nil;
+
+	return true;
 end
 
 -- One step of the trip, called while the character is idle: "busy" (actions queued or waiting), "done" (every item
@@ -233,57 +308,14 @@ function AutoPilotMoon.Carry:step(trip)
 
 	if trip.state == "confirm"
 	then
-		local waiting = false;
+		local answer, why, info = trip.wait:check();
 
-		for i, entry in ipairs(trip.pending)
-		do
-			if not entry.counted
-			then
-				if isArrived(entry, player)
-				then
-					entry.counted = true;
-					trip.carried = trip.carried + 1;
-					AutoPilotMoon.Automation:addJobCount("carryCarried");
-					AutoPilotMoon.Progress:count(trip.opts.counterKey or "IGUI_AutoPilot_P_C_Carried");
-
-					if trip.opts.onCarried
-					then
-						trip.opts.onCarried(entry.item);
-					end
-				else
-					waiting = true;
-				end
-			end
-		end
-
-		-- the grace starts at the first idle frame after the transfers, not when they were queued: walking and the
-		-- transfers themselves take longer than the grace
-		trip.idleSince = trip.idleSince or now;
-
-		if waiting and now - trip.idleSince < Carry.confirmGraceMs
+		if answer == "busy"
 		then
-			AutoPilotMoon.Progress:setWaiting(true);
-
 			return "busy";
 		end
 
-		AutoPilotMoon.Progress:setWaiting(false);
-
-		for i, entry in ipairs(trip.pending)
-		do
-			if not entry.counted
-			then
-				trip.failures[entry.item] = (trip.failures[entry.item] or 0) + 1;
-
-				if trip.failures[entry.item] >= Carry.maxTries
-				then
-					AutoPilotMoon.Progress:warn("IGUI_AutoPilot_A_Reason_ServerRefused");
-				end
-			end
-		end
-
-		trip.pending = nil;
-		trip.state = "check";
+		settle(trip, info);
 	end
 
 	local todo = itemsToCarry(trip);
@@ -314,6 +346,17 @@ function AutoPilotMoon.Carry:step(trip)
 		return "busy";
 	end
 
+	if trip.doorWait
+	then
+		-- the trunk opened as by hand: open only when the vehicle says so (its state comes from the server)
+		if trip.doorWait:check() == "busy"
+		then
+			return "busy";
+		end
+
+		trip.doorWait = nil;
+	end
+
 	if trip.dest.kind == "vehicle" and not resolved.vehicle:canAccessContainer(resolved.partIndex, player)
 	then
 		local door = AutoPilotMoon.Destination:getClosedDoor(resolved.vehicle, resolved.part);
@@ -321,8 +364,19 @@ function AutoPilotMoon.Carry:step(trip)
 		if door and not trip.doorTried
 		then
 			-- a closed trunk is opened as by hand
+			local action = ISOpenVehicleDoor:new(player, resolved.vehicle, door);
+			local dest = trip.dest;
+			local wait = AutoPilotMoon.Wait:new(player, { label = destinationName(trip) });
+
 			trip.doorTried = true;
-			ISTimedActionQueue.add(ISOpenVehicleDoor:new(player, resolved.vehicle, door));
+			ISTimedActionQueue.add(action);
+			wait:watch(action);
+			wait:expectTrue(function()
+				local now = AutoPilotMoon.Destination:resolve(dest, player);
+
+				return now ~= nil and now.vehicle ~= nil and now.vehicle:canAccessContainer(now.partIndex, player);
+			end);
+			trip.doorWait = wait;
 
 			return "busy";
 		end
@@ -330,15 +384,22 @@ function AutoPilotMoon.Carry:step(trip)
 		return "failed", "IGUI_AutoPilot_A_Reason_DestLocked";
 	end
 
+	if not contentsLoaded(trip, resolved)
+	then
+		return "busy";
+	end
+
 	-- the deposit: the first container with room, else the floor where the character stands
 	local floor = ISInventoryPage.GetFloorContainer(player:getPlayerNum());
 	local floorRoom = AutoPilotMoon.Item:getFloorRoom(player:getSquare(), player);
 	local pending = {};
 	local planned = {};
+	local wait = AutoPilotMoon.Wait:new(player, { label = getText("IGUI_AutoPilot_W_Carry", destinationName(trip)) });
 
 	for i, item in ipairs(todo)
 	do
-		local target = AutoPilotMoon.Destination:findRoom(resolved, player, item, planned);
+		-- a container that refused this item in this trip is not tried again for it: the next one, the floor last
+		local target = AutoPilotMoon.Destination:findRoom(resolved, player, item, planned, trip.refused[item:getID()]);
 		local onFloor = false;
 
 		if target == nil
@@ -355,8 +416,20 @@ function AutoPilotMoon.Carry:step(trip)
 
 		if target
 		then
-			ISTimedActionQueue.add(ISInventoryTransferUtil.newInventoryTransferAction(player, item, item:getContainer(), target));
-			table.insert(pending, { item = item, target = target, floor = onFloor, counted = false });
+			local action = ISInventoryTransferUtil.newInventoryTransferAction(player, item, item:getContainer(), target);
+
+			ISTimedActionQueue.add(action);
+			wait:watch(action);
+
+			if onFloor
+			then
+				-- on the floor: it left the inventory (the game lays it on the 3x3, another object)
+				wait:expectOut(item, "inventory");
+			else
+				wait:expectIn(item, target);
+			end
+
+			table.insert(pending, { id = item:getID(), action = action, target = target, floor = onFloor });
 		end
 	end
 
@@ -368,9 +441,15 @@ function AutoPilotMoon.Carry:step(trip)
 	end
 
 	trip.pending = pending;
-	trip.idleSince = nil;
+	trip.wait = wait;
 	trip.state = "confirm";
 	AutoPilotMoon.Progress:setActivity(trip.opts.activityKey or "IGUI_AutoPilot_P_Now_Carrying", #pending, destinationName(trip));
 
 	return "busy";
+end
+
+-- next to a destination as a trip counts it (the macros' places, 19/11/2026: take, put, walk_to): the same rule as the
+-- game's walkAdj for a container, standing on it for the ground
+function AutoPilotMoon.Carry:isNear(player, dest, resolved)
+	return isAt({ player = player, dest = dest }, resolved);
 end

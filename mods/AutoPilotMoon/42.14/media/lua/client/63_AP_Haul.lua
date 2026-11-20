@@ -6,9 +6,11 @@
 -- character is idle:
 --   pick up   the game's own grab (ISWorldObjectContextMenu.onGrabAllWItems: the walk next to the square, then one
 --             grab per item, a transfer the server checks in MP); only what really arrived in the inventory counts
---             (spec 7.4.1): an item still on the ground waits Haul.confirmGraceMs ("waiting for the server..."), then
---             counts as a failed try; after Haul.maxTries it is left with the warning "the server does not accept the
---             move"; an item gone from the ground and not in the inventory was taken by someone else.
+--             (spec 7.4.1), by id, with the engine's wait (AutoPilotMoon.Wait, 1.2.1): an item still on the ground
+--             (by id: the object on the square may be another one of the game) is awaited up to Wait.timeoutMs idle
+--             ("aspetta il server: gli oggetti raccolti (2 su 3)"; a refusal of the server at once), then counts as a
+--             failed try; after Haul.maxTries it is left with the warning "the server does not accept the move"; an
+--             item gone from the ground and not in the inventory was taken by someone else.
 --   cargo     the items this job picked up or made (by id): only these are ever carried, never the player's own
 --             things (Carry also leaves favourites, equipped and worn items alone).
 --   deliver   Carry trips to the destination until the cargo is delivered (more trips in one visit when the cargo is
@@ -24,7 +26,6 @@ AutoPilotMoon.Haul = AutoPilotMoon.Haul or {};
 local Haul = AutoPilotMoon.Haul;
 
 Haul.maxTries = 3;            -- grabs of the same item that do not happen before it is left
-Haul.confirmGraceMs = 1500;   -- the grab ended and the item is not in the inventory yet: the server may still answer
 Haul.destinationMargin = 1;   -- squares around the destination never picked from (where a full destination puts down)
 
 -- a new hauler for a job. opts (optional): perTrip, perJob (the Carry limits; default the server's Gatherer
@@ -55,6 +56,7 @@ function AutoPilotMoon.Haul:new(player, dest, opts)
 		trip = nil,
 		delivering = false,
 		delivered = 0,
+		atFeet = {},             -- { x, y, z, id }: made by the job and laid at the feet (no room): picked up next
 	};
 end
 
@@ -147,70 +149,52 @@ function AutoPilotMoon.Haul:grab(h, square, entries)
 		table.insert(list, entry.worldObject);
 	end
 
-	h.grab = {
+	local grab = {
 		x = square:getX(),
 		y = square:getY(),
 		z = square:getZ(),
 		entries = entries,
-		idleSince = nil,
+		wait = AutoPilotMoon.Wait:new(h.player, { label = getText("IGUI_AutoPilot_W_Grab") }),
 	};
+	local mark = AutoPilotMoon.Wait:mark(h.player);
 
+	h.grab = grab;
 	AutoPilotMoon.Progress:setActivity("IGUI_AutoPilot_P_Now_Gathering", #entries);
 	ISWorldObjectContextMenu.onGrabAllWItems(nil, list, h.player:getPlayerNum());
+	grab.wait:watchQueued(mark);
+
+	for i, entry in ipairs(entries)
+	do
+		-- off the ground (picked, or by someone else): the outcome is told apart once the wait is over
+		grab.wait:expectTrue(function()
+			return not Haul:isStillOnGround(grab, entry.id);
+		end);
+	end
 end
 
-local function isStillOnGround(grab, entry)
-	local cell = getCell();
-	local square = cell and cell:getGridSquare(grab.x, grab.y, grab.z);
-	local objects = square and square:getWorldObjects();
-
-	return objects ~= nil and objects:contains(entry.worldObject);
+-- the item with this id still lies on the grab's square (by id: the object of the game there may be another one)
+function AutoPilotMoon.Haul:isStillOnGround(grab, id)
+	return AutoPilotMoon.Wait:floorIds({ x = grab.x, y = grab.y, z = grab.z }, 0)[id] == true;
 end
 
 -- the grab's outcome, once the character is idle again: "busy" while waiting for the server, else nil (the picked items
 -- are cargo, the others counted as a try or as taken by someone else)
 function AutoPilotMoon.Haul:confirmGrab(h)
 	local grab = h.grab;
-	local now = getTimestampMs();
-	local inventory = h.player:getInventory();
-	local waiting = false;
 
-	if grab.idleSince == nil
+	if grab.wait:check() == "busy"
 	then
-		grab.idleSince = now;
-	end
-
-	for i, entry in ipairs(grab.entries)
-	do
-		if not entry.resolved
-		then
-			if inventory:getItemWithIDRecursiv(entry.id)
-			then
-				entry.resolved = true;
-				h.cargo[entry.id] = true;
-			elseif isStillOnGround(grab, entry)
-			then
-				waiting = true;
-			else
-				-- gone from the ground and not here: someone else took it (spec 7.4.3, not an error)
-				entry.resolved = true;
-				AutoPilotMoon.Progress:count("IGUI_AutoPilot_P_C_ByOthers");
-			end
-		end
-	end
-
-	if waiting and now - grab.idleSince < Haul.confirmGraceMs
-	then
-		AutoPilotMoon.Progress:setWaiting(true);
-
 		return "busy";
 	end
 
-	AutoPilotMoon.Progress:setWaiting(false);
+	local inventory = h.player:getInventory();
 
 	for i, entry in ipairs(grab.entries)
 	do
-		if not entry.resolved
+		if inventory:getItemWithIDRecursiv(entry.id)
+		then
+			h.cargo[entry.id] = true;
+		elseif Haul:isStillOnGround(grab, entry.id)
 		then
 			h.tries[entry.id] = (h.tries[entry.id] or 0) + 1;
 
@@ -219,6 +203,9 @@ function AutoPilotMoon.Haul:confirmGrab(h)
 				h.givenUp[entry.id] = true;
 				AutoPilotMoon.Progress:warn("IGUI_AutoPilot_A_Reason_ServerRefused");
 			end
+		else
+			-- gone from the ground and not here: someone else took it (spec 7.4.3, not an error)
+			AutoPilotMoon.Progress:count("IGUI_AutoPilot_P_C_ByOthers");
 		end
 	end
 
@@ -232,6 +219,52 @@ end
 -- an item made by the job (planks, firewood) is cargo too
 function AutoPilotMoon.Haul:addCargo(h, item)
 	h.cargo[item:getID()] = true;
+end
+
+-- items made by the job that the game laid at the character's feet (Craft:confirm): picked up with the game's grab,
+-- one square at a time, then cargo like the rest (1.2.1)
+function AutoPilotMoon.Haul:addAtFeet(h, list)
+	for i, entry in ipairs(list or {})
+	do
+		table.insert(h.atFeet, entry);
+	end
+end
+
+-- the next square of the items at the feet: their grab (true), or nothing left (false)
+local function grabAtFeet(h)
+	while #h.atFeet > 0
+	do
+		local first = table.remove(h.atFeet, 1);
+		local cell = getCell();
+		local square = cell and cell:getGridSquare(first.x, first.y, first.z);
+		local wanted = { [first.id] = true };
+		local rest = {};
+
+		for i, entry in ipairs(h.atFeet)
+		do
+			if entry.x == first.x and entry.y == first.y and entry.z == first.z
+			then
+				wanted[entry.id] = true;
+			else
+				table.insert(rest, entry);
+			end
+		end
+
+		h.atFeet = rest;
+
+		local entries = Haul:findOnSquare(nil, square, function(item)
+			return wanted[item:getID()] == true and not h.givenUp[item:getID()];
+		end);
+
+		if #entries > 0
+		then
+			Haul:grab(h, square, entries);
+
+			return true;
+		end
+	end
+
+	return false;
 end
 
 -- the cargo still in the inventory, as InventoryItem (only what may be carried: Carry:isCarriable)
@@ -319,9 +352,7 @@ local function newTrip(h)
 		perJob = h.opts.perJob,
 		counterKey = h.opts.counterKey,
 		activityKey = h.opts.activityKey,
-		onCarried = function(item)
-			local id = item:getID();
-
+		onCarried = function(id)
 			h.cargo[id] = nil;
 			h.deposited[id] = true;
 			h.delivered = h.delivered + 1;
@@ -371,10 +402,8 @@ function AutoPilotMoon.Haul:update(h)
 		end
 
 		-- what the server refused three times stays in the inventory and is not carried again
-		for i, item in ipairs(trip.items)
+		for i, id in ipairs(trip.items)
 		do
-			local id = item:getID();
-
 			if h.cargo[id] and not h.deposited[id]
 			then
 				h.givenUp[id] = true;
@@ -392,6 +421,11 @@ function AutoPilotMoon.Haul:update(h)
 	if h.grab
 	then
 		return Haul:confirmGrab(h);
+	end
+
+	if not h.delivering and #h.atFeet > 0 and grabAtFeet(h)
+	then
+		return "busy";
 	end
 
 	return nil;

@@ -78,6 +78,11 @@ function AutoPilotMoon.Event.onPlayerDeath(player)
 		AutoPilotMoon.Panel:onPlayerDeath(player);
 	end
 
+	if AutoPilotMoon.IdPicker
+	then
+		AutoPilotMoon.IdPicker:onPlayerDeath(player);
+	end
+
 	-- a recording is thrown away without questions, the editor closes (MACRO-AUTOPILOT.md 3.1, 4.2)
 	if AutoPilotMoon.Macro and AutoPilotMoon.Macro.Recorder
 	then

@@ -9,6 +9,9 @@
 --   stopBecause of the automation) stops the whole chain, so it never starts again behind the player's back.
 -- - A phase with nothing to do is skipped with a note; the chain is offered only when every phase is allowed by the
 --   server, and stops if one gets switched off before its turn.
+-- - Between two phases (1.2.1, "wait for the object"): the next phase starts once the items lying in the area (with
+--   the next phase's margin) did not change for Chain.settleMs, at most Wait.timeoutMs with the character idle: the logs
+--   of the last tree fall on the server after the tree, the next phase must see them (1.2.0 looked one frame later).
 -- - At most Chain.maxPhases phases; a chain runs once.
 -- - Messages: "<Chain>: phase 2 of 3, <phase>" at each phase, one summary at the end (the confirmed counters of all the
 --   phases), "<Chain> stopped (phase 2): <reason>" on a stop.
@@ -19,6 +22,7 @@ AutoPilotMoon.Chain = AutoPilotMoon.Chain or {};
 local Chain = AutoPilotMoon.Chain;
 
 Chain.maxPhases = 4;
+Chain.settleMs = 1000;      -- the items lying in the area unchanged this long before the next phase starts
 Chain.definitions = Chain.definitions or {};
 Chain.registered = Chain.registered or {};
 Chain.current = nil;
@@ -307,8 +311,54 @@ function AutoPilotMoon.Chain:stopRun(run, reason, stopText)
 	setGameSpeed(1);
 end
 
+-- the items lying in the area of the next phase (its margin included)
+function AutoPilotMoon.Chain:groundCount(run)
+	local phase = run.definition.phases[run.phase + 1];
+	local margin = phase and phase.margin or 0;
+	local area = run.area;
+	local cell = getCell();
+	local count = 0;
+
+	for x = area.x1 - margin, area.x2 + margin
+	do
+		for y = area.y1 - margin, area.y2 + margin
+		do
+			local square = cell and cell:getGridSquare(x, y, area.z);
+			local objects = square and square:getWorldObjects();
+
+			if objects
+			then
+				count = count + objects:size();
+			end
+		end
+	end
+
+	return count;
+end
+
+-- the wait between two phases: the items of the area unchanged for Chain.settleMs (the engine's wait gives the limit)
+local function settleWait(run, player)
+	local wait = AutoPilotMoon.Wait:new(player, {});
+	local state = { count = Chain:groundCount(run), since = getTimestampMs() };
+
+	wait:expectTrue(function()
+		local count = Chain:groundCount(run);
+		local time = getTimestampMs();
+
+		if count ~= state.count
+		then
+			state.count = count;
+			state.since = time;
+		end
+
+		return time - state.since >= Chain.settleMs;
+	end);
+
+	return wait;
+end
+
 -- Every frame of the chain's player while it waits between two phases (client/99_AP_Event.lua): the stops of the
--- engine apply here too, then the next phase starts.
+-- engine apply here too, then the next phase starts (once the area settled).
 function AutoPilotMoon.Chain:update(player)
 	local run = Chain.current;
 
@@ -326,10 +376,19 @@ function AutoPilotMoon.Chain:update(player)
 
 	if reason
 	then
+		run.settle = nil;
 		Chain:stopRun(run, reason);
 
 		return;
 	end
 
+	run.settle = run.settle or settleWait(run, player);
+
+	if run.settle:check() == "busy"
+	then
+		return;
+	end
+
+	run.settle = nil;
 	Chain:advance(run);
 end

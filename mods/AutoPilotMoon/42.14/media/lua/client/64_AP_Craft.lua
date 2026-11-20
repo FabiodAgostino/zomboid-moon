@@ -30,7 +30,6 @@ AutoPilotMoon.Craft = AutoPilotMoon.Craft or {};
 
 local Craft = AutoPilotMoon.Craft;
 
-Craft.confirmGraceMs = 1500;   -- the action ended and the input is still there: the server may still answer
 Craft.surfaceRange = 2;        -- squares around the character where the game looks for a work surface (OnNewCraft)
 
 -- the game's recipe by name ("SawLogs"), nil when this version of the game does not have it
@@ -185,7 +184,8 @@ function AutoPilotMoon.Craft:hasSurfaceNear(square, range)
 	return Craft:findSurfaceNear(square, range) ~= nil;
 end
 
--- the ids of the items of these full types in the inventory (bags included)
+-- the ids of the items of these full types in the inventory (bags included) and lying around the character (5x5:
+-- a short walk to a surface included)
 local function snapshot(player, outputTypes)
 	local ids = {};
 	local items = player:getInventory():getAllEvalRecurse(function(item)
@@ -195,6 +195,11 @@ local function snapshot(player, outputTypes)
 	for i = 0, items:size() - 1
 	do
 		ids[items:get(i):getID()] = true;
+	end
+
+	for id in pairs(AutoPilotMoon.Wait:floorIds(player:getSquare(), 2))
+	do
+		ids[id] = true;
 	end
 
 	return ids;
@@ -245,13 +250,19 @@ function AutoPilotMoon.Craft:start(player, recipe, item, outputTypes)
 		return nil;
 	end
 
+	-- used up, by id (1.2.1, the engine's wait): not in the inventory, not on the 3x3 where it lay, not in its container
+	local wait = AutoPilotMoon.Wait:new(player, { label = Craft:getRecipeName(recipe) });
+	local from = item:getContainer();
+
+	wait:expectGone(item, { square = ground or player:getSquare(), container = from });
+
 	return {
 		itemId = item:getID(),
 		recipe = recipe,
 		outputTypes = outputTypes,
 		before = before,
 		ground = ground,
-		idleSince = nil,
+		wait = wait,
 	};
 end
 
@@ -279,28 +290,19 @@ local function isOnSquare(ground, id)
 	return false;
 end
 
--- Once the character is idle again: "busy" while waiting for the server, else "done", consumed (the input is gone: from
--- the inventory and, for an item that lay on the ground, from its square) and the list of the outputs that appeared in
--- the inventory.
+-- Once the character is idle again (the engine's wait, 1.2.1): "busy" while waiting for the server, else "done",
+-- consumed (the input is gone, by id: from the inventory, from the 3x3 where it lay, from its container), the list of
+-- the outputs that appeared in the inventory, and the outputs the game laid at the character's feet because they did
+-- not fit (Actions.addOrDropItem): { x, y, z, id } each (1.2.1: 1.2.0 never saw them and left them there)
 function AutoPilotMoon.Craft:confirm(pending, player)
-	local now = getTimestampMs();
-	local consumed = player:getInventory():getItemWithIDRecursiv(pending.itemId) == nil
-		and not (pending.ground and isOnSquare(pending.ground, pending.itemId));
+	local answer = pending.wait:check();
 
-	if pending.idleSince == nil
+	if answer == "busy"
 	then
-		pending.idleSince = now;
-	end
-
-	if not consumed and now - pending.idleSince < Craft.confirmGraceMs
-	then
-		AutoPilotMoon.Progress:setWaiting(true);
-
 		return "busy";
 	end
 
-	AutoPilotMoon.Progress:setWaiting(false);
-
+	local consumed = answer == "done";
 	local outputs = {};
 	local items = player:getInventory():getAllEvalRecurse(function(item)
 		return pending.outputTypes[item:getFullType()] == true and not pending.before[item:getID()];
@@ -311,7 +313,30 @@ function AutoPilotMoon.Craft:confirm(pending, player)
 		table.insert(outputs, items:get(i));
 	end
 
-	return "done", consumed, outputs;
+	local atFeet = {};
+	local here = player:getSquare();
+	local cell = getCell();
+
+	for dx = -1, 1
+	do
+		for dy = -1, 1
+		do
+			local square = here and cell and cell:getGridSquare(here:getX() + dx, here:getY() + dy, here:getZ());
+			local objects = square and square:getWorldObjects();
+
+			for i = 0, (objects and objects:size() or 0) - 1
+			do
+				local item = objects:get(i):getItem();
+
+				if item and pending.outputTypes[item:getFullType()] == true and not pending.before[item:getID()]
+				then
+					table.insert(atFeet, { x = square:getX(), y = square:getY(), z = square:getZ(), id = item:getID() });
+				end
+			end
+		end
+	end
+
+	return "done", consumed, outputs, atFeet;
 end
 
 -- ============================================================================================================

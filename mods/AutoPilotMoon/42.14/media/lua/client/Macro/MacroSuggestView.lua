@@ -666,10 +666,12 @@ function C:place(force)
 	py = math.max(top, math.min(py, bottom - self.height));
 	px = math.max(left, math.min(px, right - self.width));
 
-	popup:setX(math.floor(px));
-	popup:setY(math.floor(py));
+	-- the size first: ISUIElement.setY keeps an element on the screen with the height it has then (42.22), so a list
+	-- that was taller was put higher than asked (found 19/11/2026: over the row it is for)
 	popup:setWidth(self.width);
 	popup:setHeight(self.height);
+	popup:setX(math.floor(px));
+	popup:setY(math.floor(py));
 	popup:setVisible(true);
 	popup:bringToTop();
 	self.placed = { ex = ex, ey = ey, scroll = scroll, anchor = anchor, width = self.width, height = self.height,

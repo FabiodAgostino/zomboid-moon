@@ -18,6 +18,8 @@
 --   macroCodeFont          the macro editor writes with the game's fixed-width font (MACRO-AUTOPILOT.md 4.3)
 --   macroColors            the macro editor colours its text (MACRO-AUTOPILOT.md 4.11; needs macroCodeFont)
 --   macroSuggest           the macro editor suggests while typing (MACRO-AUTOPILOT.md 4.12)
+--   macroAutoIndent        the macro editor's smart keys: indentation, pairs, Tab, Ctrl+Z... (4.13, 19/11/2026)
+--   macroHover             the macro editor's help under the mouse (4.13, 19/11/2026)
 --   enable<Name>           the job <name> is shown in the menu ("Jobs in the menu", one tick per job and chain)
 --   any other key given to Options:register(key, default): a boolean of this game session only, not saved
 
@@ -58,11 +60,16 @@ O.specs = {
         tooltipKey = "IGUI_AutoPilot_MO_MacroColors_Tooltip" },
     macroSuggest = { kind = "tick", nameKey = "IGUI_AutoPilot_MO_MacroSuggest", default = true,
         tooltipKey = "IGUI_AutoPilot_MO_MacroSuggest_Tooltip" },
+    -- the editor made smarter (19/11/2026, MACRO-AUTOPILOT.md 4.13)
+    macroAutoIndent = { kind = "tick", nameKey = "IGUI_AutoPilot_MO_MacroAutoIndent", default = true,
+        tooltipKey = "IGUI_AutoPilot_MO_MacroAutoIndent_Tooltip" },
+    macroHover = { kind = "tick", nameKey = "IGUI_AutoPilot_MO_MacroHover", default = true,
+        tooltipKey = "IGUI_AutoPilot_MO_MacroHover_Tooltip" },
 };
 
 O.pageOrder = { "enabled", "haloMode", "openPanelOnStart", "showJobArea", "uiSounds", "autoRest", "restLevel", "stopWhenUnwell",
     "panelKey", "macroEditorKey", "menuIcon", "menuJobs", "unloadBeforeScrapping", "macroCodeFont", "macroColors",
-    "macroSuggest" };
+    "macroSuggest", "macroAutoIndent", "macroHover" };
 
 -- The ticks of "Jobs in the menu", in this order. PZAPI.ModOptions saves a multiple tickbox by position: once released,
 -- this list is only appended to (never reordered, never shortened). A job not in the list comes after, in the order it

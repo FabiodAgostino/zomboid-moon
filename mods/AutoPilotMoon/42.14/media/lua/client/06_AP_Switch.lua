@@ -201,6 +201,14 @@ local function turnOff()
         end
     end);
 
+    -- "Nome nativo" being chosen, its result box (19/11/2026)
+    safely(function()
+        if AutoPilotMoon.IdPicker and AutoPilotMoon.IdPicker.shutdown
+        then
+            AutoPilotMoon.IdPicker:shutdown();
+        end
+    end);
+
     -- the game's recipe action as it was
     safely(function()
         if macro and macro.Hooks and macro.Hooks.uninstall

@@ -261,3 +261,31 @@ option AutoPilotMoon.MacroExcludedSkills
 	page = AutoPilotMoon,
 	translation = AutoPilot_MacroExcludedSkills,
 }
+
+option AutoPilotMoon.EnableMacroTransfers
+{
+	type = boolean,
+	default = false,
+	page = AutoPilotMoon,
+	translation = AutoPilot_EnableMacroTransfers,
+}
+
+option AutoPilotMoon.MacroItemsPerRun
+{
+	type = integer,
+	min = 1,
+	max = 2000,
+	default = 200,
+	page = AutoPilotMoon,
+	translation = AutoPilot_MacroItemsPerRun,
+}
+
+option AutoPilotMoon.MacroPlaceRadius
+{
+	type = integer,
+	min = 5,
+	max = 100,
+	default = 30,
+	page = AutoPilotMoon,
+	translation = AutoPilot_MacroPlaceRadius,
+}

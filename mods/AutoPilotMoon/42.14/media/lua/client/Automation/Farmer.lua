@@ -8,7 +8,12 @@
 -- - Phase C (11/11/2026, ANALISI-WorkOrders.md 4.8 and 6 row 4, spec 5): with a water source chosen after the area
 --   (ctx.waterSource: a square whose object has water, the game's "Fill" menu), an empty watering can is filled there
 --   with the game's own action (ISWorldObjectContextMenu.onTakeWater: the walk, then ISTakeWaterAction) and the job goes
---   back to the plants; a source that gives nothing twice, or is gone, stops the job with the reason.
+--   back to the plants; a source that gives nothing twice, or is gone, stops the job with the reason. The filling is
+--   confirmed BY ID with the engine's wait (1.2.1): the game carries a can kept in a bag into the main inventory and
+--   back, and in multiplayer each move makes a new object with the same id; 1.2.0 looked at the old object, saw it
+--   still empty, filled the can a second time and stopped with "la fonte non da' niente".
+-- - A watering counts when the plant's water level rose; the plant's state comes from the server a moment after the
+--   action (the game's global objects): the same plant is never decided again before it arrived (or Wait.timeoutMs).
 -- - The plant is checked again right before the action (N-S7: the server's complete() fails if it is gone).
 -- - Never in a protected zone (at the start and before each plant).
 -- The Farmer's other jobs (dig, sow, fertilize, treat, harvest, remove) are in Automation/FarmJobs.lua, under the same
@@ -39,11 +44,10 @@ A.farmerMaxSteps = 10;
 
 A:addJobStateField("farmerPlan");
 A:addJobStateField("farmerSource");   -- the water source chosen after the area ({ x, y, z }), or nil
-A:addJobStateField("farmerRefill");   -- { tries, at, can }: filling the watering can at the source
-A:addJobStateField("farmerPending");  -- { square, before }: the last watering, counted when the water level rose
+A:addJobStateField("farmerRefill");   -- { tries, canId, wait }: filling the watering can at the source
+A:addJobStateField("farmerPending");  -- { square, before, wait }: the last watering, counted when the water level rose
 A:addJobStateField("farmerWatered");  -- "x,y,z" -> true: plants counted as watered (once each)
 
-Farm.refillGraceMs = 1500;   -- the filling ended and the can is still empty: the server may still answer
 Farm.maxRefillTries = 2;     -- fillings that bring no water before the job stops
 
 
@@ -212,33 +216,29 @@ end
 function AutoPilotMoon.Farm:refill(player)
 	local refill = A.farmerRefill;
 
-	if refill and refill.can and AutoPilotMoon.Item:getWaterUses(refill.can) > 0
+	if refill and refill.wait
 	then
-		-- only what arrived counts (spec 7.4.1): the can has water
-		A.farmerRefill = nil;
-		AutoPilotMoon.Progress:setWaiting(false);
-		AutoPilotMoon.Progress:count("IGUI_AutoPilot_P_C_Refilled");
+		-- only what arrived counts (spec 7.4.1): the can, found again by its id, has more water
+		local answer = refill.wait:check();
 
-		return nil;
-	end
-
-	if refill and refill.queued
-	then
-		-- the grace starts at the first idle frame after the filling, not when it was queued: the walk to the source
-		-- and the filling take longer than the grace
-		refill.at = refill.at or getTimestampMs();
-
-		if getTimestampMs() - refill.at < Farm.refillGraceMs
+		if answer == "busy"
 		then
-			AutoPilotMoon.Progress:setWaiting(true);
-
 			return "busy";
+		end
+
+		refill.wait = nil;
+
+		if answer == "done"
+		then
+			A.farmerRefill = nil;
+			AutoPilotMoon.Progress:count("IGUI_AutoPilot_P_C_Refilled");
+
+			return nil;
 		end
 	end
 
 	if refill and refill.tries >= Farm.maxRefillTries
 	then
-		AutoPilotMoon.Progress:setWaiting(false);
 		A:stopBecause(getText("IGUI_AutoPilot_A_Reason_SourceGivesNothing"));
 
 		return "discard";
@@ -271,32 +271,49 @@ function AutoPilotMoon.Farm:refill(player)
 		return "discard";
 	end
 
+	local canId = can:getID();
+	local before = AutoPilotMoon.Item:getWaterUses(can);
+	local wait = AutoPilotMoon.Wait:new(player, { label = getText("IGUI_AutoPilot_W_Filled", can:getDisplayName()) });
+	local mark = AutoPilotMoon.Wait:mark(player);
+
 	refill = refill or { tries = 0 };
 	refill.tries = refill.tries + 1;
-	refill.can = can;
+	refill.canId = canId;
 	A.farmerRefill = refill;
 
 	AutoPilotMoon.Progress:setActivity("IGUI_AutoPilot_P_Now_Filling");
 	-- the game's own "Fill" (ISWorldObjectContextMenu.onTakeWater): next to the source, the can into the main
 	-- inventory, ISTakeWaterAction, the can back into its bag
 	ISWorldObjectContextMenu.onTakeWater(nil, object, nil, can, player:getPlayerNum());
-	refill.queued = true;
-	refill.at = nil;
+	wait:watchQueued(mark);
+	wait:expectTrue(function()
+		-- by id: the can in the bag is another object after each move (multiplayer)
+		local now = wait:resolve(canId);
+
+		return now ~= nil and AutoPilotMoon.Item:getWaterUses(now) > before;
+	end);
+	refill.wait = wait;
 
 	return "busy";
 end
 
 -- a plant counts as watered (once) when its water level rose after this job's watering (spec 7.4.1: only what really
--- happened); a plant gone or a watering that did not happen is not counted
-local function confirmLastWatering()
+-- happened); a plant gone or a watering that did not happen is not counted. "busy" while the plant's new state has not
+-- arrived from the server (the same plant is never decided again on an old water level)
+local function confirmLastWatering(final)
 	local pending = A.farmerPending;
-
-	A.farmerPending = nil;
 
 	if pending == nil
 	then
-		return;
+		return nil;
 	end
+
+	if not final and pending.wait and pending.wait:check() == "busy"
+	then
+		return "busy";
+	end
+
+	A.farmerPending = nil;
 
 	local plant = AutoPilotMoon.Square:getSeededPlant(pending.square);
 
@@ -309,13 +326,15 @@ local function confirmLastWatering()
 		counted[key] = true;
 		AutoPilotMoon.Progress:count("IGUI_AutoPilot_P_C_Watered");
 	end
+
+	return nil;
 end
 
 -- the last plant of the job is counted too
 function AutoPilotMoon.Automation:stopFarmer()
 	if A.job and A.job.name == "farmer"
 	then
-		confirmLastWatering();
+		confirmLastWatering(true);
 	end
 
 	A:stopSquareProcessingQueue("farmerWorking");
@@ -324,7 +343,10 @@ end
 function AutoPilotMoon.Automation:checkFarmerSquare(square, player)
 	A.farmerPlan = nil;
 
-	confirmLastWatering();
+	if confirmLastWatering(false) == "busy"
+	then
+		return "busy";
+	end
 
 	if A.farmerRefill
 	then
@@ -382,8 +404,9 @@ function AutoPilotMoon.Automation:checkFarmerSquare(square, player)
 
 	A.farmerPlan = { square = square, item = item, uses = uses };
 
-	-- the item runs short of this plant: keep it, the next step takes another can
-	return uses >= needed;
+	-- kept until the plant shows it is watered (its state comes from the server after the action: the next step waits
+	-- for it, then finds it no longer thirsty); an item that runs short: the next step takes another can
+	return false;
 end
 
 function AutoPilotMoon.Automation:workFarmerSquare(square, player)
@@ -417,8 +440,20 @@ function AutoPilotMoon.Automation:workFarmerSquare(square, player)
 	end
 
 	AutoPilotMoon.Progress:setActivity("IGUI_AutoPilot_P_Now_Watering");
-	ISTimedActionQueue.add(ISWaterPlantAction:new(player, plan.item, plan.uses, square, 20 + (6 * plan.uses)));
-	A.farmerPending = { square = square, before = tonumber(plant["waterLvl"]) or 0 };
+
+	local before = tonumber(plant["waterLvl"]) or 0;
+	local action = ISWaterPlantAction:new(player, plan.item, plan.uses, square, 20 + (6 * plan.uses));
+	local wait = AutoPilotMoon.Wait:new(player, {});
+
+	ISTimedActionQueue.add(action);
+	wait:watch(action);
+	-- the plant's state is the server's (CFarmingSystem's global objects): it arrives a moment after the action
+	wait:expectTrue(function()
+		local now = AutoPilotMoon.Square:getSeededPlant(square);
+
+		return now == nil or (tonumber(now["waterLvl"]) or 0) > before;
+	end);
+	A.farmerPending = { square = square, before = before, wait = wait };
 end
 
 function AutoPilotMoon.Automation:checkFarmerQueue(player)

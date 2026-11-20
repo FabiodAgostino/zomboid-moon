@@ -308,7 +308,8 @@ function AutoPilotMoon.Panel:buildModel(playerNum, now)
 
 		if state.waiting
 		then
-			model.nowLine = getText("IGUI_AutoPilot_P_Now", getText("IGUI_AutoPilot_P_Waiting"));
+			-- what is awaited when the step says it ("aspetta il server: Carbone nello zaino (2 su 3)", 49_AP_Wait.lua)
+			model.nowLine = getText("IGUI_AutoPilot_P_Now", state.waitingText or getText("IGUI_AutoPilot_P_Waiting"));
 		elseif state.activityKey
 		then
 			model.nowLine = getText("IGUI_AutoPilot_P_Now", getText(state.activityKey, state.activityArg1, state.activityArg2));
@@ -664,6 +665,13 @@ function W:createChildren()
 	self.optionsButton:setWidthToTitle(sizes.button * 3);
 	self:addChild(self.optionsButton);
 
+	-- "Nome nativo" (19/11/2026, UI/IdPicker.lua): the game's name of an object clicked
+	self.idButton = Panel.Button:new(sizes.pad, 0, 10, sizes.button, getText("IGUI_AutoPilot_Pick_Button"), self, W.onIdPick);
+	self.idButton:initialise();
+	self.idButton:setWidthToTitle(sizes.button * 3);
+	self.idButton.tooltip = getText("IGUI_AutoPilot_Pick_Button_Tooltip");
+	self:addChild(self.idButton);
+
 	-- the quick options (spec 2.4), shown under the buttons by "Opzioni"
 	local spec = AutoPilotMoon.Options.specs.haloMode;
 
@@ -753,6 +761,10 @@ end
 
 function W:onCancelRecording()
 	AutoPilotMoon.Macro.Recorder:askCancel();
+end
+
+function W:onIdPick()
+	AutoPilotMoon.IdPicker:begin(self.playerNum);
 end
 
 function W:onOptions()
@@ -1026,7 +1038,32 @@ function W:relayout()
 		self.macroButton:setX(self.optionsButton:getX() - pad - self.macroButton:getWidth());
 		self.macroButton:setY(y);
 	end
-	y = y + sizes.button + pad;
+
+	-- "Nome nativo" left of the others on the right; on a line of its own when the row has no room for it
+	local rightmost = model.macroButton and self.macroButton or self.optionsButton;
+	local leftEnd = pad;
+
+	if model.running
+	then
+		leftEnd = pad + self.stopButton:getWidth() + pad;
+	elseif model.recording
+	then
+		leftEnd = self.cancelRecordButton:getX() + self.cancelRecordButton:getWidth() + pad;
+	end
+
+	local idX = rightmost:getX() - pad - self.idButton:getWidth();
+
+	if idX >= leftEnd
+	then
+		self.idButton:setX(idX);
+		self.idButton:setY(y);
+		y = y + sizes.button + pad;
+	else
+		y = y + sizes.button + pad / 2;
+		self.idButton:setX(width - pad - self.idButton:getWidth());
+		self.idButton:setY(y);
+		y = y + sizes.button + pad;
+	end
 
 	if self.showOptions
 	then
@@ -1120,24 +1157,24 @@ function W:updateJoypadButtons()
 
 	if recording
 	then
-		self:insertNewLineOfButtons(self.finishRecordButton, self.cancelRecordButton, self.optionsButton);
+		self:insertNewLineOfButtons(self.finishRecordButton, self.cancelRecordButton, self.idButton, self.optionsButton);
 		buttonA = self.finishRecordButton;
 	elseif running
 	then
 		if macro
 		then
-			self:insertNewLineOfButtons(self.stopButton, self.macroButton, self.optionsButton);
+			self:insertNewLineOfButtons(self.stopButton, self.idButton, self.macroButton, self.optionsButton);
 		else
-			self:insertNewLineOfButtons(self.stopButton, self.optionsButton);
+			self:insertNewLineOfButtons(self.stopButton, self.idButton, self.optionsButton);
 		end
 
 		buttonA = self.stopButton;
 	else
 		if macro
 		then
-			self:insertNewLineOfButtons(self.macroButton, self.optionsButton);
+			self:insertNewLineOfButtons(self.idButton, self.macroButton, self.optionsButton);
 		else
-			self:insertNewLineOfButtons(self.optionsButton);
+			self:insertNewLineOfButtons(self.idButton, self.optionsButton);
 		end
 	end
 

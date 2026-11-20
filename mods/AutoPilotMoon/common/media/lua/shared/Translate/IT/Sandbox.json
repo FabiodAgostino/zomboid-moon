@@ -57,5 +57,11 @@
     "Sandbox_AutoPilot_MacroLevelsPerRun": "Macro: livelli per esecuzione",
     "Sandbox_AutoPilot_MacroLevelsPerRun_tooltip": "Livelli al massimo che una abilità sale in una esecuzione di una macro; poi la macro finisce. 0 = nessun limite",
     "Sandbox_AutoPilot_MacroExcludedSkills": "Macro: abilità escluse",
-    "Sandbox_AutoPilot_MacroExcludedSkills_tooltip": "Abilità per cui nessuna macro lavora, con gli id del gioco separati da punto e virgola (per esempio Reloading;Doctor). La macro si ferma prima di un'azione che le premierebbe. Vuoto: nessuna"
+    "Sandbox_AutoPilot_MacroExcludedSkills_tooltip": "Abilità per cui nessuna macro lavora, con gli id del gioco separati da punto e virgola (per esempio Reloading;Doctor). La macro si ferma prima di un'azione che le premierebbe. Vuoto: nessuna",
+    "Sandbox_AutoPilot_EnableMacroTransfers": "Macro: oggetti e posti (sperimentale)",
+    "Sandbox_AutoPilot_EnableMacroTransfers_tooltip": "Sperimentale, serve anche Macro. Le macro prendono e mettono oggetti nei contenitori (take, put), li posano a terra (drop), li prendono in mano (equip) e camminano fino a un posto (walk_to), con le azioni del gioco come a mano. I posti sono casse o caselle che il giocatore segna con un clic nell'editor. Mai oggetti preferiti, in mano o indossati come carico; i contenitori chiusi a chiave e le safehouse che il giocatore non può usare restano chiusi. Spento: nessuna macro sposta oggetti",
+    "Sandbox_AutoPilot_MacroItemsPerRun": "Macro: oggetti spostati per esecuzione",
+    "Sandbox_AutoPilot_MacroItemsPerRun_tooltip": "Oggetti al massimo che una esecuzione di una macro prende, mette, posa o prende in mano; poi la macro finisce",
+    "Sandbox_AutoPilot_MacroPlaceRadius": "Macro: distanza dei posti",
+    "Sandbox_AutoPilot_MacroPlaceRadius_tooltip": "Caselle al massimo tra il punto dove parte la macro e un posto che usa (anche su un altro piano). Un posto più lontano: la macro non parte"
 }

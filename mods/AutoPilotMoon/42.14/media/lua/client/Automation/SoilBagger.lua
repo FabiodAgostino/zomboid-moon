@@ -39,9 +39,7 @@ local SoilBagger = AutoPilotMoon.SoilBagger;
 
 SoilBagger.maxTries = 3;            -- shovelfuls queued on the same square that do not dig it before it is left
 SoilBagger.maxSteps = 6;            -- decisions on the same square (engine's maxStepsPerSquare: a walk that fails)
-SoilBagger.dropGraceMs = 1500;      -- the drops ended and a bag is still in the inventory: the server may still answer
 SoilBagger.maxDropTries = 3;        -- drops of the same bag that do not happen before it is left in the inventory
-SoilBagger.refillGraceMs = 1500;    -- the empty sacks taken from the destination: the server may still answer
 SoilBagger.carryPerJob = 100000;    -- the bags carried are bounded by the squares (MaxSquaresPerJob), not the Gatherer's
 SoilBagger.fullWeightFallback = 2;  -- a full soil bag in 42.22 (the script's Weight) when the script cannot be read
 SoilBagger.fullWeights = {};        -- full type -> weight of a full bag (read once)
@@ -149,8 +147,9 @@ function AutoPilotMoon.Automation.startSoilBagger(player, squares, startSquare, 
 			queued = {},              -- square key -> true: a shovelful queued there
 			tries = {},               -- square key -> shovelfuls that did not dig it
 			dropTries = {},           -- bag id -> drops that did not happen
-			drop = nil,               -- the bags being put down: { entries = { item, id, done }, idleSince }
-			refill = nil,             -- the empty sacks being taken back: { entries, idleSince }
+			drop = nil,               -- the bags being put down: { entries = { id }, wait } (the engine's wait, by id)
+			refill = nil,             -- the empty sacks being taken back: { entries = { id }, wait }
+			refillLoad = nil,         -- the destination's containers asked for: their content awaited before the refill
 			tripOpen = false,         -- a delivery is under way (counted as a trip when it ends)
 			finalTrip = false,        -- the last delivery of the area: no refill after it
 		};
@@ -195,6 +194,7 @@ local function startDrop(S, player, bags)
 	local room = AutoPilotMoon.Item:getFloorRoom(here, player);
 	local weight = 0;
 	local entries = {};
+	local wait = AutoPilotMoon.Wait:new(player, { label = getText("IGUI_AutoPilot_W_Dropped") });
 
 	for i, bag in ipairs(bags)
 	do
@@ -202,9 +202,14 @@ local function startDrop(S, player, bags)
 
 		if weight + bagWeight <= room
 		then
+			local action = ISInventoryTransferUtil.newInventoryTransferAction(player, bag, bag:getContainer(), floor);
+
 			weight = weight + bagWeight;
-			ISTimedActionQueue.add(ISInventoryTransferUtil.newInventoryTransferAction(player, bag, bag:getContainer(), floor));
-			table.insert(entries, { item = bag, id = bag:getID(), done = false });
+			ISTimedActionQueue.add(action);
+			wait:watch(action);
+			-- out of the inventory, by id (the bag on the floor is another object of the game)
+			wait:expectOut(bag, "inventory");
+			table.insert(entries, { id = bag:getID() });
 		end
 	end
 
@@ -213,55 +218,31 @@ local function startDrop(S, player, bags)
 		return false;
 	end
 
-	S.drop = { entries = entries, idleSince = nil };
+	S.drop = { entries = entries, wait = wait };
 	AutoPilotMoon.Progress:setActivity("IGUI_AutoPilot_P_Now_LeavingBags", #entries);
 
 	return true;
 end
 
-local function isOut(item, player)
-	local container = item:getContainer();
-
-	return container == nil or not container:isInCharacterInventory(player);
-end
-
--- the drop's outcome once the character is idle: "busy" while waiting for the server, else nil (counted; a bag the
--- server refused SoilBagger.maxDropTries times stays in the inventory with the warning)
+-- the drop's outcome once the character is idle (the engine's wait): "busy" while waiting for the server, else nil
+-- (counted; a bag the server refused SoilBagger.maxDropTries times stays in the inventory with the warning)
 local function confirmDrop(S, player)
 	local drop = S.drop;
-	local now = getTimestampMs();
-	local waiting = false;
+	local answer, why, info = drop.wait:check();
 
-	for i, entry in ipairs(drop.entries)
-	do
-		if not entry.done
-		then
-			if isOut(entry.item, player)
-			then
-				entry.done = true;
-				AutoPilotMoon.Progress:count("IGUI_AutoPilot_P_C_BagsLeft");
-			else
-				waiting = true;
-			end
-		end
-	end
-
-	drop.idleSince = drop.idleSince or now;
-
-	if waiting and now - drop.idleSince < SoilBagger.dropGraceMs
+	if answer == "busy"
 	then
-		AutoPilotMoon.Progress:setWaiting(true);
-
 		return "busy";
 	end
 
-	AutoPilotMoon.Progress:setWaiting(false);
 	S.drop = nil;
 
 	for i, entry in ipairs(drop.entries)
 	do
-		if not entry.done
+		if info.ids[entry.id]
 		then
+			AutoPilotMoon.Progress:count("IGUI_AutoPilot_P_C_BagsLeft");
+		else
 			S.dropTries[entry.id] = (S.dropTries[entry.id] or 0) + 1;
 
 			if S.dropTries[entry.id] >= SoilBagger.maxDropTries
@@ -318,8 +299,10 @@ local function refillCount(S, player)
 end
 
 -- at the destination, after the full bags are put there: the empty sacks it holds taken back with the game's transfer
--- action; false when there is nothing to take (or the destination cannot be used now)
-local function startRefill(S, player)
+-- action; false when there is nothing to take (or the destination cannot be used now). A container never opened is
+-- asked for and what it holds awaited first (1.2.1: 1.2.0 read it in the same frame and found no sacks): true then too,
+-- S.refillLoad says it (loaded: the second call, once the content arrived)
+local function startRefill(S, player, loaded)
 	local ok, reasonKey, resolved = AutoPilotMoon.Destination:validate(S.dest, player);
 
 	if not ok
@@ -332,15 +315,37 @@ local function startRefill(S, player)
 		return false;
 	end
 
+	if not loaded
+	then
+		local loading = nil;
+
+		for i, container in ipairs(resolved.containers)
+		do
+			AutoPilotMoon.Wait:explore(container, player);
+
+			if AutoPilotMoon.Wait:loadState(container) ~= "loaded"
+			then
+				loading = loading or AutoPilotMoon.Wait:new(player, { label = S.dest.nameText or "", waitingAfterMs = 0 });
+				loading:expectLoaded(container);
+			end
+		end
+
+		if loading
+		then
+			S.refillLoad = loading;
+
+			return true;
+		end
+	end
+
 	local wanted = refillCount(S, player);
 	local inventory = player:getInventory();
 	local planned = 0;
 	local entries = {};
+	local wait = AutoPilotMoon.Wait:new(player, { label = getText("IGUI_AutoPilot_W_InInventory", getText("IGUI_AutoPilot_W_Sacks")) });
 
 	for i, container in ipairs(resolved.containers)
 	do
-		AutoPilotMoon.Item:explore(container, player);
-
 		local items = container:getItems();
 
 		for j = 0, items:size() - 1
@@ -354,9 +359,13 @@ local function startRefill(S, player)
 
 				if inventory:hasRoomFor(player, planned + weight)
 				then
+					local action = ISInventoryTransferUtil.newInventoryTransferAction(player, item, container, inventory);
+
 					planned = planned + weight;
-					ISTimedActionQueue.add(ISInventoryTransferUtil.newInventoryTransferAction(player, item, container, inventory));
-					table.insert(entries, { item = item, id = item:getID(), done = false });
+					ISTimedActionQueue.add(action);
+					wait:watch(action);
+					wait:expectIn(item, "inventory");
+					table.insert(entries, { id = item:getID() });
 				end
 			end
 		end
@@ -367,7 +376,7 @@ local function startRefill(S, player)
 		return false;
 	end
 
-	S.refill = { entries = entries, idleSince = nil };
+	S.refill = { entries = entries, wait = wait };
 	AutoPilotMoon.Progress:setActivity("IGUI_AutoPilot_P_Now_TakingBags", #entries);
 
 	return true;
@@ -377,35 +386,21 @@ end
 -- what did not is left with the warning, the job goes on with what it has)
 local function confirmRefill(S, player)
 	local refill = S.refill;
-	local inventory = player:getInventory();
-	local now = getTimestampMs();
-	local waiting = false;
+	local answer, why, info = refill.wait:check();
 
-	for i, entry in ipairs(refill.entries)
-	do
-		if not entry.done and inventory:getItemWithIDRecursiv(entry.id) ~= nil
-		then
-			entry.done = true;
-			AutoPilotMoon.Progress:count("IGUI_AutoPilot_P_C_BagsTaken");
-		elseif not entry.done
-		then
-			waiting = true;
-		end
-	end
-
-	refill.idleSince = refill.idleSince or now;
-
-	if waiting and now - refill.idleSince < SoilBagger.refillGraceMs
+	if answer == "busy"
 	then
-		AutoPilotMoon.Progress:setWaiting(true);
-
 		return "busy";
 	end
 
-	AutoPilotMoon.Progress:setWaiting(false);
 	S.refill = nil;
 
-	if waiting
+	if info.arrived > 0
+	then
+		AutoPilotMoon.Progress:count("IGUI_AutoPilot_P_C_BagsTaken", info.arrived);
+	end
+
+	if info.arrived < info.total
 	then
 		AutoPilotMoon.Progress:warn("IGUI_AutoPilot_A_Reason_ServerRefused");
 	end
@@ -480,6 +475,22 @@ function AutoPilotMoon.Automation:checkSoilBaggerSquare(square, player)
 		AutoPilotMoon.Progress:count("IGUI_AutoPilot_P_C_Trips");
 
 		if S.refillable and not S.finalTrip and startRefill(S, player)
+		then
+			return "busy";
+		end
+	end
+
+	if S.refillLoad
+	then
+		-- the destination's content asked for: the empty sacks are looked for once it arrived
+		if S.refillLoad:check() == "busy"
+		then
+			return "busy";
+		end
+
+		S.refillLoad = nil;
+
+		if startRefill(S, player, true)
 		then
 			return "busy";
 		end

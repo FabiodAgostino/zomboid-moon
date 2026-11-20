@@ -57,5 +57,11 @@
     "Sandbox_AutoPilot_MacroLevelsPerRun": "Macros: levels per run",
     "Sandbox_AutoPilot_MacroLevelsPerRun_tooltip": "Most levels one skill gains in one run of a macro; then the macro ends. 0 = no limit",
     "Sandbox_AutoPilot_MacroExcludedSkills": "Macros: excluded skills",
-    "Sandbox_AutoPilot_MacroExcludedSkills_tooltip": "Skills no macro works for, the game's ids separated by semicolons (for example Reloading;Doctor). The macro stops before an action that would reward them. Empty: none"
+    "Sandbox_AutoPilot_MacroExcludedSkills_tooltip": "Skills no macro works for, the game's ids separated by semicolons (for example Reloading;Doctor). The macro stops before an action that would reward them. Empty: none",
+    "Sandbox_AutoPilot_EnableMacroTransfers": "Macros: items and places (experimental)",
+    "Sandbox_AutoPilot_EnableMacroTransfers_tooltip": "Experimental, needs Macros too. Macros take items from containers and put them in (take, put), drop them on the ground (drop), hold them (equip) and walk to a place (walk_to), with the game's own actions as by hand. The places are crates or squares the player marks with a click in the editor. Never favourite, held or worn items as cargo; locked containers and the safehouses the player may not use stay closed. Off: no macro moves items",
+    "Sandbox_AutoPilot_MacroItemsPerRun": "Macros: items moved per run",
+    "Sandbox_AutoPilot_MacroItemsPerRun_tooltip": "Most items one run of a macro takes, puts, drops or holds; then the macro ends",
+    "Sandbox_AutoPilot_MacroPlaceRadius": "Macros: place distance",
+    "Sandbox_AutoPilot_MacroPlaceRadius_tooltip": "Most squares between the place where the macro starts and a place it uses (another floor too). A place farther away: the macro does not start"
 }

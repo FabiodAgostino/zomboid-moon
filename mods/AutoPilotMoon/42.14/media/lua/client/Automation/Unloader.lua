@@ -8,8 +8,13 @@
 --   safehouse the player may not use, checked at the start and before each container); jukeboxes and coffins are
 --   emptied like any container (what a player can do by hand, the mod can do);
 -- - favourites, equipped or worn items and furniture packed as items stay inside (N-S10); keys go out like any loot;
--- - a container never opened is opened first, as the loot window does, and its content awaited a moment (N-A4);
--- - nothing is dropped when the floor around has no room left (the square is skipped, with a message).
+-- - a container never opened is opened first, as the loot window does, and its content awaited from the arrival next
+--   to it with the engine's wait (1.2.1: never isExplored(), which the game sets before the items come; 1.2.0 waited a
+--   fixed 1.5 s from the request, made before the walk);
+-- - what went out is counted by id once the server's answer is there (1.2.1: never what was queued), a refusal seen at
+--   once: the container is left with "unable to empty" when nothing went out;
+-- - nothing is dropped when the floor around has no room left (the square is skipped, with a message): the room is
+--   the 3x3 around the character, where the game lays what is dropped.
 
 require "05_AP_Config";
 require "50_AP_Automation";
@@ -24,12 +29,9 @@ AutoPilotMoon.Automation:register("unloader", {
 });
 
 AutoPilotMoon.Automation:addJobStateField("unloaderTried");     -- containers done or given up in this job
-AutoPilotMoon.Automation:addJobStateField("unloaderMoved");     -- items queued for the floor in this job
-AutoPilotMoon.Automation:addJobStateField("unloaderLast");      -- { container, count }: the container of the last step
-AutoPilotMoon.Automation:addJobStateField("unloaderExplored");  -- container -> when it was first opened
+AutoPilotMoon.Automation:addJobStateField("unloaderMoved");     -- items that really went out to the floor in this job
+AutoPilotMoon.Automation:addJobStateField("unloaderWait");      -- { kind = "load" | "drop", container, wait }
 AutoPilotMoon.Automation:addJobStateField("unloaderPlan");      -- what this step's square function does
-
-AutoPilotMoon.Automation.unloaderExploreMs = 1500;
 
 -- filters
 
@@ -85,27 +87,58 @@ function AutoPilotMoon.Automation.startUnloader(player, squares, startSquare)
 	end);
 end
 
--- the items that really went out of the last container since they were sent (spec 7.4.1: only what happened counts in
--- "Oggetti lasciati a terra"); called at every step and at the end
-local function confirmDropped()
-	local last = AutoPilotMoon.Automation.unloaderLast;
-
-	if last == nil or last.seen == nil
+-- the items that really went out (spec 7.4.1: only what happened counts in "Oggetti lasciati a terra")
+local function countDropped(arrived)
+	if arrived > 0
 	then
-		return;
-	end
-
-	local left = #AutoPilotMoon.Item:getUnloadableItems(last.container);
-
-	if left < last.seen
-	then
-		AutoPilotMoon.Progress:count("IGUI_AutoPilot_P_C_Dropped", last.seen - left);
-		last.seen = left;
+		AutoPilotMoon.Progress:count("IGUI_AutoPilot_P_C_Dropped", arrived);
+		AutoPilotMoon.Automation:addJobCount("unloaderMoved", arrived);
 	end
 end
 
+-- the last step's wait (a container's content, or the items sent to the floor): "busy", or nil once over
+local function settleWait()
+	local A = AutoPilotMoon.Automation;
+	local pending = A.unloaderWait;
+
+	if pending == nil
+	then
+		return nil;
+	end
+
+	local answer, why, info = pending.wait:check();
+
+	if answer == "busy"
+	then
+		return "busy";
+	end
+
+	A.unloaderWait = nil;
+
+	if pending.kind == "drop"
+	then
+		countDropped(info.arrived);
+
+		if info.arrived == 0
+		then
+			-- nothing went out: the server refused the transfers
+			A:getJobSet("unloaderTried")[pending.container] = true;
+			AutoPilotMoon:message(getText("IGUI_AutoPilot_A_UnableToEmptyContainer"));
+		end
+	end
+
+	return nil;
+end
+
 function AutoPilotMoon.Automation:stopUnloader()
-	confirmDropped();
+	local pending = AutoPilotMoon.Automation.unloaderWait;
+
+	if pending and pending.kind == "drop"
+	then
+		countDropped(pending.wait:settle());
+	end
+
+	AutoPilotMoon.Automation.unloaderWait = nil;
 	AutoPilotMoon.Automation:stopSquareProcessingQueue("unloaderWorking");
 end
 
@@ -118,7 +151,11 @@ function AutoPilotMoon.Automation:checkUnloaderSquare(square, player)
 	local A = AutoPilotMoon.Automation;
 
 	A.unloaderPlan = nil;
-	confirmDropped();
+
+	if settleWait() == "busy"
+	then
+		return "busy";
+	end
 
 	if AutoPilotMoon.Zones:isProtected(square, player)
 	then
@@ -141,8 +178,6 @@ function AutoPilotMoon.Automation:checkUnloaderSquare(square, player)
 	end
 
 	local tried = A:getJobSet("unloaderTried");
-	local explored = A:getJobSet("unloaderExplored");
-	local now = getTimestampMs();
 
 	for i, entry in ipairs(A:getUnloaderContainers(square, player))
 	do
@@ -150,33 +185,38 @@ function AutoPilotMoon.Automation:checkUnloaderSquare(square, player)
 
 		if not tried[container]
 		then
-			if not container:isExplored()
+			local state = AutoPilotMoon.Wait:loadState(container);
+
+			if state == "unknown"
 			then
 				A.unloaderPlan = { kind = "explore", square = square, object = entry.object, container = container };
 
 				return false;
 			end
 
-			local items = AutoPilotMoon.Item:getUnloadableItems(container);
-
-			if #items == 0 and explored[container] and now - explored[container] < A.unloaderExploreMs
+			if state == "loading"
 			then
-				-- opened a moment ago: the server's items may still be on their way
-				return false;
+				-- asked for before the walk: its answer awaited from the arrival next to it (never a fixed time)
+				local wait = AutoPilotMoon.Wait:new(player, { label = AutoPilotMoon.Destination:getContainerName(container),
+					waitingAfterMs = 0 });
+
+				AutoPilotMoon.Wait:restartLoad(container);
+				wait:expectLoaded(container);
+				A.unloaderWait = { kind = "load", container = container, wait = wait };
+
+				return "busy";
 			end
 
-			local last = A.unloaderLast;
+			local items = AutoPilotMoon.Item:getUnloadableItems(container);
 
 			if #items == 0
 			then
 				tried[container] = true;
-			elseif last and last.container == container and #items >= last.count
-			then
-				-- nothing went out since the last step: the server refused the transfers
-				tried[container] = true;
-				AutoPilotMoon:message(getText("IGUI_AutoPilot_A_UnableToEmptyContainer"));
 			else
-				local room = AutoPilotMoon.Item:getFloorRoom(square, player);
+				-- the game lays what is dropped on the 3x3 around the character (next to the container once there)
+				local here = player:getSquare();
+				local near = here and math.abs(here:getX() - square:getX()) <= 1 and math.abs(here:getY() - square:getY()) <= 1;
+				local room = AutoPilotMoon.Item:getFloorRoom(near and here or square, player);
 				local max = AutoPilotMoon.Sandbox:getInteger("UnloaderItemsPerStep");
 
 				if jobCap - moved < max
@@ -237,7 +277,6 @@ function AutoPilotMoon.Automation:workUnloaderSquare(square, player)
 	if plan.kind == "explore"
 	then
 		AutoPilotMoon.Item:explore(plan.container, player);
-		A:getJobSet("unloaderExplored")[plan.container] = getTimestampMs();
 
 		if not plan.container:isExplored()
 		then
@@ -247,8 +286,10 @@ function AutoPilotMoon.Automation:workUnloaderSquare(square, player)
 		return;
 	end
 
-	A:addJobCount("unloaderMoved", AutoPilotMoon.Item:queueDropToFloor(player, plan.container, plan.items));
-	A.unloaderLast = { container = plan.container, count = plan.count, seen = plan.count };
+	local wait = AutoPilotMoon.Wait:new(player, { label = getText("IGUI_AutoPilot_W_Dropped") });
+
+	AutoPilotMoon.Item:queueDropToFloor(player, plan.container, plan.items, wait);
+	A.unloaderWait = { kind = "drop", container = plan.container, wait = wait };
 end
 
 function AutoPilotMoon.Automation:checkUnloaderQueue(player)

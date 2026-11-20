@@ -21,7 +21,9 @@
 --   recipe, anyRecipe, item, skill, exercise, seat, amount   inside the quotes of an argument that holds that kind of
 --               name, or right after its "=" without the quotes (anyRecipe: every recipe, the workbenches' too, for
 --               known("..."); bench: the workbenches of at="..." and bench_free("...", wave 1), their window's name or
---               their id; inside craft(" also the recipes of the benches, with the bench beside the id)
+--               their id; inside craft(" also the recipes of the benches, with the bench beside the id); place: the
+--               macro's named places (S.places, set by the editor; waves 2-3), cargo: "made" then the items (put,
+--               drop), hand: Lang.hands (equip)
 -- Searching: without accents and case (an accented e = e), every word typed; the name in the player's language
 -- first (the whole name, then a word of it, then every word anywhere), then the game's id (AssembleShortImplement,
 -- Base.ClawhammerHead: "short implement", "clawhammer" find them, in any language); the last two from 3 letters; at
@@ -38,6 +40,7 @@ local S = AutoPilotMoon.Macro.Suggest;
 -- at most this many entries (a condition offers 31 words: every moodle stays in the list before typing)
 S.maxEntries = 40;
 S.index = nil;
+S.places = {};      -- the names of the places of the macro being written (the editor sets them at every check)
 S.texts = {};
 
 local function Lang()
@@ -671,6 +674,19 @@ local function italianWords()
 	return S.italian;
 end
 
+-- the help line of a state word (19/11/2026, MACRO-AUTOPILOT.md 16.5: what it means alone, what a number means), once
+-- per session: the language does not change while the game runs
+local function stateHelp(name)
+	S.stateHelp = S.stateHelp or {};
+
+	if S.stateHelp[name] == nil
+	then
+		S.stateHelp[name] = Lang():stateHelp(name) or false;
+	end
+
+	return S.stateHelp[name] or nil;
+end
+
 local function conditionEntries(ctx, q)
 	local L = Lang();
 	local buckets = newBuckets();
@@ -709,7 +725,7 @@ local function conditionEntries(ctx, q)
 		end
 
 		add({ label = name, detail = detail, class = "name", text = name, helpKey = "IGUI_AutoPilot_E_Sug_Moodle",
-			helpArg = detail }, others);
+			helpArg = detail, helpText = stateHelp(name) }, others);
 	end
 
 	for i, name in ipairs(sortedKeys(L.percents))
@@ -723,7 +739,7 @@ local function conditionEntries(ctx, q)
 		end
 
 		add({ label = name, detail = detail, class = "name", text = name, helpKey = "IGUI_AutoPilot_E_Sug_Percent",
-			helpArg = detail }, others);
+			helpArg = detail, helpText = stateHelp(name) }, others);
 	end
 
 	-- dark, hour (Lang.condWordList, wave 0)
@@ -927,7 +943,32 @@ local function nameEntries(ctx, kind, q, words)
 		end
 	end
 
-	if kind == "recipe" or kind == "anyRecipe" or kind == "item" or kind == "bench"
+	-- put / drop (waves 2-3): "made", what the run made, then the items
+	if kind == "cargo"
+	then
+		local detail = text("IGUI_AutoPilot_E_Sug_Made");
+
+		add({ label = L.madeWord, detail = detail, class = "string", value = L.madeWord, helpKey = "IGUI_AutoPilot_E_Sug_Made" }, { detail });
+		kind = "item";
+	end
+
+	if kind == "place"
+	then
+		-- the macro's named places, by their name (no index: at most Places.maxPlaces)
+		for i, name in ipairs(S.places or {})
+		do
+			add({ label = name, detail = text("IGUI_AutoPilot_E_Sug_PlaceKind"), class = "string", value = name,
+				helpKey = "IGUI_AutoPilot_E_Sug_Place", helpArg = name }, nil);
+		end
+	elseif kind == "hand"
+	then
+		for i, hand in ipairs(L.hands)
+		do
+			local detail = text("IGUI_AutoPilot_E_Sug_Hand_" .. hand);
+
+			add({ label = hand, detail = detail, class = "string", value = hand, helpKey = "IGUI_AutoPilot_E_Sug_Hand_" .. hand }, { detail });
+		end
+	elseif kind == "recipe" or kind == "anyRecipe" or kind == "item" or kind == "bench"
 	then
 		local index = S:getIndex();
 

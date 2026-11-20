@@ -448,8 +448,9 @@ end
 
 -- the first container of the destination with room for the item (and allowing it), or nil. planned (optional):
 -- container -> weight already planned for it in this deposit (the transfers are queued together: each one is checked
--- by the game when it starts, so the plan must not count on room taken by the items before it)
-function AutoPilotMoon.Destination:findRoom(resolved, player, item, planned)
+-- by the game when it starts, so the plan must not count on room taken by the items before it). skip (optional):
+-- container -> true, never chosen (it refused this item: the server knows better than the client what is in it)
+function AutoPilotMoon.Destination:findRoom(resolved, player, item, planned, skip)
 	local weight = item:getUnequippedWeight();
 
 	for i, container in ipairs(resolved.containers)
@@ -458,7 +459,7 @@ function AutoPilotMoon.Destination:findRoom(resolved, player, item, planned)
 
 		-- the game's own check for the item, then the weight already planned (ItemContainer.hasRoomFor adds the weight
 		-- to getCapacityWeight and compares it with getEffectiveCapacity)
-		if container:isItemAllowed(item) and container:hasRoomFor(player, item)
+		if not (skip and skip[container]) and container:isItemAllowed(item) and container:hasRoomFor(player, item)
 			and (already == 0 or container:getCapacityWeight() + already + weight <= container:getEffectiveCapacity(player))
 		then
 			if planned

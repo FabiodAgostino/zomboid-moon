@@ -19,7 +19,12 @@
 --   wrong corpse dragged);
 -- - the grab is released whenever the job ends, whatever the reason (W-B8: no corpse left in the arms, no leftover
 --   watcher), with the game's own release (ISWorldObjectContextMenu.handleGrabWorldItem_onDropCorpse);
--- - a corpse counts as moved (the panel's "Cadaveri spostati") when it is down on the pile.
+-- - a corpse counts as moved (the panel's "Cadaveri spostati") when it is down on the pile: 1.2.1 ("wait for the
+--   object", the engine's AutoPilotMoon.Wait) counts it when one more corpse lies on the pile's 3x3 (the corpse on the
+--   ground is a NEW object of the game), never at the grab; the grab and the release are awaited by the state they
+--   show (dragging, not dragging and the corpse down), with the engine's limit, never a fixed time; the grabs of a
+--   corpse are counted by its place (not by the object, which the game may make again), and a corpse that landed on
+--   the pile's 3x3 is never taken again.
 
 require "05_AP_Config";
 require "50_AP_Automation";
@@ -36,19 +41,18 @@ AutoPilotMoon.Automation:register("corpsePiler", {
 	end,
 });
 
-AutoPilotMoon.Automation:addJobStateField("corpseMoved");      -- corpses grabbed in this job
-AutoPilotMoon.Automation:addJobStateField("corpseAttempts");   -- corpse -> grabs tried
-AutoPilotMoon.Automation:addJobStateField("corpseCarry");      -- { walks, dropAt, drops }: the corpse being carried
-AutoPilotMoon.Automation:addJobStateField("corpseGrab");       -- { corpse, at }: the grab just queued (at: first idle frame)
+AutoPilotMoon.Automation:addJobStateField("corpseMoved");      -- corpses down on the pile in this job
+AutoPilotMoon.Automation:addJobStateField("corpseAttempts");   -- place of a corpse -> grabs tried
+AutoPilotMoon.Automation:addJobStateField("corpsePiled");      -- place of a corpse -> true: landed on the pile, never taken again
+AutoPilotMoon.Automation:addJobStateField("corpseCarry");      -- { walks, drops, before, wait }: the corpse being carried
+AutoPilotMoon.Automation:addJobStateField("corpseGrab");       -- { wait }: the grab just queued (the engine's wait)
 AutoPilotMoon.Automation:addJobStateField("corpsePlan");       -- what this step's square function does
 AutoPilotMoon.Automation:addJobStateField("corpseStuck");      -- { x, y, since }: where the dragging character stands
 AutoPilotMoon.Automation:addJobStateField("corpseLeftAt");     -- "x,y,z" -> true: a corpse left there, stuck
 
 AutoPilotMoon.Automation.corpseMaxGrabs = 2;        -- grabs of the same corpse before it is left where it is
 AutoPilotMoon.Automation.corpseMaxWalks = 3;        -- walks towards the pile before giving up
-AutoPilotMoon.Automation.corpseDropWaitMs = 3000;   -- time for a corpse to land before dropping again
 AutoPilotMoon.Automation.corpseMaxDrops = 3;        -- drops tried before giving up
-AutoPilotMoon.Automation.corpseGrabWaitMs = 2000;   -- time for a grab to turn into dragging
 AutoPilotMoon.Automation.corpseStuckMs = 2000;      -- not moving for this long while dragging: the corpse is left there
 AutoPilotMoon.Automation.corpseStuckDistance = 0.1; -- what counts as not moving
 
@@ -94,6 +98,58 @@ end
 
 local function squareKey(square)
 	return square:getX() .. "," .. square:getY() .. "," .. square:getZ();
+end
+
+-- a corpse's place (a tenth of a square): the same for the object the game makes again
+local function corpseKey(corpse)
+	local square = corpse:getSquare();
+	local ok, x, y = pcall(function()
+		return corpse:getX(), corpse:getY();
+	end);
+
+	if ok and x and y and square
+	then
+		return math.floor(x * 10) .. "," .. math.floor(y * 10) .. "," .. square:getZ();
+	end
+
+	return (square and squareKey(square) or "?") .. "/" .. tostring(corpse);
+end
+
+-- the places of the corpses lying on the pile's 3x3
+local function pileKeys(pile)
+	local keys = {};
+	local cell = getCell();
+
+	for dx = -1, 1
+	do
+		for dy = -1, 1
+		do
+			local square = cell and cell:getGridSquare(pile:getX() + dx, pile:getY() + dy, pile:getZ());
+
+			if square
+			then
+				for i, corpse in ipairs(AutoPilotMoon.Square:getValidCorpses(square))
+				do
+					keys[corpseKey(corpse)] = true;
+				end
+			end
+		end
+	end
+
+	return keys;
+end
+
+-- a corpse place on the pile now that was not there before (nil: none)
+local function newOnPile(pile, before)
+	for key in pairs(pileKeys(pile))
+	do
+		if not before[key]
+		then
+			return key;
+		end
+	end
+
+	return nil;
 end
 
 -- Every frame of the job, also while the character walks: dragging without moving for corpseStuckMs (a door, a
@@ -188,9 +244,7 @@ local function carry(player, pile)
 		return;
 	end
 
-	local now = getTimestampMs();
-
-	if carryState.dropAt == nil or now - carryState.dropAt >= A.corpseDropWaitMs
+	if carryState.wait == nil
 	then
 		if carryState.drops >= A.corpseMaxDrops
 		then
@@ -199,10 +253,56 @@ local function carry(player, pile)
 			return;
 		end
 
+		-- the game's release (not a timed action: nothing in the queue), then the corpse awaited down on the pile
+		local before = pileKeys(pile);
+		local wait = AutoPilotMoon.Wait:new(player, { label = getText("IGUI_AutoPilot_W_Corpse") });
+
+		wait:expectTrue(function()
+			return not player:isDraggingCorpse() and newOnPile(pile, before) ~= nil;
+		end);
 		carryState.drops = carryState.drops + 1;
-		carryState.dropAt = now;
+		carryState.before = before;
+		carryState.wait = wait;
 		ISWorldObjectContextMenu.handleGrabWorldItem_onDropCorpse(player);
 	end
+end
+
+-- the release's outcome (the engine's wait): "busy", or nil (counted on the pile; not down: released again next)
+local function settleDrop(player, pile)
+	local A = AutoPilotMoon.Automation;
+	local carryState = A.corpseCarry;
+	local wait = carryState and carryState.wait;
+
+	if wait == nil
+	then
+		return nil;
+	end
+
+	local answer = wait:check();
+
+	if answer == "busy"
+	then
+		return "busy";
+	end
+
+	carryState.wait = nil;
+
+	if answer == "done"
+	then
+		-- on the pile it counts (spec 7.4.1: only what really happened), and it is never taken again
+		local key = newOnPile(pile, carryState.before);
+
+		if key
+		then
+			A:getJobSet("corpsePiled")[key] = true;
+		end
+
+		A:addJobCount("corpseMoved");
+		AutoPilotMoon.Progress:count("IGUI_AutoPilot_P_C_Corpses");
+		A.corpseCarry = nil;
+	end
+
+	return nil;
 end
 
 -- one step on a square: decide (removeCheckFunction), then the square function carries the plan out
@@ -211,6 +311,12 @@ function AutoPilotMoon.Automation:checkCorpsePilerSquare(square, player)
 	local pile = A.squareQueueStartSquare;
 
 	A.corpsePlan = nil;
+
+	-- the corpse released on the pile: awaited down there ("busy": the engine's watchdog must not discard the square)
+	if settleDrop(player, pile) == "busy"
+	then
+		return "busy";
+	end
 
 	-- a corpse in the arms: to the pile first, whatever the square at the head of the queue ("busy": the carry has its
 	-- own limits, the engine's watchdog must not discard the square meanwhile)
@@ -222,29 +328,15 @@ function AutoPilotMoon.Automation:checkCorpsePilerSquare(square, player)
 		return "busy";
 	end
 
-	-- the corpse carried until now is down: on the pile it counts (spec 7.4.1: only what really happened)
-	local carried = A.corpseCarry;
-
-	if carried and carried.drops > 0 and player:getSquare() == pile
-	then
-		AutoPilotMoon.Progress:count("IGUI_AutoPilot_P_C_Corpses");
-	end
-
 	A.corpseCarry = nil;
 
-	-- a grab queued a moment ago: give the game time to start dragging
+	-- a grab queued a moment ago: awaited until the character drags (in multiplayer with the server's answer), from the
+	-- first idle frame after it (the walk to the corpse takes longer); a refusal said at once
 	local grab = A.corpseGrab;
 
-	if grab
+	if grab and grab.wait:check() == "busy"
 	then
-		-- the wait starts at the first idle frame after the grab, not when it was queued: the walk to the corpse takes
-		-- longer than the wait, and in multiplayer the dragging starts with the server's answer
-		grab.at = grab.at or getTimestampMs();
-
-		if getTimestampMs() - grab.at < A.corpseGrabWaitMs
-		then
-			return "busy";
-		end
+		return "busy";
 	end
 
 	A.corpseGrab = nil;
@@ -270,10 +362,13 @@ function AutoPilotMoon.Automation:checkCorpsePilerSquare(square, player)
 	end
 
 	local attempts = A:getJobSet("corpseAttempts");
+	local piled = A:getJobSet("corpsePiled");
 
 	for i, corpse in ipairs(AutoPilotMoon.Square:getValidCorpses(square))
 	do
-		if (attempts[corpse] or 0) < A.corpseMaxGrabs
+		local key = corpseKey(corpse);
+
+		if (attempts[key] or 0) < A.corpseMaxGrabs and not piled[key]
 		then
 			A.corpsePlan = { kind = "grab", square = square, corpse = corpse };
 
@@ -306,16 +401,18 @@ function AutoPilotMoon.Automation:workCorpsePilerSquare(square, player)
 			return;
 		end
 
-		attempts[corpse] = (attempts[corpse] or 0) + 1;
+		local key = corpseKey(corpse);
+		local wait = AutoPilotMoon.Wait:new(player, {});
+		local mark = AutoPilotMoon.Wait:mark(player);
 
-		if attempts[corpse] == 1
-		then
-			A:addJobCount("corpseMoved");
-		end
-
-		A.corpseGrab = { corpse = corpse, at = nil };
+		attempts[key] = (attempts[key] or 0) + 1;
 		AutoPilotMoon.Progress:setActivity("IGUI_AutoPilot_P_Now_Dragging");
 		ISWorldObjectContextMenu.onGrabCorpseItem(nil, corpse, player:getPlayerNum());
+		wait:watchQueued(mark);
+		wait:expectTrue(function()
+			return player:isDraggingCorpse();
+		end);
+		A.corpseGrab = { wait = wait };
 	end
 end
 

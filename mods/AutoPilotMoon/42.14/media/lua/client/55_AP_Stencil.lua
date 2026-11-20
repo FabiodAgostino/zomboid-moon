@@ -33,6 +33,11 @@
 --                                                 automation's own business between two actions (the Gardener notes
 --                                                 what its last pick-up brought); an answer is given to the engine as it is
 --   toolText(player, ctx) -> text                 what is missing, already translated (instead of toolKey)
+--   settle(square, player, ctx) -> text           the state of the square the action changes (1.2.1, "wait for the
+--                                                 object"): after an action the square is not decided again until
+--                                                 this changed (the server's state arrived; the farm's plants are the
+--                                                 server's global objects) or the engine's wait says no (a refusal,
+--                                                 Wait.timeoutMs idle): never a second dose on an old state
 -- ctx is what the start got (a chain's ctx, or nil).
 
 AutoPilotMoon = AutoPilotMoon or {};
@@ -47,6 +52,7 @@ AutoPilotMoon.Automation:addJobStateField("stencilActed");   -- "x,y,z" -> true:
 AutoPilotMoon.Automation:addJobStateField("stencilPlan");    -- what the square function of this step does
 AutoPilotMoon.Automation:addJobStateField("stencilCtx");     -- the start's ctx
 AutoPilotMoon.Automation:addJobStateField("stencilResults"); -- confirmed results of this job
+AutoPilotMoon.Automation:addJobStateField("stencilWait");    -- the last action's square state awaited (spec.settle)
 
 local function squareKey(square)
 	return square:getX() .. "," .. square:getY() .. "," .. square:getZ();
@@ -68,6 +74,17 @@ function AutoPilotMoon.Stencil:check(name, square, player)
 		then
 			return answer or "discard";
 		end
+	end
+
+	if A.stencilWait
+	then
+		-- the last action's result on the square: awaited before deciding again (spec.settle)
+		if A.stencilWait:check() == "busy"
+		then
+			return "busy";
+		end
+
+		A.stencilWait = nil;
 	end
 
 	if AutoPilotMoon.Zones:isProtected(square, player)
@@ -172,9 +189,24 @@ function AutoPilotMoon.Stencil:work(name, square, player)
 		AutoPilotMoon.Progress:setActivity(spec.activityKey);
 	end
 
-	if spec.act(square, player, A.stencilCtx, plan.tool)
+	local ctx = A.stencilCtx;
+	local before = spec.settle and spec.settle(square, player, ctx);
+	local mark = AutoPilotMoon.Wait:mark(player);
+
+	if spec.act(square, player, ctx, plan.tool)
 	then
 		A:getJobSet("stencilActed")[squareKey(square)] = true;
+
+		if spec.settle
+		then
+			local wait = AutoPilotMoon.Wait:new(player, {});
+
+			wait:watchQueued(mark);
+			wait:expectTrue(function()
+				return spec.settle(square, player, ctx) ~= before;
+			end);
+			A.stencilWait = wait;
+		end
 	end
 end
 

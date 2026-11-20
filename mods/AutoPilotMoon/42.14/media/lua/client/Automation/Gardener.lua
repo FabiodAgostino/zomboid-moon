@@ -34,10 +34,9 @@ local Gardener = AutoPilotMoon.Gardener;
 A.gardenerWeightPerSquare = 0.5;
 
 Gardener.maxSteps = 8;           -- actions on the same square before it is left (grass, bush, stones, stump, boulder...)
-Gardener.pickNoteMs = 3000;      -- how long a pick-up's item may take to show up in the inventory (MP)
 
 A:addJobStateField("gardenerKinds");   -- the kinds of the running job (a set)
-A:addJobStateField("gardenerPick");    -- { before = id set, at, run }: a pick-up whose item is still to be noted
+A:addJobStateField("gardenerPick");    -- { wait, run }: a pick-up whose item is still to be noted (the engine's wait)
 
 -- the kinds and what each needs, in the order they are done on a square
 Gardener.kindOrder = { "grass", "bushes", "stones", "stumps", "boulders" };
@@ -201,53 +200,47 @@ local function kindsOfRunningJob(ctx)
 	return A.gardenerKinds or Gardener:kindsOf(ctx);
 end
 
--- notes what the last pick-up brought into the main inventory (for the chain's next phase), once it shows up
+-- notes what the last pick-up brought (for the chain's next phase), once the engine's wait saw it (1.2.1): new ids in
+-- the inventory, or lying around the square (a stone the game laid at the feet); "busy" meanwhile, so the next action
+-- (grass on the next square) never comes before and is never noted as picked
 local function noteLastPick(player)
 	local pick = A.gardenerPick;
 
 	if pick == nil
 	then
-		return;
+		return nil;
 	end
 
-	local items = player:getInventory():getItems();
-	local found = false;
-
-	for i = 0, items:size() - 1
-	do
-		local item = items:get(i);
-		local id = item:getID();
-
-		if not pick.before[id]
-		then
-			pick.run.gardenerPicked[id] = true;
-			found = true;
-		end
-	end
-
-	if found or getTimestampMs() - pick.at >= Gardener.pickNoteMs
+	if pick.wait:check() == "busy"
 	then
-		A.gardenerPick = nil;
+		return "busy";
 	end
+
+	for id in pairs(pick.wait:newIds())
+	do
+		pick.run.gardenerPicked[id] = true;
+	end
+
+	A.gardenerPick = nil;
+
+	return nil;
 end
 
-local function rememberPick(player, ctx)
+-- before the pick-up is queued: the photo of what is there (the inventory, the floor around the square)
+local function rememberPick(player, ctx, square)
 	if ctx == nil or ctx.run == nil
 	then
-		return;
+		return nil;
 	end
 
 	ctx.run.gardenerPicked = ctx.run.gardenerPicked or {};
 
-	local before = {};
-	local items = player:getInventory():getItems();
+	local wait = AutoPilotMoon.Wait:new(player, {});
 
-	for i = 0, items:size() - 1
-	do
-		before[items:get(i):getID()] = true;
-	end
+	wait:expectNew(nil, { floor = true, square = square, radius = 2 }, 1);
+	A.gardenerPick = { wait = wait, run = ctx.run };
 
-	A.gardenerPick = { before = before, at = getTimestampMs(), run = ctx.run };
+	return wait;
 end
 
 AutoPilotMoon.Stencil:define("gardener", {
@@ -260,9 +253,7 @@ AutoPilotMoon.Stencil:define("gardener", {
 		return Gardener:nextKind(square, kindsOfRunningJob(ctx)) ~= nil;
 	end,
 	idle = function(square, player, ctx)
-		noteLastPick(player);
-
-		return nil;
+		return noteLastPick(player);
 	end,
 	check = function(square, player, ctx)
 		local kind = Gardener:nextKind(square, kindsOfRunningJob(ctx));
@@ -297,8 +288,15 @@ AutoPilotMoon.Stencil:define("gardener", {
 			ISWorldObjectContextMenu.doRemovePlant(player, square);
 		elseif kind == "stones"
 		then
-			rememberPick(player, ctx);
+			local mark = AutoPilotMoon.Wait:mark(player);
+			local wait = rememberPick(player, ctx, square);
+
 			ISWorldObjectContextMenu.onPickupGroundCoverItem(nil, playerNum, Gardener:getPickup(square));
+
+			if wait
+			then
+				wait:watchQueued(mark);
+			end
 		elseif kind == "stumps"
 		then
 			ISWorldObjectContextMenu.onRemoveGroundCoverItemStump(nil, playerNum, Gardener:getStump(square));
