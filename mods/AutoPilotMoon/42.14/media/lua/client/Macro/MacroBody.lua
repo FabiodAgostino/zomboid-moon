@@ -9,8 +9,12 @@
 --   rest      the "Rest" of a seat's right click: ISWorldObjectContextMenu.onRest (walk, sit on the furniture, or on
 --             the ground next to it); "Sit on ground" (reportEvent("EventSitOnGround")) without a seat; up again
 --             ("forceGetUp") when the endurance is back
---   eat       the inventory's "Eat > All": ISInventoryPaneContextMenu.eatItem (and "Open and Eat" for a can)
---   drink     the inventory's "Drink": ISInventoryPaneContextMenu.onDrinkFluid
+--   eat       the inventory's "Eat": ISInventoryPaneContextMenu.eatItem (and "Open and Eat" for a can), for the food
+--             carried or within reach (MacroFood.lua, 20/11/2026: the loot window's containers, the game moves the food
+--             into the inventory and what is left back)
+--   drink     the inventory's "Drink": ISInventoryPaneContextMenu.onDrinkFluid (a bottle carried or within reach); with
+--             source=True the right click's "Drink" of a sink, a barrel, a well (ISWorldObjectContextMenu.onDrink)
+--   refill    the right click's "Fill" (ISWorldObjectContextMenu.onTakeWater): the bottles carried, at a clean source
 --   smoke     the inventory's "Smoke": eatItem for a cigarette, takePill for a pack; a fire as the menu asks for it
 -- Every action counts only when the character shows it (stats, the item gone, sitting), with the engine's wait
 -- (AutoPilotMoon.Wait, 1.2.1): the game's actions watched from the moment they are queued (a refusal of the server, an
@@ -20,9 +24,12 @@
 -- multiplayer another object each time).
 --
 -- Body:start(run, op) -> pending, or nil + reason text + "nothing" (nothing to eat / drink / smoke: a "while
---   possible" ends well) / "skip" (nothing to do: already rested) / nil (a refusal: the macro stops)
+--   possible" ends well) / "skip" (nothing to do: already rested) / "wait" (the containers within reach not arrived
+--   from the server yet: the step comes again) / nil (a refusal: the macro stops)
 -- Body:confirm(run, pending) -> "busy" / "done" / "fail", text   (only with the character idle)
--- Body:probe(player, op) -> nil (it can be done now) or the reason's text ("Adesso si puo' fare?")
+-- Body:probe(player, op) -> nil (it can be done now) and what it would do (food and water), or the reason's text
+--   ("Adesso si puo' fare?")
+-- Body:hasFood(player, op), Body:hasDrink(player, op) -> the conditions has_food(), has_drink()
 
 AutoPilotMoon = AutoPilotMoon or {};
 AutoPilotMoon.Macro = AutoPilotMoon.Macro or {};
@@ -35,8 +42,6 @@ Body.sitTimeoutMs = 20000;      -- idle and still not sitting after this: the ma
 Body.restMaxMs = 600000;        -- at most 10 real minutes on a seat, then up again (the endurance may not come back)
 Body.standTimeoutMs = 4000;
 Body.canConfirmMs = 8000;       -- "Open and Eat": the server queues the eating after the can is open (Wait's exception)
-Body.maxDrinkCapacity = 3.0;    -- the game's "Too big to drink from" (ISInventoryPaneContextMenu.doDrinkFluidMenu)
-Body.notPerishable = 100000000; -- getOffAgeMax of the food that never spoils
 
 local function now()
 	return getTimestampMs();
@@ -78,7 +83,10 @@ function AutoPilotMoon.Macro.Body:describe(op)
 		return getText("IGUI_AutoPilot_P_Now_MacroEat");
 	elseif op.kind == "drink"
 	then
-		return getText("IGUI_AutoPilot_P_Now_MacroDrink");
+		return getText(op.source and "IGUI_AutoPilot_P_Now_MacroDrinkSource" or "IGUI_AutoPilot_P_Now_MacroDrink");
+	elseif op.kind == "refill"
+	then
+		return getText("IGUI_AutoPilot_P_Now_MacroRefill");
 	elseif op.kind == "read"
 	then
 		return getText("IGUI_AutoPilot_P_Now_MacroRead", op.itemText or "");
@@ -388,8 +396,13 @@ function AutoPilotMoon.Macro.Body:onStop(run)
 end
 
 -- ============================================================================================================
--- Eat, drink, smoke: the item chosen in the inventory (bags included), never a favourite, an equipped or a worn one
+-- Eat, drink, refill (smart food and water, 20/11/2026, MacroFood.lua: what the character carries and what is within
+-- reach), smoke: the item chosen, never a favourite, an equipped or a worn one
 -- ============================================================================================================
+
+local function Food()
+	return AutoPilotMoon.Macro.Food;
+end
 
 local function usable(player, item)
 	return not item:isFavorite() and not item:isEquipped() and not player:isEquipped(item) and not item:isWorn();
@@ -427,228 +440,184 @@ local function itemsWhere(player, test)
 	return list;
 end
 
--- a food that is safe to eat now (11.5): never rotten, poisonous, dangerous raw, burnt, frozen, alcoholic, a spice,
--- something to smoke, or a closed can; something that feeds
-function AutoPilotMoon.Macro.Body:isSafeFood(item)
-	if not instanceof(item, "Food") or item:getHungChange() >= 0
+-- The containers within reach whose contents have not arrived from the server yet (a crate never opened in
+-- multiplayer): one wait for all of them ("Ora: apre Frigo (aspetta il server...)"), then the choice again with what
+-- arrived. Returns false while the wait goes on; else true, uncertain (no answer seen: an empty container, or a server
+-- that did not answer) and the containers' names.
+local function awaitContents(run, op, loading)
+	local load = run.foodLoad;
+
+	if load == nil or load.op ~= op
 	then
+		local names = Food():names(loading);
+		local w = AutoPilotMoon.Wait:new(run.player, { label = names, waitingAfterMs = 0 });
+
+		for i, entry in ipairs(loading)
+		do
+			w:expectLoaded(entry.container);
+		end
+
+		load = { op = op, wait = w, names = names };
+		run.foodLoad = load;
+	end
+
+	local answer, why, info = load.wait:check();
+
+	if answer == "busy"
+	then
+		AutoPilotMoon.Progress:setActivity("IGUI_AutoPilot_P_Now_MacroExplore", load.names);
+
 		return false;
 	end
 
-	if item:isRotten() or item:isPoison() or item:getPoisonPower() > 0 or item:isBurnt() or item:isFrozen()
-		or item:isAlcoholic() or item:isSpice() or item:getRequireInHandOrInventory() ~= nil
-	then
-		return false;
-	end
+	run.foodLoad = nil;
 
-	if item:isbDangerousUncooked() and not item:isCooked()
-	then
-		return false;
-	end
-
-	local script = item:getScriptItem();
-
-	return not (script and script:isCantEat());
+	return true, info ~= nil and info.uncertain == true, load.names;
 end
 
--- a closed can the game opens with its "Open and Eat" (the item's opening recipe), and that recipe
-local function openingRecipe(player, item)
-	local name = item:getOpeningRecipe();
-	local recipe = name and getScriptManager():getCraftRecipe(name) or nil;
+-- a choice of chooseFood / chooseDrink, waiting for the containers within reach still loading: the choice, or nil, the
+-- reason and the kind ("wait": the step comes again)
+local function chooseWaiting(run, op, choose)
+	local player = run.player;
+	local choice, why, kind, loading = choose(player, op);
 
-	if recipe == nil
+	if choice == nil and kind == "loading"
 	then
-		return nil;
-	end
+		local done, uncertain, names = awaitContents(run, op, loading);
 
-	if AutoPilotMoon.Craft:check(player, recipe, item) ~= nil
-	then
-		return nil, recipe;
-	end
-
-	return recipe;
-end
-
-local function isClosedCan(item)
-	if not instanceof(item, "Food") or item:getOpeningRecipe() == nil
-	then
-		return false;
-	end
-
-	local script = item:getScriptItem();
-
-	return script ~= nil and script:isCantEat() and not item:isRotten() and not item:isPoison();
-end
-
--- the days before it spoils (what spoils first is eaten first); never spoiling: last
-local function daysLeft(item)
-	local max = item:getOffAgeMax();
-
-	if max == nil or max >= Body.notPerishable
-	then
-		return Body.notPerishable;
-	end
-
-	return max - item:getAge();
-end
-
-local function byFreshness(a, b)
-	local da, db = daysLeft(a), daysLeft(b);
-
-	if da ~= db
-	then
-		return da < db;
-	end
-
-	-- the smaller meal first: less waste when only a little hungry
-	return a:getHungChange() > b:getHungChange();
-end
-
--- what eat() would eat: the item and its opening recipe (a can), or nil and the reason ("nothing" or a refusal)
-function AutoPilotMoon.Macro.Body:chooseFood(player, op)
-	if moodle(player, "FOOD_EATEN") >= 3
-	then
-		return nil, nil, getText("Tooltip_CantEatMore"), nil;
-	end
-
-	local foods = itemsWhere(player, function(item)
-		return usable(player, item) and named(op, item) and Body:isSafeFood(item);
-	end);
-
-	if #foods > 0
-	then
-		table.sort(foods, byFreshness);
-
-		return foods[1], nil;
-	end
-
-	local cans = itemsWhere(player, function(item)
-		return usable(player, item) and named(op, item) and isClosedCan(item);
-	end);
-
-	if #cans == 0
-	then
-		return nil, nil, getText("IGUI_AutoPilot_A_MacroR_NoFood"), "nothing";
-	end
-
-	if not op.openCans
-	then
-		return nil, nil, getText("IGUI_AutoPilot_A_MacroR_CansClosed"), "nothing";
-	end
-
-	table.sort(cans, byFreshness);
-
-	for i, can in ipairs(cans)
-	do
-		local recipe = openingRecipe(player, can);
-
-		if recipe
+		if not done
 		then
-			return can, recipe;
+			return nil, nil, "wait";
+		end
+
+		choice, why, kind = choose(player, op, { anyway = true });
+
+		if choice == nil and uncertain and kind == "nothing"
+		then
+			-- no answer from the server: never "nothing" for sure (a "while possible" would end as if done)
+			return nil, getText("IGUI_AutoPilot_A_MacroR_NotSeenNear", names), nil;
 		end
 	end
 
-	return nil, nil, getText("IGUI_AutoPilot_A_MacroR_NoCanOpener"), "nothing";
+	return choice, why, kind;
 end
 
 local function startEat(run, op)
 	local player = run.player;
-	local item, recipe, why, kind = Body:chooseFood(player, op);
+	local choice, why, kind = chooseWaiting(run, op, function(p, o, opts)
+		return Food():chooseFood(p, o, opts);
+	end);
 
-	if item == nil
+	if choice == nil
 	then
 		return nil, why, kind;
 	end
 
-	local pending = { kind = "eat", item = item, itemId = item:getID(), name = item:getDisplayName(), hunger0 = stat(player, "HUNGER"), can = recipe ~= nil };
+	local item = choice.item;
+	local part = Food():portion(player, choice, op.amount);
+	local pending = { kind = "eat", itemId = item:getID(), name = item:getDisplayName(), hunger0 = stat(player, "HUNGER"),
+		can = choice.recipe ~= nil, part = part, square = player:getCurrentSquare(),
+		fromContainer = choice.from and choice.from.container or nil, fromName = choice.from and choice.from.name or nil };
 
-	if recipe
+	-- the inventory's "Eat" (and "Open and Eat"): ISInventoryPaneContextMenu.eatItem moves the food from a bag or a
+	-- container within reach into the inventory, opens the can, eats, puts what is left back where it was
+	if choice.recipe
 	then
-		ISInventoryPaneContextMenu.eatItem(item, 1, player:getPlayerNum(), recipe, 100);
+		ISInventoryPaneContextMenu.eatItem(item, part, player:getPlayerNum(), choice.recipe, math.floor(part * 100 + 0.5));
 	else
-		ISInventoryPaneContextMenu.eatItem(item, 1, player:getPlayerNum());
+		ISInventoryPaneContextMenu.eatItem(item, part, player:getPlayerNum());
 	end
 
 	return pending;
 end
 
-local function gone(player, pending)
-	return player:getInventory():getItemWithIDRecursiv(pending.itemId) == nil;
+-- the food (or the bottle) with that id is nowhere: not carried, not in the container it came from, not on the 3x3
+local function goneEverywhere(player, pending)
+	return AutoPilotMoon.Wait:findById(player, pending.itemId, { container = pending.fromContainer, square = pending.square }) == nil;
 end
 
--- eaten: less hungry, or the food used up (by id); a can: only the hunger (opening it uses the closed can up)
+-- eaten: less hungry, or the food used up (by id, wherever it came from) once the game performed the meal; a can: only
+-- the hunger (opening it uses the closed can up)
 local function eaten(run, pending)
 	local player = run.player;
 
-	return stat(player, "HUNGER") < pending.hunger0 - 0.0001 or (not pending.can and gone(player, pending));
+	if stat(player, "HUNGER") < pending.hunger0 - 0.0001
+	then
+		return true;
+	end
+
+	if pending.can
+	then
+		return false;
+	end
+
+	return goneEverywhere(player, pending) and (pending.mealAction == nil or pending.wait:wasPerformed(pending.mealAction));
 end
 
-local function eatFailed(run, pending)
-	if pending.can and gone(run.player, pending)
+local function eatFailed(run, pending, why)
+	if pending.can and goneEverywhere(run.player, pending)
 	then
 		-- opened (the closed can is gone), the meal never came: the server's command did not arrive
 		return getText("IGUI_AutoPilot_A_MacroR_CanNoMeal", pending.name);
 	end
 
+	if why == "refused" and pending.fromName
+	then
+		return getText("IGUI_AutoPilot_A_MacroR_EatRefused", pending.name, pending.fromName);
+	end
+
 	return getText("IGUI_AutoPilot_A_MacroR_NotEaten", pending.name);
 end
 
--- a drink that is safe (11.5): not empty, small enough for the game, not poisonous nor tainted, not sealed; without a
--- name only water (a named one may be anything else safe, alcohol included: the player chose it)
-function AutoPilotMoon.Macro.Body:isSafeDrink(item, op)
-	local fluid = item:getFluidContainer();
+-- drink(source=True): the nearest clean source, as the right click's "Drink" (ISWorldObjectContextMenu.onDrink: the
+-- walk next to it, ISTakeWaterAction for what the thirst asks)
+local function startDrinkSource(run, op)
+	local player = run.player;
+	local source = Food():findSource(player);
 
-	if fluid == nil or fluid:isEmpty() or fluid:getCapacity() > Body.maxDrinkCapacity or item:isSealed()
+	if source == nil
 	then
-		return false;
+		return nil, getText("IGUI_AutoPilot_A_MacroR_NoSource", Food().sourceRadius), "nothing";
 	end
 
-	if fluid:isPoisonous() or fluid:isTainted()
+	local thirst = stat(player, "THIRST");
+
+	-- the game drinks from a source what the thirst asks (thirst x 2 of water): not thirsty, nothing to do
+	if thirst * 2 < 0.01
 	then
-		return false;
+		AutoPilotMoon:say("info", getText("IGUI_AutoPilot_A_MacroR_NotThirsty"), player);
+
+		return nil, nil, "skip";
 	end
 
-	if op.itemTypes == nil
-	then
-		return fluid:isPrimaryFluidType("Water");
-	end
+	ISWorldObjectContextMenu.onDrink(nil, source.object, player:getPlayerNum());
 
-	return true;
-end
-
-local function byAmount(a, b)
-	return a:getFluidContainer():getAmount() < b:getFluidContainer():getAmount();
-end
-
-function AutoPilotMoon.Macro.Body:chooseDrink(player, op)
-	local drinks = itemsWhere(player, function(item)
-		return usable(player, item) and named(op, item) and Body:isSafeDrink(item, op);
-	end);
-
-	if #drinks == 0
-	then
-		return nil, getText("IGUI_AutoPilot_A_MacroR_NoDrink"), "nothing";
-	end
-
-	-- the emptiest container first (one bottle finished before the next is opened)
-	table.sort(drinks, byAmount);
-
-	return drinks[1];
+	return { kind = "drink", source = true, name = source.name, thirst0 = thirst };
 end
 
 local function startDrink(run, op)
-	local player = run.player;
-	local item, why, kind = Body:chooseDrink(player, op);
+	if op.source
+	then
+		return startDrinkSource(run, op);
+	end
 
-	if item == nil
+	local player = run.player;
+	local choice, why, kind = chooseWaiting(run, op, function(p, o, opts)
+		return Food():chooseDrink(p, o, opts);
+	end);
+
+	if choice == nil
 	then
 		return nil, why, kind;
 	end
 
-	local pending = { kind = "drink", item = item, itemId = item:getID(), name = item:getDisplayName(), thirst0 = stat(player, "THIRST"),
-		amount0 = item:getFluidContainer():getAmount() };
+	local item = choice.item;
+	local pending = { kind = "drink", itemId = item:getID(), name = item:getDisplayName(), thirst0 = stat(player, "THIRST"),
+		amount0 = item:getFluidContainer():getAmount(), square = player:getCurrentSquare(),
+		fromContainer = choice.from and choice.from.container or nil, fromName = choice.from and choice.from.name or nil };
 
-	ISInventoryPaneContextMenu.onDrinkFluid(item, op.amount, player, nil, item);
+	-- the inventory's "Drink" (ISInventoryPaneContextMenu.onDrinkFluid: into the inventory, the drink, back)
+	ISInventoryPaneContextMenu.onDrinkFluid(item, op.amount or 1, player, nil, item);
 
 	return pending;
 end
@@ -660,16 +629,115 @@ local function current(pending)
 	return wait and wait:resolve(pending.itemId) or nil;
 end
 
--- drunk: less thirsty, or less in the bottle (the bottle found again by id)
+-- drunk: less thirsty, or less in the bottle (found again by id, wherever it came from)
 local function drunk(run, pending)
-	local item = current(pending);
+	local player = run.player;
+
+	if stat(player, "THIRST") < pending.thirst0 - 0.0001
+	then
+		return true;
+	end
+
+	if pending.source
+	then
+		return false;
+	end
+
+	local item = AutoPilotMoon.Wait:findById(player, pending.itemId, { container = pending.fromContainer, square = pending.square });
 	local fluid = item and item:getFluidContainer();
 
-	return stat(run.player, "THIRST") < pending.thirst0 - 0.0001 or (fluid ~= nil and fluid:getAmount() < pending.amount0 - 0.0001);
+	return fluid ~= nil and fluid:getAmount() < pending.amount0 - 0.0001;
 end
 
-local function drinkFailed(run, pending)
+local function drinkFailed(run, pending, why)
+	if pending.source
+	then
+		return getText("IGUI_AutoPilot_A_MacroR_NotDrunkSource", pending.name);
+	end
+
+	if why == "refused" and pending.fromName
+	then
+		return getText("IGUI_AutoPilot_A_MacroR_DrinkRefused", pending.name, pending.fromName);
+	end
+
 	return getText("IGUI_AutoPilot_A_MacroR_NotDrunk", pending.name);
+end
+
+-- refill(): the bottles carried that can take clean water, at the nearest clean source, as the right click's "Fill"
+-- (ISWorldObjectContextMenu.onTakeWater: the walk, each bottle into the inventory, ISTakeWaterAction, back into its bag)
+local function startRefill(run, op)
+	local player = run.player;
+	local items, full = Food():fillable(player, op);
+
+	if #items == 0
+	then
+		if full > 0
+		then
+			-- every bottle already full: nothing to do, the line after (a "while possible" ends well)
+			if op.possibleFirst
+			then
+				return nil, getText("IGUI_AutoPilot_A_MacroR_AllFull"), "nothing";
+			end
+
+			AutoPilotMoon:say("info", getText("IGUI_AutoPilot_A_MacroR_AllFull"), player);
+
+			return nil, nil, "skip";
+		end
+
+		return nil, getText("IGUI_AutoPilot_A_MacroR_NoBottle"), nil;
+	end
+
+	local source = Food():findSource(player, items);
+
+	if source == nil
+	then
+		return nil, getText("IGUI_AutoPilot_A_MacroR_NoSource", Food().sourceRadius), nil;
+	end
+
+	local fills = {};
+
+	for i, item in ipairs(source.items)
+	do
+		table.insert(fills, { id = item:getID(), amount0 = item:getFluidContainer():getAmount() });
+	end
+
+	ISWorldObjectContextMenu.onTakeWater(nil, source.object, source.items, source.items[1], player:getPlayerNum());
+
+	return { kind = "refill", name = source.name, fills = fills, square = player:getCurrentSquare() };
+end
+
+-- one expectation per bottle: more water in it (found again by id: each bottle goes from its bag into the inventory and
+-- back, in multiplayer another object each time)
+local function expectFilled(wait, run, pending)
+	for i, fill in ipairs(pending.fills)
+	do
+		wait:expectTrue(function()
+			local item = AutoPilotMoon.Wait:findById(run.player, fill.id, { square = pending.square });
+			local fluid = item and item:getFluidContainer();
+
+			return fluid ~= nil and fluid:getAmount() > fill.amount0 + 0.0001;
+		end);
+	end
+end
+
+local function refillFailed(run, pending, why)
+	return getText("IGUI_AutoPilot_A_MacroR_NotFilled", pending.name);
+end
+
+-- has_food(), has_drink() (conditions): what eat() / drink() would find now, nothing queued; a container within reach
+-- still loading counts as "not yet" (its contents are asked for). has_food() does not ask whether the character can
+-- eat more.
+function AutoPilotMoon.Macro.Body:hasFood(player, op)
+	return Food():chooseFood(player, op, { ignoreFull = true }) ~= nil;
+end
+
+function AutoPilotMoon.Macro.Body:hasDrink(player, op)
+	if op.source
+	then
+		return Food():findSource(player) ~= nil;
+	end
+
+	return Food():chooseDrink(player, op) ~= nil;
 end
 
 -- a drainable with something left (the game keeps its own copy of this local in every file that needs it)
@@ -789,7 +857,7 @@ local function smoked(run, pending)
 	local player = run.player;
 	local item = current(pending);
 
-	return gone(player, pending) or (item ~= nil and uses(item) < pending.uses0 - 0.0001)
+	return player:getInventory():getItemWithIDRecursiv(pending.itemId) == nil or (item ~= nil and uses(item) < pending.uses0 - 0.0001)
 		or stat(player, "STRESS") < pending.stress0 - 0.0001;
 end
 
@@ -999,10 +1067,28 @@ end
 -- The interface for MacroRun
 -- ============================================================================================================
 
-local starts = { exercise = startExercise, rest = startRest, eat = startEat, drink = startDrink, smoke = startSmoke, read = startRead };
+local starts = { exercise = startExercise, rest = startRest, eat = startEat, drink = startDrink, smoke = startSmoke, read = startRead,
+	refill = startRefill };
 -- what shows the action happened, and what to say when it did not
 local effects = { exercise = exercised, eat = eaten, drink = drunk, smoke = smoked, read = read };
-local failures = { exercise = exerciseFailed, eat = eatFailed, drink = drinkFailed, smoke = smokeFailed, read = readFailed };
+local failures = { exercise = exerciseFailed, eat = eatFailed, drink = drinkFailed, smoke = smokeFailed, read = readFailed,
+	refill = refillFailed };
+-- the actions whose expectations are more than one effect: refill() (one per bottle)
+local expecters = { refill = expectFilled };
+
+-- the first watched action of the game of that type (the meal among what eatItem queued: the transfer from a crate,
+-- the meal, the transfer back)
+local function watchedOfType(wait, typeName)
+	for i, action in ipairs(wait.actions)
+	do
+		if action.Type == typeName
+		then
+			return action;
+		end
+	end
+
+	return nil;
+end
 
 function AutoPilotMoon.Macro.Body:start(run, op)
 	local mark = AutoPilotMoon.Wait:mark(run.player);
@@ -1012,7 +1098,7 @@ function AutoPilotMoon.Macro.Body:start(run, op)
 	then
 		pending.op = op;
 
-		if effects[pending.kind]
+		if effects[pending.kind] or expecters[pending.kind]
 		then
 			-- the engine's wait: the game's actions just queued watched (a refusal at once), the effect looked at
 			-- while idle; "Open and Eat" waits longer (the meal comes with a command of the server)
@@ -1020,10 +1106,18 @@ function AutoPilotMoon.Macro.Body:start(run, op)
 				timeoutMs = pending.can and Body.canConfirmMs or nil });
 
 			wait:watchQueued(mark);
-			wait:expectTrue(function()
-				return effects[pending.kind](run, pending);
-			end);
+
+			if expecters[pending.kind]
+			then
+				expecters[pending.kind](wait, run, pending);
+			else
+				wait:expectTrue(function()
+					return effects[pending.kind](run, pending);
+				end);
+			end
+
 			pending.wait = wait;
+			pending.mealAction = watchedOfType(wait, "ISEatFoodAction");
 		end
 	end
 
@@ -1036,7 +1130,7 @@ function AutoPilotMoon.Macro.Body:confirm(run, pending)
 		return confirmRest(run, pending, AutoPilotMoon.Macro.Run:idleFor(pending));
 	end
 
-	local answer, why = pending.wait:check();
+	local answer, why, info = pending.wait:check();
 
 	if answer == "done" and pending.kind == "smoke"
 	then
@@ -1048,15 +1142,113 @@ function AutoPilotMoon.Macro.Body:confirm(run, pending)
 		return answer;
 	end
 
+	if pending.kind == "refill" and info and info.arrived > 0
+	then
+		-- some bottles filled, then the source ran dry (or the server refused the rest): done, said
+		AutoPilotMoon:say("info", getText("IGUI_AutoPilot_A_MacroR_FilledPart", info.arrived, info.total, pending.name), run.player);
+
+		return "done";
+	end
+
 	if why == "notqueued"
 	then
+		if pending.source or pending.kind == "refill"
+		then
+			-- the game's walk next to the source could not start (no free square next to it)
+			return "fail", getText("IGUI_AutoPilot_A_MacroR_SourceUnreachable", pending.name);
+		end
+
 		return "fail", getText("IGUI_AutoPilot_A_MacroR_WaitNotQueued", Body:describe(pending.op));
 	end
 
-	return "fail", failures[pending.kind](run, pending);
+	return "fail", failures[pending.kind](run, pending, why);
 end
 
--- "Adesso si puo' fare?": nil when the action can start now, else why (nothing is queued)
+-- what eat() would eat, said by "Adesso si puo' fare?": "mangera' Mela", "mangera' Mela da Frigo", "aprira' e mangera'..."
+local function eatDetail(choice)
+	local name = choice.item:getDisplayName();
+
+	if choice.recipe
+	then
+		return choice.from and getText("IGUI_AutoPilot_E_NowEatCanFrom", name, choice.from.name) or getText("IGUI_AutoPilot_E_NowEatCan", name);
+	end
+
+	return choice.from and getText("IGUI_AutoPilot_E_NowEatFrom", name, choice.from.name) or getText("IGUI_AutoPilot_E_NowEat", name);
+end
+
+local function drinkDetail(choice)
+	local name = choice.item:getDisplayName();
+
+	return choice.from and getText("IGUI_AutoPilot_E_NowDrinkFrom", name, choice.from.name) or getText("IGUI_AutoPilot_E_NowDrink", name);
+end
+
+-- "Adesso si puo' fare?" of eat(), drink(), refill(): nil and what it would do, or the reason
+local function probeFood(player, op)
+	if op.kind == "eat"
+	then
+		local choice, why, kind, loading = Food():chooseFood(player, op);
+
+		if choice
+		then
+			return nil, eatDetail(choice);
+		end
+
+		if kind == "loading"
+		then
+			return nil, getText("IGUI_AutoPilot_E_NowLook", Food():names(loading));
+		end
+
+		return why;
+	end
+
+	if op.kind == "drink" and not op.source
+	then
+		local choice, why, kind, loading = Food():chooseDrink(player, op);
+
+		if choice
+		then
+			return nil, drinkDetail(choice);
+		end
+
+		if kind == "loading"
+		then
+			return nil, getText("IGUI_AutoPilot_E_NowLook", Food():names(loading));
+		end
+
+		return why;
+	end
+
+	local items = nil;
+
+	if op.kind == "refill"
+	then
+		local full = 0;
+
+		items, full = Food():fillable(player, op);
+
+		if #items == 0
+		then
+			return getText(full > 0 and "IGUI_AutoPilot_A_MacroR_AllFull" or "IGUI_AutoPilot_A_MacroR_NoBottle");
+		end
+	end
+
+	local source = Food():findSource(player, items);
+
+	if source == nil
+	then
+		return getText("IGUI_AutoPilot_A_MacroR_NoSource", Food().sourceRadius);
+	end
+
+	if op.kind == "refill"
+	then
+		return nil, getText("IGUI_AutoPilot_E_NowRefill", #source.items, source.name);
+	end
+
+	return nil, getText("IGUI_AutoPilot_E_NowDrinkSource", source.name);
+end
+
+-- "Adesso si puo' fare?": nil when the action can start now (and, for the food and the water, what it would do), else
+-- why (nothing is queued)
 function AutoPilotMoon.Macro.Body:probe(player, op)
 	if op.kind == "exercise"
 	then
@@ -1064,16 +1256,9 @@ function AutoPilotMoon.Macro.Body:probe(player, op)
 	elseif op.kind == "rest"
 	then
 		return nil;
-	elseif op.kind == "eat"
+	elseif op.kind == "eat" or op.kind == "drink" or op.kind == "refill"
 	then
-		local item, recipe, why = Body:chooseFood(player, op);
-
-		return item == nil and why or nil;
-	elseif op.kind == "drink"
-	then
-		local item, why = Body:chooseDrink(player, op);
-
-		return item == nil and why or nil;
+		return probeFood(player, op);
 	elseif op.kind == "read"
 	then
 		return probeRead(player, op);

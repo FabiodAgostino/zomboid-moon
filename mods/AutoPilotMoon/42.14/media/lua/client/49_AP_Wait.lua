@@ -33,6 +33,8 @@
 --   w:watch(action)                        after ISTimedActionQueue.add: not queued -> "fail" "notqueued" at once; stopped
 --                                          or cancelled before its perform -> a refusal, said Wait.refusedSettleMs later
 --   w:watchQueued(mark)                    every action queued since Wait:mark(player) (a game's helper queued them)
+--   w:wasPerformed(action)                 the game performed that watched action (20/11/2026: an item gone from a
+--                                          crate counts as eaten only once the meal itself was performed)
 -- the check, only with the character idle (the step that calls it is already the engine's idle step):
 --   w:check() -> "busy" | "done" | "fail", reasonKey ("timeout" | "partial" | "refused" | "notqueued"), info
 --     info = { arrived = n, total = m, uncertain = bool, ids = { [id] = true } }
@@ -518,6 +520,7 @@ function AutoPilotMoon.Wait:new(player, opts)
 		lastSeen = nil,
 		refusedAt = nil,
 		performed = 0,
+		performedActions = {},
 		stopped = {},
 		cancelled = {},
 		notQueued = false,
@@ -640,6 +643,7 @@ function WaitMeta:watch(action)
 
 	action.perform = function(a)
 		w.performed = w.performed + 1;
+		w.performedActions[a] = true;
 
 		if gamePerform
 		then
@@ -656,6 +660,11 @@ end
 
 function WaitMeta:wasCancelled(action)
 	return action ~= nil and self.cancelled[action] == true;
+end
+
+-- the game performed the action (its perform came: a success)
+function WaitMeta:wasPerformed(action)
+	return action ~= nil and self.performedActions[action] == true;
 end
 
 -- the actions in the character's queue now (Wait:mark), to watch what a game's helper queues

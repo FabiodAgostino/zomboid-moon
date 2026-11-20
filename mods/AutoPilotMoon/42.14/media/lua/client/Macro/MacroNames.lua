@@ -56,6 +56,7 @@ local function reset()
 	Names.benchNameList = {};   -- the distinct names { lower, text } (suggestions of "not found")
 	Names.benchList = {};       -- every bench, by name (the editor's suggestions)
 	Names.benchesOfRecipe = {}; -- recipe id -> list of the benches that fit it (cached)
+	Names.foodKindCache = {};   -- full type -> Names:foodKind (false: none)
 end
 
 reset();
@@ -681,6 +682,63 @@ Names.kindOrder = { "food", "seed", "container" };
 -- "food" / "seed" / "container" or nil
 function AutoPilotMoon.Macro.Names:itemKind(fullType)
 	return Names.kindOfCategory[Names.itemCategory[fullType] or ""];
+end
+
+-- What an item is for eat("X") (20/11/2026, the warnings of ANALISI-MACRO-INTELLIGENTI.md 6.5), from the game's
+-- script of the item: "food" (eaten as it is), "raw" (dangerous raw: eat() eats it only cooked), "can" (closed, opened
+-- with its opening recipe), "sealed" (closed, opened with a recipe of its own first: jars, frozen bags), "drink" (a
+-- fluid container: drink()), "notfood" (not food, or nothing against hunger), nil (no script). Read through pcall: a
+-- script the game changed says nothing.
+local function foodKindOf(fullType)
+	local script = getScriptManager():getItem(fullType);
+
+	if script == nil
+	then
+		return nil;
+	end
+
+	if not script:isItemType(ItemType.FOOD)
+	then
+		if script:containsComponent(ComponentType.FluidContainer)
+		then
+			return "drink";
+		end
+
+		return "notfood";
+	end
+
+	if script:isCantEat() == true
+	then
+		return script:getOpeningRecipe() ~= nil and "can" or "sealed";
+	end
+
+	if script:isDangerousUncooked()
+	then
+		return "raw";
+	end
+
+	if script:getHungerChange() >= 0
+	then
+		return "notfood";
+	end
+
+	return "food";
+end
+
+function AutoPilotMoon.Macro.Names:foodKind(fullType)
+	local cached = Names.foodKindCache[fullType];
+
+	if cached ~= nil
+	then
+		return cached or nil;
+	end
+
+	local ok, kind = pcall(foodKindOf, fullType);
+
+	kind = ok and kind or nil;
+	Names.foodKindCache[fullType] = kind or false;
+
+	return kind;
 end
 
 local function splitTags(line)

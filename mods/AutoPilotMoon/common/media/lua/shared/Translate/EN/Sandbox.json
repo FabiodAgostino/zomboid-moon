@@ -63,5 +63,7 @@
     "Sandbox_AutoPilot_MacroItemsPerRun": "Macros: items moved per run",
     "Sandbox_AutoPilot_MacroItemsPerRun_tooltip": "Most items one run of a macro takes, puts, drops or holds; then the macro ends",
     "Sandbox_AutoPilot_MacroPlaceRadius": "Macros: place distance",
-    "Sandbox_AutoPilot_MacroPlaceRadius_tooltip": "Most squares between the place where the macro starts and a place it uses (another floor too). A place farther away: the macro does not start"
+    "Sandbox_AutoPilot_MacroPlaceRadius_tooltip": "Most squares between the place where the macro starts and a place it uses (another floor too). A place farther away: the macro does not start",
+    "Sandbox_AutoPilot_MacroEatNear": "Macros: food and water within reach",
+    "Sandbox_AutoPilot_MacroEatNear_tooltip": "Macros eat and drink (eat(), drink()) also from the containers within reach, the loot window's around the character: furniture, fridge, the floor next to them, a trunk. Never from corpses, locked crates or the safehouses the player may not use; what is left goes back where it was, as by hand. Off: only what the player carries. Changes apply at once, without a restart"
 }

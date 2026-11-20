@@ -1357,7 +1357,7 @@ function W:probe()
 		return;
 	end
 
-	local line, reason = Macro().Run:probe(self.player, result);
+	local line, reason, detail = Macro().Run:probe(self.player, result);
 
 	self.probedAt = getTimestampMs();
 
@@ -1365,7 +1365,8 @@ function W:probe()
 	then
 		self.now = nil;
 	else
-		self.now = { line = line, reason = reason };
+		-- detail: what eat() / drink() / refill() would do now ("mangera' Mela da Frigo", 20/11/2026)
+		self.now = { line = line, reason = reason, detail = reason == nil and detail or nil };
 	end
 end
 
@@ -1732,7 +1733,8 @@ function W:update()
 
 		self:probe();
 
-		if (before == nil) ~= (self.now == nil) or (before and self.now and (before.line ~= self.now.line or before.reason ~= self.now.reason))
+		if (before == nil) ~= (self.now == nil) or (before and self.now and (before.line ~= self.now.line or before.reason ~= self.now.reason
+			or before.detail ~= self.now.detail))
 		then
 			changed = true;
 		end
@@ -2341,15 +2343,18 @@ function W:onInsert(button)
 
 	local ifMenu = sub("IGUI_AutoPilot_E_InsertIf");
 
-	for i, header in ipairs({ "if has(\"" .. item .. "\"):", "if not has(\"" .. item .. "\", at_least=10):", "if hungry:", "if exerted >= 3:" })
+	for i, header in ipairs({ "if has(\"" .. item .. "\"):", "if not has(\"" .. item .. "\", at_least=10):", "if hungry:", "if exerted >= 3:",
+		"if not has_food():" })
 	do
 		ifMenu:addOption(header, self, W.onInsertBlock, header);
 	end
 
 	local bodyMenu = sub("IGUI_AutoPilot_E_InsertBody");
 
+	-- the food and the water (20/11/2026): carried or within reach, a can opened; only what is carried, never a can; a sink;
+	-- the bottles filled
 	for i, line in ipairs({ "exercise(\"pushups\", minutes=10)", "exercise(\"squats\", minutes=10)", "rest()", "rest(seat=\"ground\")",
-		"eat(open_cans=True)", "drink()", "smoke()", "read(\"Base.BookMaintenance1\")" })
+		"eat()", "eat(near=False, open_cans=False)", "drink()", "drink(source=True)", "refill()", "smoke()", "read(\"Base.BookMaintenance1\")" })
 	do
 		bodyMenu:addOption(line, self, W.onInsertLine, line);
 	end
@@ -2397,7 +2402,7 @@ function W:onInsert(button)
 	local whenMenu = sub("IGUI_AutoPilot_E_InsertWhen");
 
 	-- a state word alone: the game shows it (19/11/2026, MACRO-AUTOPILOT.md 16); the rest when the game stops the exercises
-	for i, pair in ipairs({ { "when hungry:", "eat(open_cans=True)" }, { "when thirsty:", "drink()" },
+	for i, pair in ipairs({ { "when hungry:", "eat()" }, { "when thirsty:", "drink()" },
 		{ "when craving:", "smoke()" }, { "when exerted >= 3:", "rest()" }, { "when panic >= 3:", "stop()" } })
 	do
 		whenMenu:addOption(pair[1] .. " " .. pair[2], self, W.onInsertHandler, pair);
@@ -2426,6 +2431,15 @@ function W:onInsert(button)
 			if percentGroup == group
 			then
 				groupMenu:addOption(name .. " - " .. getText("IGUI_AutoPilot_E_Moodle_" .. name), self, W.onInsertText, name);
+			end
+		end
+
+		-- food and water within reach (20/11/2026): what eat() / drink() would find now
+		if group == "food"
+		then
+			for k, call in ipairs({ "has_food", "has_drink" })
+			do
+				groupMenu:addOption(call .. "() - " .. getText("IGUI_AutoPilot_E_Cond_" .. call), self, W.onInsertText, call .. "()");
 			end
 		end
 	end

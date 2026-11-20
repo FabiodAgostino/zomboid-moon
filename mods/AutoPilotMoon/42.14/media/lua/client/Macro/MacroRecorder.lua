@@ -38,7 +38,7 @@ Rec.equipTypes = { ISEquipWeaponAction = true, ISWearClothing = true, ISUnequipA
 Rec.walkTypes = { ISWalkToTimedAction = true, ISPathFindAction = true, ISHandcraftAction = true };
 -- the body's actions done by hand (M1.5): not recorded, said with the command that writes them (MACRO-AUTOPILOT.md 11.6)
 Rec.bodyTypes = { ISFitnessAction = true, ISEatFoodAction = true, ISDrinkFluidAction = true, ISTakePillAction = true,
-	ISRestAction = true, ISSitOnGround = true, ISWaitWhileGettingUp = true };
+	ISRestAction = true, ISSitOnGround = true, ISWaitWhileGettingUp = true, ISTakeWaterAction = true };
 
 local function changed()
 	Rec.revision = Rec.revision + 1;

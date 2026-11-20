@@ -38,6 +38,14 @@ AutoPilotMoon.Config = {
         MacroPlaceRadius = { default = 30, min = 5, max = 100 },
     },
 
+    -- boolean server options that are ON by default (sandbox-options.txt "default = true"): on when missing, off only
+    -- when the admin wrote false. Every other boolean (the Enable* switches) is off by default. 20/11/2026 (smart food
+    -- and water, ANALISI-MACRO-INTELLIGENTI.md 10.4): the macros' eat() and drink() look in the containers around the
+    -- character (the loot window's), unless the server switches that off
+    sandboxBooleansOn = {
+        MacroEatNear = true,
+    },
+
     -- text server options (sandbox-options.txt "type = string"): their default when missing
     sandboxStrings = {
         -- the skills no macro works for, separated by ";" or "," (game ids: "Reloading;Doctor"), empty = none
@@ -74,6 +82,19 @@ function AutoPilotMoon.Sandbox:getBoolean(key)
     local page = AutoPilotMoon.Sandbox:getPage();
 
     return page ~= nil and page[key] == true;
+end
+
+-- a boolean option of AutoPilotMoon.Config.sandboxBooleansOn: true unless the option is exactly false (a missing page
+-- or option = on, the default of sandbox-options.txt); nil for an option not in that list
+function AutoPilotMoon.Sandbox:getBooleanOn(key)
+    if not AutoPilotMoon.Config.sandboxBooleansOn[key]
+    then
+        return nil;
+    end
+
+    local page = AutoPilotMoon.Sandbox:getPage();
+
+    return page == nil or page[key] ~= false;
 end
 
 -- an integer option of AutoPilotMoon.Config.sandboxIntegers, clamped to its range (default when missing or invalid)

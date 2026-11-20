@@ -289,3 +289,11 @@ option AutoPilotMoon.MacroPlaceRadius
 	page = AutoPilotMoon,
 	translation = AutoPilot_MacroPlaceRadius,
 }
+
+option AutoPilotMoon.MacroEatNear
+{
+	type = boolean,
+	default = true,
+	page = AutoPilotMoon,
+	translation = AutoPilot_MacroEatNear,
+}

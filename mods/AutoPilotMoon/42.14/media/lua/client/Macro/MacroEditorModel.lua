@@ -288,6 +288,10 @@ function AutoPilotMoon.Macro.EditorModel:problemEntries(result, failure, now)
 			if now.reason
 			then
 				table.insert(entries, { text = getText("IGUI_AutoPilot_E_NowNo", now.line, now.reason), line = now.line, color = "bad" });
+			elseif now.detail
+			then
+				-- what the food and water would do now (20/11/2026): "Adesso si puo' fare: riga 2 (mangera' Mela da Frigo)"
+				table.insert(entries, { text = getText("IGUI_AutoPilot_E_NowOkWhat", now.line, now.detail), line = now.line, color = "good" });
 			else
 				table.insert(entries, { text = getText("IGUI_AutoPilot_E_NowOk", now.line), line = now.line, color = "good" });
 			end

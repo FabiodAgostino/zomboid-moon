@@ -63,5 +63,7 @@
     "Sandbox_AutoPilot_MacroItemsPerRun": "Macro: oggetti spostati per esecuzione",
     "Sandbox_AutoPilot_MacroItemsPerRun_tooltip": "Oggetti al massimo che una esecuzione di una macro prende, mette, posa o prende in mano; poi la macro finisce",
     "Sandbox_AutoPilot_MacroPlaceRadius": "Macro: distanza dei posti",
-    "Sandbox_AutoPilot_MacroPlaceRadius_tooltip": "Caselle al massimo tra il punto dove parte la macro e un posto che usa (anche su un altro piano). Un posto più lontano: la macro non parte"
+    "Sandbox_AutoPilot_MacroPlaceRadius_tooltip": "Caselle al massimo tra il punto dove parte la macro e un posto che usa (anche su un altro piano). Un posto più lontano: la macro non parte",
+    "Sandbox_AutoPilot_MacroEatNear": "Macro: cibo e acqua a portata",
+    "Sandbox_AutoPilot_MacroEatNear_tooltip": "Le macro mangiano e bevono (eat(), drink()) anche dai contenitori a portata di mano, quelli della finestra del bottino attorno al personaggio: mobili, frigorifero, pavimento accanto, bagagliaio. Mai dai cadaveri, dalle casse chiuse a chiave o dalle safehouse che il giocatore non può usare; il cibo che resta torna dov'era, come a mano. Spento: solo quello che il giocatore ha addosso. Le modifiche valgono subito, senza riavvio"
 }

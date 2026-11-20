@@ -12,7 +12,9 @@
 --   while <condition>:      while True:               wait(5)        stop_if(<condition>)    stop()
 --   if <condition>:   elif <condition>:   else:       exercise("pushups", minutes=10)
 --   when <condition>:   (top level: checked in the pauses between two actions)
---   rest(seat="nearest", until=95)   eat(open_cans=True)   drink()   smoke()   pass   break
+--   rest(seat="nearest", until=95)   eat()   drink()   smoke()   pass   break
+--   eat(near=False, open_cans=False, amount="half", picky=False)   drink(source=True)   refill()   conditions
+--   has_food(), has_drink()   (smart food and water, 20/11/2026: what is carried or within reach, MACRO-AUTOPILOT.md 18)
 --   repair("Item", using="Material")   sharpen("Item")   read("Book")          (wave 0 of the work skills, 13/11/2026)
 --   conditions: has("Item", at_least=20), count("Item") >= 3, skill("Maintenance") < 4, hungry >= 2, thirsty,
 --   stressed, bored, sad, pain, tired, panic (moodle levels 0-4), endurance, craving (percent 0-100); a state word
@@ -45,7 +47,10 @@
 --           at a workbench (wave 1): bench = true, benchSet (the bench ids of at=, a set; nil = any bench that fits),
 --           benchText (at= as written); smelt() is a craft action at a bench with smelt = true
 --           exercise: exercise (the game's id), minutes;  rest: seat "nearest" / "ground", untilPct
---           eat / drink / smoke / read: itemTypes (list or nil), itemText, openCans (eat), amount (drink: 1 / 0.5 / 0.25)
+--           eat / drink / smoke / read / refill: itemTypes (list or nil), itemText; eat: near (false: only what is
+--           carried; nil: within reach too), openCans (false: never a can; nil: the game's "Open and Eat"), amount
+--           ("all" / "half" / "quarter" / "auto"), picky (false: also what makes very unhappy); drink: amount (1 / 0.5
+--           / 0.25), near, source (true: a sink, a barrel, a well of the world)
 --           take / put / drop / equip / walk_to (wave 2): itemTypes (nil with made = true: "made", what the run made),
 --           itemText, n (nil = all), hand (equip: "primary" / "secondary" / "both", nil = by the item), placeKey (the
 --           place's name in lower case), placeName (as written), place (the macro's place, nil when not marked or not
@@ -59,7 +64,8 @@
 -- A condition is a small tree, evaluated by Run:evalCondition: { k = "const", v } / "has" (types, n, damaged) / "count"
 -- (types) / "skill" (perk) / "moodle" (name, word) / "percent" (name, word) / "state" (word, moodle: a state word
 -- alone, 16) / "word" (name: dark, hour) / "xp" (perk) / "condition" (types) / "known" (recipes) / "benchFree"
--- (benches: ids) / "space" (placeKey, place: space_left()) / "num" (v) / "not" (a) / "and" / "or" (a, b) / "cmp" (op,
+-- (benches: ids) / "space" (placeKey, place: space_left()) / "hasFood" / "hasDrink" (op: what eat() / drink() would look
+-- for, { kind, itemTypes, near, openCans, picky, source }) / "num" (v) / "not" (a) / "and" / "or" (a, b) / "cmp" (op,
 -- a, b); text = the condition as written; "count" with placeKey / place: count("X", at="P"). result.xpPerks: the
 -- skills xp_gained() reads (their experience is noted at the start). result.placeRefs: { line, name, key, place } for
 -- every place the text names (Run:getStartRefusal checks them); result.placesKnown: opts.places was given (the
@@ -159,6 +165,10 @@ Lang.moodleItalian = {
 	buio = "dark", scuro = "dark", notte = "dark", darkness = "dark", ora = "hour", orario = "hour", time = "hour",
 };
 
+-- Italian (and English) words written by habit for a condition's call (20/11/2026): the call to write
+Lang.callItalian = { cibo = "has_food", mangiare = "has_food", food = "has_food", acqua = "has_drink", bere = "has_drink",
+	water = "has_drink", drink = "has_drink" };
+
 -- the edit distance of two short words (the closest name of a word not known)
 local function distance(a, b)
 	local la, lb = string.len(a), string.len(b);
@@ -194,6 +204,11 @@ function AutoPilotMoon.Macro.Lang:closestName(word)
 	if Lang.moodleItalian[word]
 	then
 		return Lang.moodleItalian[word];
+	end
+
+	if Lang.callItalian[word]
+	then
+		return Lang.callItalian[word] .. "()";
 	end
 
 	local best, bestDistance = nil, 4;
@@ -255,6 +270,19 @@ end
 
 Lang.seats = { "nearest", "ground" };
 
+-- drink(source=True), refill(): a water source within this many squares (MacroFood.lua's F.sourceRadius, the same)
+Lang.sourceRadius = 8;
+
+-- the amounts of eat(amount="...") (20/11/2026): the game's "Eat" menu (all, half, quarter; half and quarter only when
+-- the game offers them for that food), "auto" the smallest portion that takes the hunger away
+Lang.eatAmountList = { { name = "all" }, { name = "half" }, { name = "quarter" }, { name = "auto" } };
+Lang.eatAmounts = {};
+
+for i, entry in ipairs(Lang.eatAmountList)
+do
+	Lang.eatAmounts[entry.name] = true;
+end
+
 -- equip(..., hand=...) (wave 2): the hands of the inventory's "Equip" (primary), "Equip secondary", "Equip two hands"
 Lang.hands = { "primary", "secondary", "both" };
 Lang.handSet = {};
@@ -302,10 +330,16 @@ Lang.calls = {
 		usage = "exercise(\"pushups\", minutes=10)", action = true, names = { type = "exercise" } },
 	rest = { pos = {}, kw = { seat = "str", ["until"] = "num" }, req = {}, usage = "rest(seat=\"nearest\", until=95)", action = true,
 		names = { seat = "seat" } },
-	eat = { pos = { "item" }, kw = { item = "str", open_cans = "bool" }, req = {}, usage = "eat(open_cans=True)", action = true,
-		names = { item = "item" } },
-	drink = { pos = { "item" }, kw = { item = "str", amount = "str" }, req = {}, usage = "drink(amount=\"half\")", action = true,
-		names = { item = "item", amount = "amount" } },
+	-- smart food and water (20/11/2026): carried or within reach (near), cans opened (open_cans), the portion (amount),
+	-- what makes very unhappy too (picky=False); boolDefaults: what a boolean argument is when not written (the
+	-- suggestions write the other value)
+	eat = { pos = { "item" }, kw = { item = "str", open_cans = "bool", near = "bool", amount = "str", picky = "bool" }, req = {},
+		usage = "eat()", action = true, names = { item = "item", amount = "eatAmount" },
+		boolDefaults = { open_cans = true, near = true, picky = true } },
+	drink = { pos = { "item" }, kw = { item = "str", amount = "str", near = "bool", source = "bool" }, req = {},
+		usage = "drink(amount=\"half\")", action = true, names = { item = "item", amount = "amount" },
+		boolDefaults = { near = true, source = false } },
+	refill = { pos = { "item" }, kw = { item = "str" }, req = {}, usage = "refill()", action = true, names = { item = "item" } },
 	smoke = { pos = { "item" }, kw = { item = "str" }, req = {}, usage = "smoke()", action = true, names = { item = "item" } },
 	-- wave 0 of the work skills (13/11/2026): the game's repairs and sharpenings of an item it keeps, and reading a
 	-- book or a magazine as the inventory's "Read" does
@@ -354,6 +388,11 @@ Lang.condCalls = {
 		names = { bench = "bench" }, value = "bool" },
 	-- wave 2: the weight the character can still carry (getMaxWeight - the inventory), or the room left in a place
 	space_left = { pos = {}, kw = { at = "str" }, req = {}, usage = "space_left() < 5", names = { at = "place" }, value = "number" },
+	-- smart food and water (20/11/2026): eat() / drink() would find something now (the same arguments)
+	has_food = { pos = { "item" }, kw = { item = "str", near = "bool", open_cans = "bool", picky = "bool" }, req = {},
+		usage = "has_food()", names = { item = "item" }, value = "bool", boolDefaults = { open_cans = true, near = true, picky = true } },
+	has_drink = { pos = { "item" }, kw = { item = "str", near = "bool", source = "bool" }, req = {}, usage = "has_drink()",
+		names = { item = "item" }, value = "bool", boolDefaults = { near = true, source = false } },
 };
 
 -- The statements of a line other than the calls, as the editor's suggestions write them (MACRO-AUTOPILOT.md 4.12; the
@@ -398,7 +437,7 @@ Lang.italian = {
 	affila = "sharpen(\"...\")", leggi = "read(\"...\")", fondi = "smelt(\"...\")",
 	prendi = "take(\"...\", from=\"...\")", metti = "put(\"...\", into=\"...\")", posa = "drop(\"...\")",
 	lascia = "drop(\"...\")", equipaggia = "equip(\"...\")", impugna = "equip(\"...\")", vai = "walk_to(\"...\")",
-	cammina = "walk_to(\"...\")", conta = "count(\"...\")",
+	cammina = "walk_to(\"...\")", conta = "count(\"...\")", riempi = "refill()", ricarica = "refill()",
 };
 
 -- ============================================================================================================
@@ -1931,6 +1970,217 @@ local function stateHint(ctx, node, a, b)
 	end
 end
 
+-- ============================================================================================================
+-- Smart food and water (20/11/2026, MACRO-AUTOPILOT.md 18): eat(), drink(), refill(), has_food(), has_drink()
+-- ============================================================================================================
+
+-- a boolean argument as written (true / false), nil when not written
+local function boolArg(bound, key)
+	if bound[key] == nil
+	then
+		return nil;
+	end
+
+	return bound[key].v == true;
+end
+
+-- The warnings of a food named in eat("X") (ANALISI-MACRO-INTELLIGENTI.md 6.5): it must be cooked, a closed can with
+-- open_cans=False, something opened with a recipe first (a jar, a frozen bag), a drink, not food. Only when every type
+-- of the name is of the same kind and the resolver knows the kinds (resolver:foodKind, nil in a program of its own:
+-- nothing said). Amber: the macro still runs (eat() just skips it).
+local function warnFood(ctx, node, action)
+	local resolver = ctx.resolver;
+
+	if resolver.foodKind == nil or action.itemTypes == nil
+	then
+		return;
+	end
+
+	local kind = nil;
+
+	for i, fullType in ipairs(action.itemTypes)
+	do
+		-- a type without a script says nothing
+		local k = resolver:foodKind(fullType);
+
+		if k ~= nil and kind ~= nil and kind ~= k
+		then
+			return;
+		end
+
+		kind = k or kind;
+	end
+
+	local key = nil;
+
+	if kind == "raw"
+	then
+		key = "IGUI_AutoPilot_E_P_EatRaw";
+	elseif kind == "can" and action.openCans == false
+	then
+		key = "IGUI_AutoPilot_E_P_EatCanClosed";
+	elseif kind == "sealed"
+	then
+		key = "IGUI_AutoPilot_E_P_EatSealed";
+	elseif kind == "drink"
+	then
+		key = "IGUI_AutoPilot_E_P_EatDrink";
+	elseif kind == "notfood"
+	then
+		key = "IGUI_AutoPilot_E_P_EatNotFood";
+	end
+
+	if key
+	then
+		warn(ctx, getText(key, ctx.line, node.v), node.tok, "eatFood", { kind = kind, item = node.v });
+	end
+end
+
+-- what an eat() / drink() / refill() line needs ("Attrezzi e materiali", 4.5): in words, and in data for ZomBOT
+-- (entry.body = the command, entry.near, entry.source)
+local function foodNeeds(ctx, name, action)
+	local parts = {};
+	local near = action.near ~= false and ctx.opts.eatNear ~= false;
+
+	if name == "eat"
+	then
+		table.insert(parts, getText(near and "IGUI_AutoPilot_E_NeedsFoodNear" or "IGUI_AutoPilot_E_NeedsFoodOn"));
+
+		if action.openCans ~= false
+		then
+			table.insert(parts, getText("IGUI_AutoPilot_E_NeedsCanOpener"));
+		end
+	elseif name == "drink" and not action.source
+	then
+		table.insert(parts, getText(near and "IGUI_AutoPilot_E_NeedsDrinkNear" or "IGUI_AutoPilot_E_NeedsDrinkOn"));
+	else
+		if name == "refill"
+		then
+			table.insert(parts, getText("IGUI_AutoPilot_E_NeedsBottle"));
+		end
+
+		table.insert(parts, getText("IGUI_AutoPilot_E_NeedsSource", Lang.sourceRadius));
+	end
+
+	local written = textOf(ctx, 1);
+
+	table.insert(ctx.result.requirements, { line = ctx.line, body = name, recipeText = written, near = near and name ~= "refill"
+		and not action.source, source = name == "refill" or action.source == true, materials = {}, tools = {}, skills = {},
+		text = getText("IGUI_AutoPilot_E_Needs", ctx.line, written, table.concat(parts, "; ")) });
+end
+
+-- eat / drink / refill: the arguments, the warnings, what the line needs; false after an error (said)
+local function compileFood(ctx, name, bound, action)
+	if name == "eat"
+	then
+		action.near = boolArg(bound, "near");
+		action.openCans = boolArg(bound, "open_cans");
+		action.picky = boolArg(bound, "picky");
+
+		if bound.amount
+		then
+			local amount = string.lower(trim(bound.amount.v));
+
+			if not Lang.eatAmounts[amount]
+			then
+				lineError(ctx, getText("IGUI_AutoPilot_E_P_BadEatAmount", ctx.line), bound.amount.tok);
+
+				return false;
+			end
+
+			action.amount = amount;
+		end
+
+		warnFood(ctx, bound.item, action);
+	elseif name == "drink"
+	then
+		action.near = boolArg(bound, "near");
+		action.source = boolArg(bound, "source") == true;
+
+		if action.source and bound.item
+		then
+			lineError(ctx, getText("IGUI_AutoPilot_E_P_SourceItem", ctx.line), bound.item.tok);
+
+			return false;
+		end
+
+		local amount = bound.amount and string.lower(bound.amount.v) or "all";
+
+		action.amount = Lang.drinkAmounts[amount];
+
+		if action.amount == nil
+		then
+			lineError(ctx, getText("IGUI_AutoPilot_E_P_BadAmount", ctx.line));
+
+			return false;
+		end
+
+		if action.source and bound.amount
+		then
+			-- a source gives what the thirst asks (ISTakeWaterAction): no portion
+			warn(ctx, getText("IGUI_AutoPilot_E_P_SourceAmount", ctx.line), bound.amount.tok, "sourceAmount", nil);
+		end
+	end
+
+	-- the server switched off the containers within reach (MacroEatNear false; nil: not known, ZomBOT)
+	if action.near == true and ctx.opts.eatNear == false
+	then
+		warn(ctx, getText("IGUI_AutoPilot_E_P_NearOff", ctx.line), bound.near.tok, "nearOff", nil);
+	end
+
+	foodNeeds(ctx, name, action);
+
+	return true;
+end
+
+-- has_food(...), has_drink(...): what eat() / drink() would look for, or nil (the problem is said)
+local function compileHasFood(ctx, node)
+	local bound = bindArgs(ctx, node.fn, Lang.condCalls[node.fn], node.args);
+
+	if bound == nil
+	then
+		return nil;
+	end
+
+	local food = node.fn == "has_food";
+	local op = { kind = food and "eat" or "drink", near = boolArg(bound, "near") };
+
+	if bound.item
+	then
+		local types = resolveItem(ctx, bound.item.tok);
+
+		if types == nil
+		then
+			return nil;
+		end
+
+		op.itemTypes = types;
+		op.itemText = bound.item.v;
+	end
+
+	if food
+	then
+		op.openCans = boolArg(bound, "open_cans");
+		op.picky = boolArg(bound, "picky");
+	else
+		op.source = boolArg(bound, "source") == true;
+
+		if op.source and bound.item
+		then
+			lineError(ctx, getText("IGUI_AutoPilot_E_P_SourceItem", ctx.line), bound.item.tok);
+
+			return nil;
+		end
+	end
+
+	if op.near == true and ctx.opts.eatNear == false
+	then
+		warn(ctx, getText("IGUI_AutoPilot_E_P_NearOff", ctx.line), bound.near.tok, "nearOff", nil);
+	end
+
+	return { k = food and "hasFood" or "hasDrink", op = op };
+end
+
 -- a node as a condition, or nil
 compileBool = function(ctx, node)
 	if node.k == "bool"
@@ -2015,6 +2265,9 @@ compileBool = function(ctx, node)
 		-- damaged=True: only the damaged ones the macro may work on (condition below the most, never a favourite, an
 		-- equipped or a worn one: what repair() takes)
 		return types and { k = "has", types = types, n = n, damaged = bound.damaged ~= nil and bound.damaged.v == true } or nil;
+	elseif node.k == "call" and (node.fn == "has_food" or node.fn == "has_drink")
+	then
+		return compileHasFood(ctx, node);
 	elseif node.k == "call" and node.fn == "bench_free"
 	then
 		local bound = bindArgs(ctx, "bench_free", Lang.condCalls.bench_free, node.args);
@@ -2983,7 +3236,7 @@ local function compileItems(ctx, name, bound)
 	addAction(ctx, action, 1);
 end
 
--- exercise / rest / eat / drink / smoke / read
+-- exercise / rest / eat / drink / smoke / read / refill
 local function compileBody(ctx, name, bound)
 	local action = { op = "ACTION", kind = name };
 
@@ -3060,20 +3313,10 @@ local function compileBody(ctx, name, bound)
 			action.itemText = bound.item.v;
 		end
 
-		action.openCans = bound.open_cans ~= nil and bound.open_cans.v == true;
-
-		if name == "drink"
+		-- smart food and water (20/11/2026): near, open_cans, amount, picky, source; the warnings and what it needs
+		if (name == "eat" or name == "drink" or name == "refill") and not compileFood(ctx, name, bound, action)
 		then
-			local amount = bound.amount and string.lower(bound.amount.v) or "all";
-
-			action.amount = Lang.drinkAmounts[amount];
-
-			if action.amount == nil
-			then
-				lineError(ctx, getText("IGUI_AutoPilot_E_P_BadAmount", ctx.line));
-
-				return;
-			end
+			return;
 		end
 	end
 

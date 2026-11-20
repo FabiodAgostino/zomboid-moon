@@ -674,6 +674,27 @@ local function italianWords()
 	return S.italian;
 end
 
+-- the words written by habit that lead to a condition's call (Lang.callItalian: cibo -> has_food), sorted
+local function callWords()
+	if S.callWords == nil
+	then
+		S.callWords = {};
+
+		for word, name in pairs(Lang().callItalian)
+		do
+			S.callWords[name] = S.callWords[name] or {};
+			table.insert(S.callWords[name], word);
+		end
+
+		for name, words in pairs(S.callWords)
+		do
+			table.sort(words);
+		end
+	end
+
+	return S.callWords;
+end
+
 -- the help line of a state word (19/11/2026, MACRO-AUTOPILOT.md 16.5: what it means alone, what a number means), once
 -- per session: the language does not change while the game runs
 local function stateHelp(name)
@@ -761,7 +782,8 @@ local function conditionEntries(ctx, q)
 	do
 		local entry = callEntry(name, L.condCalls[name]);
 
-		add(entry, nil);
+		-- the Italian words that lead to it (cibo: has_food(), 20/11/2026)
+		add(entry, callWords()[name]);
 	end
 
 	for i, word in ipairs(L.conditionWords)
@@ -1031,9 +1053,10 @@ local function nameEntries(ctx, kind, q, words)
 
 			add({ label = seat, detail = detail, class = "string", value = seat, helpKey = "IGUI_AutoPilot_E_Sug_Seat_" .. seat }, { detail });
 		end
-	elseif kind == "amount"
+	elseif kind == "amount" or kind == "eatAmount"
 	then
-		for i, amount in ipairs(L.drinkAmountList)
+		-- drink's amounts, eat's with "auto" too (20/11/2026)
+		for i, amount in ipairs(kind == "eatAmount" and L.eatAmountList or L.drinkAmountList)
 		do
 			local detail = text("IGUI_AutoPilot_E_Sug_Amount_" .. amount.name);
 
@@ -1077,7 +1100,10 @@ local function argEntries(ctx, q, words)
 					entry.reopen = spec.names ~= nil and spec.names[name] ~= nil;
 				elseif kind == "bool"
 				then
-					entry.text = name .. "=True";
+					-- the value that changes something: False for what is on when not written (near, open_cans, picky)
+					local default = spec.boolDefaults and spec.boolDefaults[name];
+
+					entry.text = name .. (default == true and "=False" or "=True");
 				else
 					entry.text = name .. "=";
 				end

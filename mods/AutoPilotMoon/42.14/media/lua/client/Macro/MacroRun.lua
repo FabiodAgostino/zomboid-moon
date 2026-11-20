@@ -448,6 +448,13 @@ function AutoPilotMoon.Macro.Run:evalCondition(player, cond, states)
 	elseif k == "benchFree"
 	then
 		return Bench():isFree(player, Run:center(player), cond.benches);
+	elseif k == "hasFood"
+	then
+		-- has_food(), has_drink() (20/11/2026): what eat() / drink() would find now (MacroFood.lua)
+		return Body():hasFood(player, cond.op);
+	elseif k == "hasDrink"
+	then
+		return Body():hasDrink(player, cond.op);
 	elseif k == "not"
 	then
 		return not Run:evalCondition(player, cond.a, states);
@@ -883,7 +890,8 @@ function AutoPilotMoon.Macro.Run:check(player, text, places)
 	local maxActions, maxLoops = limits();
 
 	return AutoPilotMoon.Macro.Lang:check(text, AutoPilotMoon.Macro.Names, { player = player, maxActions = maxActions, maxLoops = maxLoops,
-		benches = Bench():isEnabled(), excluded = Run:excludedSkills(), transfers = Places():isEnabled(), places = places });
+		benches = Bench():isEnabled(), excluded = Run:excludedSkills(), transfers = Places():isEnabled(), places = places,
+		eatNear = AutoPilotMoon.Sandbox:getBooleanOn("MacroEatNear") });
 end
 
 -- the sets of "using" and the skills of an op list (the main program or a "when")
@@ -1445,6 +1453,10 @@ local function act(run, frame, op)
 			then
 				-- nothing to do (rest() already rested): the line after, no action counted
 				frame.pc = frame.pc + 1;
+			elseif kind == "wait"
+			then
+				-- eat() / drink(): the containers within reach asked for, their contents awaited (the step comes again)
+				return;
 			elseif kind == "nothing" and op.possibleFirst
 			then
 				finish(run, getText("IGUI_AutoPilot_A_MacroDoneCannot", op.desc));
@@ -1967,7 +1979,8 @@ function AutoPilotMoon.Macro.Run:getRunningLine()
 end
 
 -- "Adesso si puo' fare?" (4.5): the first action the macro would do, tried without queueing anything. Returns the line
--- and nil (yes) or the reason's text; nil when the macro has no action.
+-- and nil (yes) or the reason's text; nil when the macro has no action. A third value, with yes: what it would do
+-- (eat(), drink(), refill(): "mangera' Mela da Frigo", 20/11/2026).
 function AutoPilotMoon.Macro.Run:probe(player, result)
 	for i, op in ipairs(result.ops)
 	do
