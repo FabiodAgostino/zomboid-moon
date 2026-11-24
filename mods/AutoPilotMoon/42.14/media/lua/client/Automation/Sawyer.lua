@@ -144,28 +144,28 @@ end
 local function refusal(player, recipe)
 	if recipe == nil
 	then
-		A:stopBecause(getText("IGUI_AutoPilot_A_Reason_GameRefused", Sawyer.recipeName));
+		A:stopBecause(AutoPilotMoon.Notify:why("IGUI_AutoPilot_A_Reason_GameRefused", Sawyer.recipeName));
 
 		return true;
 	end
 
 	if not AutoPilotMoon.Item:getSaw(player)
 	then
-		A:stopBecause(getText("IGUI_AutoPilot_A_Reason_NeedTool", getText("IGUI_AutoPilot_T_NeedSaw")));
+		A:stopBecause(AutoPilotMoon.Notify:why("IGUI_AutoPilot_A_Reason_NeedTool", getText("IGUI_AutoPilot_T_NeedSaw")));
 
 		return true;
 	end
 
 	if not recipe:canBeDoneInDark() and player:tooDarkToRead()
 	then
-		A:stopBecause(getText("IGUI_AutoPilot_A_Reason_TooDark"));
+		A:stopBecause(AutoPilotMoon.Notify:why("IGUI_AutoPilot_A_Reason_TooDark"));
 
 		return true;
 	end
 
 	if not player:isEnduranceSufficientForAction()
 	then
-		A:finishEarly(getText("IGUI_AutoPilot_A_TooTired", title()));
+		A:finishEarly(AutoPilotMoon.Notify:why("IGUI_AutoPilot_A_TooTired", title()));
 
 		return true;
 	end
@@ -180,7 +180,7 @@ local function finishAtLimit(S)
 		return "busy";
 	end
 
-	A:finishDone(getText("IGUI_AutoPilot_A_LimitReached", title(), getText("IGUI_AutoPilot_T_Limit_Logs", Sawyer:getLimit())));
+	A:finishDone(AutoPilotMoon.Notify:why("IGUI_AutoPilot_A_LimitReached", title(), getText("IGUI_AutoPilot_T_Limit_Logs", Sawyer:getLimit())));
 
 	return "discard";
 end
@@ -191,12 +191,12 @@ local function saw(S, player, recipe, log)
 
 	if reason == "dark"
 	then
-		A:stopBecause(getText("IGUI_AutoPilot_A_Reason_TooDark"));
+		A:stopBecause(AutoPilotMoon.Notify:why("IGUI_AutoPilot_A_Reason_TooDark"));
 
 		return "discard";
 	elseif reason
 	then
-		A:stopBecause(getText("IGUI_AutoPilot_A_Reason_GameRefused", Craft:getRecipeName(recipe)));
+		A:stopBecause(AutoPilotMoon.Notify:why("IGUI_AutoPilot_A_Reason_GameRefused", Craft:getRecipeName(recipe)));
 
 		return "discard";
 	end
@@ -317,7 +317,7 @@ local function startDrop(S, player, items, from)
 				-- out of the inventory, by id (on the square it is another object of the game)
 				wait:expectOut(item, "inventory");
 				target.weight = target.weight + weight;
-				table.insert(entries, { id = item:getID() });
+				table.insert(entries, { id = item:getID(), name = item:getDisplayName() });
 
 				break;
 			end
@@ -363,6 +363,8 @@ local function confirmDrop(S, player)
 
 			if S.dropTries[entry.id] >= Sawyer.maxDropTries
 			then
+				-- the notifications: the item refused (a1)
+				AutoPilotMoon.Notify:warnArgs("IGUI_AutoPilot_A_Reason_ServerRefused", entry.name);
 				AutoPilotMoon.Progress:warn("IGUI_AutoPilot_A_Reason_ServerRefused");
 			elseif item
 			then
@@ -491,7 +493,7 @@ function AutoPilotMoon.Automation:checkSawyerSquare(square, player)
 		return "busy";
 	elseif pending == "failed"
 	then
-		A:stopBecause(getText(reasonKey));
+		A:stopBecause(AutoPilotMoon.Notify:why(reasonKey));
 
 		return "discard";
 	end
@@ -505,7 +507,7 @@ function AutoPilotMoon.Automation:checkSawyerSquare(square, player)
 			return "busy";
 		elseif dropped == "stop"
 		then
-			A:stopBecause(getText("IGUI_AutoPilot_A_Reason_NoRoomForPlanks"));
+			A:stopBecause(AutoPilotMoon.Notify:why("IGUI_AutoPilot_A_Reason_NoRoomForPlanks"));
 
 			return "discard";
 		end
@@ -520,7 +522,7 @@ function AutoPilotMoon.Automation:checkSawyerSquare(square, player)
 			return "busy";
 		elseif sawn == "stop"
 		then
-			A:stopBecause(getText("IGUI_AutoPilot_A_Reason_NoRoomForPlanks"));
+			A:stopBecause(AutoPilotMoon.Notify:why("IGUI_AutoPilot_A_Reason_NoRoomForPlanks"));
 
 			return "discard";
 		end
@@ -583,7 +585,7 @@ function AutoPilotMoon.Automation:checkSawyerSquare(square, player)
 			return "busy";
 		end
 
-		A:stopBecause(getText("IGUI_AutoPilot_A_Reason_BagFull"));
+		A:stopBecause(AutoPilotMoon.Notify:why("IGUI_AutoPilot_A_Reason_BagFull"));
 
 		return "discard";
 	end

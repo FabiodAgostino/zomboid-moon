@@ -56,6 +56,12 @@ local function Wait()
 	return AutoPilotMoon.Wait;
 end
 
+-- the text of the reason of a stop (or an end: MacroDoneItems), its key remembered for the notifications (the event's
+-- code: MacroR_PlaceLocked...)
+local function whyText(key, a, b, c, d)
+	return AutoPilotMoon.Notify:why(key, a, b, c, d);
+end
+
 function AutoPilotMoon.Macro.Items:handles(kind)
 	return Items.kinds[kind] == true;
 end
@@ -198,19 +204,19 @@ local function placeOf(player, op, center)
 
 	if place == nil
 	then
-		return nil, nil, getText("IGUI_AutoPilot_A_MacroR_NoPlace", op.placeName or "");
+		return nil, nil, whyText("IGUI_AutoPilot_A_MacroR_NoPlace", op.placeName or "");
 	end
 
 	if center and not Places():isInRange(place, center)
 	then
-		return nil, nil, getText("IGUI_AutoPilot_A_MacroR_PlaceFar", place.name, Places():distance(place, center), Places():radius());
+		return nil, nil, whyText("IGUI_AutoPilot_A_MacroR_PlaceFar", place.name, Places():distance(place, center), Places():radius());
 	end
 
 	local resolved, reasonKey = Places():resolve(place, player);
 
 	if resolved == nil
 	then
-		return nil, nil, getText(reasonKey, place.name);
+		return nil, nil, whyText(reasonKey, place.name);
 	end
 
 	return place, resolved, nil;
@@ -247,7 +253,7 @@ local function reach(run, op, place, resolved)
 		-- walked once for this line and still not there, or no way there
 		run.placeWalk = nil;
 
-		return true, getText("IGUI_AutoPilot_A_MacroR_PlaceUnreachable", place.name), nil;
+		return true, whyText("IGUI_AutoPilot_A_MacroR_PlaceUnreachable", place.name), nil;
 	end
 
 	run.placeWalk = op;
@@ -365,7 +371,7 @@ local function startTake(run, op)
 
 	if place.kind == "ground"
 	then
-		return nil, getText("IGUI_AutoPilot_A_MacroR_PlaceGround", place.name), nil;
+		return nil, whyText("IGUI_AutoPilot_A_MacroR_PlaceGround", place.name), nil;
 	end
 
 	local moving, walkWhy, walkKind = reach(run, op, place, resolved);
@@ -389,17 +395,17 @@ local function startTake(run, op)
 		if uncertain
 		then
 			-- no answer from the server: never "not there" (a "while possible" would end as if done)
-			return nil, getText("IGUI_AutoPilot_A_MacroR_NotSeenAt", place.name), nil;
+			return nil, whyText("IGUI_AutoPilot_A_MacroR_NotSeenAt", place.name), nil;
 		end
 
-		return nil, getText("IGUI_AutoPilot_A_MacroR_NothingAt", place.name, itemLabel(op)), "nothing";
+		return nil, whyText("IGUI_AutoPilot_A_MacroR_NothingAt", place.name, itemLabel(op)), "nothing";
 	end
 
 	local chosen = fittingInInventory(player, list, wanted(run, op));
 
 	if #chosen == 0
 	then
-		return nil, getText("IGUI_AutoPilot_A_MacroR_TooHeavy", itemLabel(op)), nil;
+		return nil, whyText("IGUI_AutoPilot_A_MacroR_TooHeavy", itemLabel(op)), nil;
 	end
 
 	local inventory = player:getInventory();
@@ -439,10 +445,10 @@ local function startPut(run, op)
 		if op.made
 		then
 			-- nothing made (yet): nothing to put away, the line after; first in "while possible": the end
-			return nil, getText("IGUI_AutoPilot_A_MacroR_NothingMade"), op.possibleFirst and "nothing" or "skip";
+			return nil, whyText("IGUI_AutoPilot_A_MacroR_NothingMade"), op.possibleFirst and "nothing" or "skip";
 		end
 
-		return nil, getText("IGUI_AutoPilot_A_MacroR_NothingToPut", itemLabel(op)), "nothing";
+		return nil, whyText("IGUI_AutoPilot_A_MacroR_NothingToPut", itemLabel(op)), "nothing";
 	end
 
 	local moving, walkWhy, walkKind = reach(run, op, place, resolved);
@@ -511,7 +517,7 @@ local function startPut(run, op)
 
 	if #entries == 0
 	then
-		return nil, getText(floor and "IGUI_AutoPilot_A_MacroR_FloorFull" or "IGUI_AutoPilot_A_MacroR_PlaceFull", place.name), nil;
+		return nil, whyText(floor and "IGUI_AutoPilot_A_MacroR_FloorFull" or "IGUI_AutoPilot_A_MacroR_PlaceFull", place.name), nil;
 	end
 
 	return { kind = "put", module = "items", entries = entries, place = place, wait = wait };
@@ -526,15 +532,15 @@ local function startDrop(run, op)
 		if op.made
 		then
 			-- nothing made (yet): nothing to put away, the line after; first in "while possible": the end
-			return nil, getText("IGUI_AutoPilot_A_MacroR_NothingMade"), op.possibleFirst and "nothing" or "skip";
+			return nil, whyText("IGUI_AutoPilot_A_MacroR_NothingMade"), op.possibleFirst and "nothing" or "skip";
 		end
 
-		return nil, getText("IGUI_AutoPilot_A_MacroR_NothingToPut", itemLabel(op)), "nothing";
+		return nil, whyText("IGUI_AutoPilot_A_MacroR_NothingToPut", itemLabel(op)), "nothing";
 	end
 
 	if AutoPilotMoon.Zones:isProtected(player:getSquare(), player)
 	then
-		return nil, getText("IGUI_AutoPilot_A_MacroR_DropProtected"), nil;
+		return nil, whyText("IGUI_AutoPilot_A_MacroR_DropProtected"), nil;
 	end
 
 	local room = AutoPilotMoon.Item:getFloorRoom(player:getSquare(), player);
@@ -542,7 +548,7 @@ local function startDrop(run, op)
 
 	if #chosen == 0
 	then
-		return nil, getText("IGUI_AutoPilot_A_MacroR_FloorFullHere"), nil;
+		return nil, whyText("IGUI_AutoPilot_A_MacroR_FloorFullHere"), nil;
 	end
 
 	local entries = {};
@@ -616,7 +622,7 @@ local function startEquip(run, op)
 
 	if item == nil
 	then
-		return nil, getText("IGUI_AutoPilot_A_MacroR_NoEquip", itemLabel(op)), "nothing";
+		return nil, whyText("IGUI_AutoPilot_A_MacroR_NoEquip", itemLabel(op)), "nothing";
 	end
 
 	hand = handOf(op, item);
@@ -648,7 +654,7 @@ local function startWalk(run, op)
 
 	if not walkTo(player, place, resolved)
 	then
-		return nil, getText("IGUI_AutoPilot_A_MacroR_PlaceUnreachable", place.name), nil;
+		return nil, whyText("IGUI_AutoPilot_A_MacroR_PlaceUnreachable", place.name), nil;
 	end
 
 	return { kind = "walkto", module = "items", place = place };
@@ -659,12 +665,12 @@ local starts = { take = startTake, put = startPut, drop = startDrop, equip = sta
 function AutoPilotMoon.Macro.Items:start(run, op)
 	if not Items:isEnabled()
 	then
-		return nil, getText("IGUI_AutoPilot_A_MacroR_TransfersOff"), nil;
+		return nil, whyText("IGUI_AutoPilot_A_MacroR_TransfersOff"), nil;
 	end
 
 	if Items:movesItems(op) and Items:left(run) <= 0
 	then
-		return nil, getText("IGUI_AutoPilot_A_MacroDoneItems", Items:cap()), "limit";
+		return nil, whyText("IGUI_AutoPilot_A_MacroDoneItems", Items:cap()), "limit";
 	end
 
 	local pending, why, kind = starts[op.kind](run, op);
@@ -705,7 +711,7 @@ function AutoPilotMoon.Macro.Items:confirm(run, pending)
 			return "done";
 		end
 
-		return "fail", getText("IGUI_AutoPilot_A_MacroR_PlaceUnreachable", pending.place.name);
+		return "fail", whyText("IGUI_AutoPilot_A_MacroR_PlaceUnreachable", pending.place.name);
 	end
 
 	local wait = pending.wait;
@@ -746,24 +752,24 @@ function AutoPilotMoon.Macro.Items:confirm(run, pending)
 
 	if why == "notqueued"
 	then
-		return "fail", getText("IGUI_AutoPilot_A_MacroR_WaitNotQueued", label);
+		return "fail", whyText("IGUI_AutoPilot_A_MacroR_WaitNotQueued", label);
 	elseif info.refused
 	then
 		if count == 0
 		then
-			return "fail", getText("IGUI_AutoPilot_A_MacroR_NotAccepted", label);
+			return "fail", whyText("IGUI_AutoPilot_A_MacroR_NotAccepted", label);
 		end
 
-		return "fail", getText("IGUI_AutoPilot_A_MacroR_PartlyRefused", label, count, total);
+		return "fail", whyText("IGUI_AutoPilot_A_MacroR_PartlyRefused", label, count, total);
 	elseif pending.kind == "equip"
 	then
-		return "fail", getText("IGUI_AutoPilot_A_MacroR_NotEquipped", label, seconds);
+		return "fail", whyText("IGUI_AutoPilot_A_MacroR_NotEquipped", label, seconds);
 	elseif count == 0
 	then
-		return "fail", getText("IGUI_AutoPilot_A_MacroR_NotMoved", label, seconds);
+		return "fail", whyText("IGUI_AutoPilot_A_MacroR_NotMoved", label, seconds);
 	end
 
-	return "fail", getText("IGUI_AutoPilot_A_MacroR_PartlyMoved", label, count, total, seconds);
+	return "fail", whyText("IGUI_AutoPilot_A_MacroR_PartlyMoved", label, count, total, seconds);
 end
 
 -- ============================================================================================================

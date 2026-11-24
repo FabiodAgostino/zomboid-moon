@@ -188,6 +188,8 @@ function AutoPilotMoon.Chain:advance(run)
 
 		if refusal ~= "nothing"
 		then
+			-- the notifications: the chain stops because this phase did not start (chain_refused, 20/11/2026)
+			AutoPilotMoon.Notify:chainRefused(refusal, run.phase);
 			Chain:stopRun(run, refusal);
 
 			return false;
@@ -231,9 +233,10 @@ function AutoPilotMoon.Chain:start(name, player, area, ctx)
 	then
 		local text = AutoPilotMoon.Automation:getReasonText(reason);
 
+		-- a refusal the player just asked for: never sent as a notification, even while another job runs
 		if text
 		then
-			AutoPilotMoon:say("bad", getText("IGUI_AutoPilot_A_JobNotStarted", title, text), player);
+			AutoPilotMoon.Notify:sayUnsent("bad", getText("IGUI_AutoPilot_A_JobNotStarted", title, text), player);
 		end
 
 		return false;

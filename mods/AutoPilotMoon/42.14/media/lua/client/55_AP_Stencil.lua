@@ -39,6 +39,11 @@
 --                                                 server's global objects) or the engine's wait says no (a refusal,
 --                                                 Wait.timeoutMs idle): never a second dose on an old state
 -- ctx is what the start got (a chain's ctx, or nil).
+--
+-- The notifications (20/11/2026, ANALISI-NOTIFICHE-DISCORD.md 6.5, WP1b): every stop says its key to
+-- AutoPilotMoon.Notify (Notify:why, Notify:code for the server's limit, which has no sentence of its own). The squares
+-- left out at the start (spec.startSkip) are counted at the start as before: the centralino tells the warnings counted
+-- before the job's first frame at that frame, right after the start (47_AP_Notify.lua, onWarning).
 
 AutoPilotMoon = AutoPilotMoon or {};
 AutoPilotMoon.Stencil = AutoPilotMoon.Stencil or {};
@@ -107,6 +112,8 @@ function AutoPilotMoon.Stencil:check(name, square, player)
 
 			if spec.limit and results >= spec.limit()
 			then
+				-- the server's limit (no sentence: the end says the results): "finished at the server's limit"
+				AutoPilotMoon.Notify:code("IGUI_AutoPilot_A_LimitReached", A:getTitle(A.definitions[name]), results);
 				A:finishDone();
 
 				return "discard";
@@ -146,12 +153,12 @@ function AutoPilotMoon.Stencil:check(name, square, player)
 		then
 			if spec.toolText
 			then
-				A:stopBecause(getText("IGUI_AutoPilot_A_Reason_NeedTool", spec.toolText(player, ctx)));
+				A:stopBecause(AutoPilotMoon.Notify:why("IGUI_AutoPilot_A_Reason_NeedTool", spec.toolText(player, ctx)));
 			elseif spec.toolKey
 			then
-				A:stopBecause(getText("IGUI_AutoPilot_A_Reason_NeedTool", getText(spec.toolKey)));
+				A:stopBecause(AutoPilotMoon.Notify:why("IGUI_AutoPilot_A_Reason_NeedTool", getText(spec.toolKey)));
 			else
-				A:stopBecause(getText("IGUI_AutoPilot_A_Reason_NoTools"));
+				A:stopBecause(AutoPilotMoon.Notify:why("IGUI_AutoPilot_A_Reason_NoTools"));
 			end
 
 			return "discard";
@@ -160,7 +167,7 @@ function AutoPilotMoon.Stencil:check(name, square, player)
 
 	if spec.needsEndurance and not player:isEnduranceSufficientForAction()
 	then
-		A:finishEarly(getText("IGUI_AutoPilot_A_TooTired", A:getTitle(A.definitions[name])));
+		A:finishEarly(AutoPilotMoon.Notify:why("IGUI_AutoPilot_A_TooTired", A:getTitle(A.definitions[name])));
 
 		return "discard";
 	end

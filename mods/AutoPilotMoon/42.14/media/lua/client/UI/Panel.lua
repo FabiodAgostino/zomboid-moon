@@ -6,6 +6,9 @@
 -- the confirmed counters, the phases of a chain with words (done / running / next), at most two warnings grouped by
 -- reason, the rest bar while the character rests; at rest the last job's summary. Buttons: Ferma (the game's cancel
 -- colour) and Opzioni (the quick options: the very same values as Esc > Options > Mods, written with Options:set).
+-- Since 20/11/2026 the quick options end with "Avvisi su Discord per questo lavoro" (notifyThisRun, this session only,
+-- back to the option at the end of every job; greyed while nobody listens) and, when the notifications are wanted, the
+-- delivery's line under the ticks ("Discord: Yoridyon", client/47_AP_Notify.lua, Notify:setStatus).
 --
 -- The macros (experimental, MACRO-AUTOPILOT.md 3.1, 5.5): a running macro words its own title, second line and
 -- experience (Progress titleText, loopText, doneText, icon) and has the button "Editor"; at rest, with the macros on
@@ -690,12 +693,15 @@ function W:createChildren()
 	self.ticks = Panel.TickBox:new(sizes.pad, 0, sizes.small, sizes.small, "", self, W.onTick);
 	self.ticks:initialise();
 	self.ticks.choicesColor = { r = 0.9, g = 0.9, b = 0.9, a = 1 };
-	self.tickKeys = { "openPanelOnStart", "showJobArea", "uiSounds", "autoRest" };
+	-- the last tick (20/11/2026, ANALISI-NOTIFICHE-DISCORD.md 2.1): the notifications on Discord for the job running
+	-- now (or the next one), a value of this session only, back to the option at the end of every job
+	self.tickKeys = { "openPanelOnStart", "showJobArea", "uiSounds", "autoRest", "notifyThisRun" };
 	self.tickLabels = {
 		getText("IGUI_AutoPilot_MO_OpenPanel"),
 		getText("IGUI_AutoPilot_MO_ShowArea"),
 		getText("IGUI_AutoPilot_MO_Sounds"),
 		getText("IGUI_AutoPilot_MO_AutoRest"),
+		getText("IGUI_AutoPilot_P_NotifyThisRun"),
 	};
 	self.autoRestOffLabel = getText("IGUI_AutoPilot_MO_AutoRest") .. " - " .. getText("IGUI_AutoPilot_MO_AutoRest_Off");
 	self.ticks:setVisible(false);
@@ -737,9 +743,28 @@ function W:syncOptions()
 		then
 			self.ticks:disableOption(label, true);
 		end
+
+		-- nobody to send to (no ZomBOT (Moon)): the tick is greyed, the status line under the ticks says why
+		if key == "notifyThisRun" and not AutoPilotMoon.Notify:hasSubscribers()
+		then
+			self.ticks:disableOption(label, true);
+		end
 	end
 
 	self.ticks:setWidthToFit();
+end
+
+-- the status of the notifications under the quick options ("Discord: Yoridyon"), only when they are wanted (the option,
+-- or the tick of this job); nil otherwise
+function W:discordLine()
+	local notify = AutoPilotMoon.Notify;
+
+	if notify:getGeneralMode() == "off" and AutoPilotMoon.Options:get("notifyThisRun") ~= true
+	then
+		return nil;
+	end
+
+	return notify:getStatusLine();
 end
 
 function W:onStop()
@@ -797,6 +822,19 @@ end
 function W:rebuild(now)
 	self.dirty = false;
 	self.model = Panel:buildModel(self.playerNum, now);
+
+	-- the tick of the notifications for this job goes back to the option at the end of every job: shown as it is
+	if self.showOptions and self.ticks
+	then
+		for i, key in ipairs(self.tickKeys)
+		do
+			if key == "notifyThisRun"
+			then
+				self.ticks:setSelected(i, AutoPilotMoon.Options:get(key) == true);
+			end
+		end
+	end
+
 	self:relayout();
 end
 
@@ -1076,6 +1114,7 @@ function W:relayout()
 		self.ticks:setY(y);
 		self.ticks:setVisible(true);
 		y = y + self.ticks:getHeight() + pad;
+		lines(self:discordLine(), Panel.colors.grey);
 		lines(getText("IGUI_AutoPilot_P_MoreOptions"), Panel.colors.grey);
 	else
 		self.haloCombo:setVisible(false);

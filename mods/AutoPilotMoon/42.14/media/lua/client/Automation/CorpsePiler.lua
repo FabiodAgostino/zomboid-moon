@@ -203,10 +203,6 @@ local function title()
 	return getText("IGUI_AutoPilot_O_Context_CorpsePiler");
 end
 
-local function summary(key)
-	return getText(key, title(), AutoPilotMoon.Automation:getJobCount("corpseMoved"));
-end
-
 -- carrying a corpse: to the pile, then drop it there (walks and drops limited)
 local function carry(player, pile)
 	local A = AutoPilotMoon.Automation;
@@ -222,7 +218,7 @@ local function carry(player, pile)
 	-- the job's end releases the grab where the character stands (W-B8)
 	if AutoPilotMoon.Zones:isProtected(pile, player)
 	then
-		A:finishEarly(getText("IGUI_AutoPilot_A_JobStoppedBecause", title(), getText("IGUI_AutoPilot_A_Reason_Protected")));
+		A:finishEarly(getText("IGUI_AutoPilot_A_JobStoppedBecause", title(), AutoPilotMoon.Notify:why("IGUI_AutoPilot_A_Reason_Protected")));
 
 		return;
 	end
@@ -233,7 +229,7 @@ local function carry(player, pile)
 		then
 			-- the pile cannot be reached: leave the corpse here and stop
 			ISWorldObjectContextMenu.handleGrabWorldItem_onDropCorpse(player);
-			A:finishEarly(getText("IGUI_AutoPilot_A_CorpsePileUnreachable", title()));
+			A:finishEarly(AutoPilotMoon.Notify:why("IGUI_AutoPilot_A_CorpsePileUnreachable", title()));
 
 			return;
 		end
@@ -248,7 +244,7 @@ local function carry(player, pile)
 	then
 		if carryState.drops >= A.corpseMaxDrops
 		then
-			A:finishEarly(getText("IGUI_AutoPilot_A_CorpseNotDropped", title()));
+			A:finishEarly(AutoPilotMoon.Notify:why("IGUI_AutoPilot_A_CorpseNotDropped", title()));
 
 			return;
 		end
@@ -356,7 +352,7 @@ function AutoPilotMoon.Automation:checkCorpsePilerSquare(square, player)
 
 	if A:getJobCount("corpseMoved") >= AutoPilotMoon.Sandbox:getInteger("CorpsesPerJob")
 	then
-		A:finishEarly(summary("IGUI_AutoPilot_A_CorpseCapReached"));
+		A:finishEarly(AutoPilotMoon.Notify:why("IGUI_AutoPilot_A_CorpseCapReached", title(), A:getJobCount("corpseMoved")));
 
 		return "discard";
 	end

@@ -209,7 +209,7 @@ local function startDrop(S, player, bags)
 			wait:watch(action);
 			-- out of the inventory, by id (the bag on the floor is another object of the game)
 			wait:expectOut(bag, "inventory");
-			table.insert(entries, { id = bag:getID() });
+			table.insert(entries, { id = bag:getID(), name = bag:getDisplayName() });
 		end
 	end
 
@@ -248,6 +248,8 @@ local function confirmDrop(S, player)
 			if S.dropTries[entry.id] >= SoilBagger.maxDropTries
 			then
 				S.hauler.givenUp[entry.id] = true;
+				-- the notifications: the item refused (a1)
+				AutoPilotMoon.Notify:warnArgs("IGUI_AutoPilot_A_Reason_ServerRefused", entry.name);
 				AutoPilotMoon.Progress:warn("IGUI_AutoPilot_A_Reason_ServerRefused");
 			end
 		end
@@ -365,7 +367,7 @@ local function startRefill(S, player, loaded)
 					ISTimedActionQueue.add(action);
 					wait:watch(action);
 					wait:expectIn(item, "inventory");
-					table.insert(entries, { id = item:getID() });
+					table.insert(entries, { id = item:getID(), name = item:getDisplayName() });
 				end
 			end
 		end
@@ -402,6 +404,10 @@ local function confirmRefill(S, player)
 
 	if info.arrived < info.total
 	then
+		-- the notifications: the sacks refused (a1, the first of the refill)
+		local first = refill.entries[1];
+
+		AutoPilotMoon.Notify:warnArgs("IGUI_AutoPilot_A_Reason_ServerRefused", first and first.name or nil);
 		AutoPilotMoon.Progress:warn("IGUI_AutoPilot_A_Reason_ServerRefused");
 	end
 
@@ -435,14 +441,14 @@ local function finishSquare(S, result)
 	return result;
 end
 
--- no empty sack left: the reason, with what to do to go on
-local function noSackReason(S)
+-- no empty sack left: the key of the reason, with what to do to go on
+local function noSackKey(S)
 	if S.refillable
 	then
-		return getText("IGUI_AutoPilot_A_Reason_NoEmptySacksRefill");
+		return "IGUI_AutoPilot_A_Reason_NoEmptySacksRefill";
 	end
 
-	return getText("IGUI_AutoPilot_A_Reason_NoEmptySacksNoRefill");
+	return "IGUI_AutoPilot_A_Reason_NoEmptySacksNoRefill";
 end
 
 -- One decision while the character is idle (the engine's removeCheckFunction): "busy" while dropping, carrying or
@@ -463,7 +469,7 @@ function AutoPilotMoon.Automation:checkSoilBaggerSquare(square, player)
 		return "busy";
 	elseif pending == "failed"
 	then
-		A:stopBecause(getText(reasonKey));
+		A:stopBecause(AutoPilotMoon.Notify:why(reasonKey));
 
 		return "discard";
 	end
@@ -519,7 +525,7 @@ function AutoPilotMoon.Automation:checkSoilBaggerSquare(square, player)
 				return "busy";
 			end
 
-			A:stopBecause(getText("IGUI_AutoPilot_A_Reason_NoRoomForBags"));
+			A:stopBecause(AutoPilotMoon.Notify:why("IGUI_AutoPilot_A_Reason_NoRoomForBags"));
 
 			return "discard";
 		end
@@ -562,7 +568,7 @@ function AutoPilotMoon.Automation:checkSoilBaggerSquare(square, player)
 
 	if not AutoPilotMoon.Item:getShovel(player)
 	then
-		A:stopBecause(getText("IGUI_AutoPilot_A_Reason_NeedTool", getText("IGUI_AutoPilot_T_NeedShovel")));
+		A:stopBecause(AutoPilotMoon.Notify:why("IGUI_AutoPilot_A_Reason_NeedTool", getText("IGUI_AutoPilot_T_NeedShovel")));
 
 		return "discard";
 	end
@@ -577,7 +583,7 @@ function AutoPilotMoon.Automation:checkSoilBaggerSquare(square, player)
 			return "busy";
 		end
 
-		A:stopBecause(noSackReason(S));
+		A:stopBecause(AutoPilotMoon.Notify:why(noSackKey(S)));
 
 		return "discard";
 	end
@@ -599,7 +605,7 @@ function AutoPilotMoon.Automation:checkSoilBaggerSquare(square, player)
 				return "busy";
 			end
 
-			A:stopBecause(getText("IGUI_AutoPilot_A_Reason_BagFull"));
+			A:stopBecause(AutoPilotMoon.Notify:why("IGUI_AutoPilot_A_Reason_BagFull"));
 
 			return "discard";
 		end

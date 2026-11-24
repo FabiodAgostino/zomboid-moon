@@ -179,14 +179,14 @@ end
 local function refusal(player)
 	if not AutoPilotMoon.Item:getBestWoodChoppingAxe(player)
 	then
-		A:stopBecause(getText("IGUI_AutoPilot_A_Reason_NeedTool", getText("IGUI_AutoPilot_T_NeedAxe")));
+		A:stopBecause(AutoPilotMoon.Notify:why("IGUI_AutoPilot_A_Reason_NeedTool", getText("IGUI_AutoPilot_T_NeedAxe")));
 
 		return true;
 	end
 
 	if not player:isEnduranceSufficientForAction()
 	then
-		A:finishEarly(getText("IGUI_AutoPilot_A_TooTired", title()));
+		A:finishEarly(AutoPilotMoon.Notify:why("IGUI_AutoPilot_A_TooTired", title()));
 
 		return true;
 	end
@@ -231,7 +231,7 @@ local function chopNext(S, player)
 
 		if square == nil or S.walks >= Firewood.maxWalks
 		then
-			A:stopBecause(getText("IGUI_AutoPilot_A_Reason_DestUnreachable"));
+			A:stopBecause(AutoPilotMoon.Notify:why("IGUI_AutoPilot_A_Reason_DestUnreachable"));
 
 			return "discard";
 		end
@@ -255,7 +255,7 @@ local function chopNext(S, player)
 
 	if recipe == nil
 	then
-		A:stopBecause(getText("IGUI_AutoPilot_A_Reason_GameRefused", Firewood.recipes[log:getFullType()]));
+		A:stopBecause(AutoPilotMoon.Notify:why("IGUI_AutoPilot_A_Reason_GameRefused", Firewood.recipes[log:getFullType()]));
 
 		return "discard";
 	end
@@ -264,7 +264,7 @@ local function chopNext(S, player)
 
 	if reason == "dark"
 	then
-		A:stopBecause(getText("IGUI_AutoPilot_A_Reason_TooDarkChop"));
+		A:stopBecause(AutoPilotMoon.Notify:why("IGUI_AutoPilot_A_Reason_TooDarkChop"));
 
 		return "discard";
 	elseif reason == "surface"
@@ -280,12 +280,12 @@ local function chopNext(S, player)
 			return "busy";
 		end
 
-		A:stopBecause(getText("IGUI_AutoPilot_A_Reason_NoSurface"));
+		A:stopBecause(AutoPilotMoon.Notify:why("IGUI_AutoPilot_A_Reason_NoSurface"));
 
 		return "discard";
 	elseif reason
 	then
-		A:stopBecause(getText("IGUI_AutoPilot_A_Reason_GameRefused", Craft:getRecipeName(recipe)));
+		A:stopBecause(AutoPilotMoon.Notify:why("IGUI_AutoPilot_A_Reason_GameRefused", Craft:getRecipeName(recipe)));
 
 		return "discard";
 	end
@@ -385,7 +385,7 @@ function AutoPilotMoon.Automation:checkFirewoodSquare(square, player)
 		return "busy";
 	elseif pending == "failed"
 	then
-		A:stopBecause(getText(reasonKey));
+		A:stopBecause(AutoPilotMoon.Notify:why(reasonKey));
 
 		return "discard";
 	end
@@ -422,7 +422,7 @@ function AutoPilotMoon.Automation:checkFirewoodSquare(square, player)
 			return "busy";
 		end
 
-		A:finishDone(getText("IGUI_AutoPilot_A_LimitReached", title(), getText("IGUI_AutoPilot_T_Limit_Logs", limit)));
+		A:finishDone(AutoPilotMoon.Notify:why("IGUI_AutoPilot_A_LimitReached", title(), getText("IGUI_AutoPilot_T_Limit_Logs", limit)));
 
 		return "discard";
 	end
@@ -478,7 +478,7 @@ function AutoPilotMoon.Automation:checkFirewoodSquare(square, player)
 			return "busy";
 		end
 
-		A:stopBecause(getText("IGUI_AutoPilot_A_Reason_BagFull"));
+		A:stopBecause(AutoPilotMoon.Notify:why("IGUI_AutoPilot_A_Reason_BagFull"));
 
 		return "discard";
 	end

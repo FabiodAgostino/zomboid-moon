@@ -239,7 +239,7 @@ function AutoPilotMoon.Farm:refill(player)
 
 	if refill and refill.tries >= Farm.maxRefillTries
 	then
-		A:stopBecause(getText("IGUI_AutoPilot_A_Reason_SourceGivesNothing"));
+		A:stopBecause(AutoPilotMoon.Notify:why("IGUI_AutoPilot_A_Reason_SourceGivesNothing"));
 
 		return "discard";
 	end
@@ -248,7 +248,7 @@ function AutoPilotMoon.Farm:refill(player)
 
 	if can == nil
 	then
-		A:finishEarly(getText("IGUI_AutoPilot_A_NoWaterLeft", title()));
+		A:finishEarly(AutoPilotMoon.Notify:why("IGUI_AutoPilot_A_NoWaterLeft", title()));
 
 		return "discard";
 	end
@@ -259,14 +259,14 @@ function AutoPilotMoon.Farm:refill(player)
 
 	if object == nil
 	then
-		A:stopBecause(getText("IGUI_AutoPilot_A_Reason_SourceGone"));
+		A:stopBecause(AutoPilotMoon.Notify:why("IGUI_AutoPilot_A_Reason_SourceGone"));
 
 		return "discard";
 	end
 
 	if AutoPilotMoon.Zones:isProtected(square, player)
 	then
-		A:stopBecause(getText("IGUI_AutoPilot_A_Reason_Protected"));
+		A:stopBecause(AutoPilotMoon.Notify:why("IGUI_AutoPilot_A_Reason_Protected"));
 
 		return "discard";
 	end
@@ -388,7 +388,7 @@ function AutoPilotMoon.Automation:checkFarmerSquare(square, player)
 			return Farm:refill(player) or "busy";
 		end
 
-		A:finishEarly(getText("IGUI_AutoPilot_A_NoWaterLeft", title()));
+		A:finishEarly(AutoPilotMoon.Notify:why("IGUI_AutoPilot_A_NoWaterLeft", title()));
 
 		return "discard";
 	end

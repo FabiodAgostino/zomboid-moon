@@ -294,17 +294,30 @@ local function objectName(moveProps)
 	return Translator.getMoveableDisplayName(moveProps.name);
 end
 
-local function summary(key)
-	return getText(key, title(), AutoPilotMoon.Automation:getJobCount("dismantlerScrapped"));
-end
-
--- skip an object for the rest of the job, with a message saying why
-skip = function(object, moveProps, reasonKey)
+-- skip an object for the rest of the job, with a message saying why (and told to the notifications, ObjectSkipped
+-- with the reason's key, the object and how many so far for that reason: ANALISI-NOTIFICHE-DISCORD.md 3.5); without a
+-- sentence (warningKey: Skip_NoTools, Skip_GameRefused, Skip_NotEmptied, Skip_NotOpened, Skip_Protected) counted in the
+-- panel and the notifications with that key, nothing over the head: never a silent skip
+skip = function(object, moveProps, reasonKey, warningKey)
 	AutoPilotMoon.Automation:getJobSet("dismantlerTried")[object] = true;
 
 	if reasonKey
 	then
-		AutoPilotMoon:message(getText("IGUI_AutoPilot_A_ObjectSkipped", objectName(moveProps), getText(reasonKey)));
+		local name = objectName(moveProps);
+		local text = getText("IGUI_AutoPilot_A_ObjectSkipped", name, getText(reasonKey));
+
+		AutoPilotMoon:message(text);
+
+		-- one object after another: told at 1, 5, 20... of the objects left for that reason (n1)
+		local count, due = AutoPilotMoon.Notify:stepCount("ObjectSkipped", reasonKey);
+
+		if due
+		then
+			AutoPilotMoon.Notify:emit("warn", "ObjectSkipped", { text = text, detail = reasonKey, a1 = name, n1 = count });
+		end
+	elseif warningKey
+	then
+		AutoPilotMoon.Progress:warn(warningKey);
 	end
 end
 
@@ -461,6 +474,9 @@ function AutoPilotMoon.Automation:checkDismantlerSquare(square, player)
 
 	if AutoPilotMoon.Zones:isProtected(square, player)
 	then
+		-- the square became protected during the job: counted, as every job does (the panel, the notifications)
+		AutoPilotMoon.Progress:warn("IGUI_AutoPilot_A_Skip_Protected");
+
 		return "discard";
 	end
 
@@ -468,7 +484,7 @@ function AutoPilotMoon.Automation:checkDismantlerSquare(square, player)
 
 	if A:getJobCount("dismantlerScrapped") >= cap
 	then
-		A:finishEarly(summary("IGUI_AutoPilot_A_DismantlerCapReached"));
+		A:finishEarly(AutoPilotMoon.Notify:why("IGUI_AutoPilot_A_DismantlerCapReached", title(), A:getJobCount("dismantlerScrapped")));
 
 		return "discard";
 	end
@@ -500,7 +516,7 @@ function AutoPilotMoon.Automation:checkDismantlerSquare(square, player)
 	-- arrival next to the object (the request was made before the walk)
 	if hasUnexploredContainer(object)
 	then
-		A.dismantlerPlan = { kind = "explore", square = square, object = object };
+		A.dismantlerPlan = { kind = "explore", square = square, object = object, moveProps = moveProps };
 
 		return false;
 	end
@@ -537,7 +553,8 @@ function AutoPilotMoon.Automation:checkDismantlerSquare(square, player)
 	then
 		if not AutoPilotMoon.Options:get("unloadBeforeScrapping")
 		then
-			skip(object, moveProps, nil);
+			-- full, and the player's option says not to empty it: counted, nothing said
+			skip(object, moveProps, nil, "IGUI_AutoPilot_A_Skip_NotEmptied");
 
 			return false;
 		end
@@ -556,8 +573,14 @@ function AutoPilotMoon.Automation:checkDismantlerSquare(square, player)
 		return false;
 	end
 
-	-- no tools, or the game says no for another reason (something on top, barricaded...): never again in this job
-	skip(object, moveProps, nil);
+	-- no tools, or the game says no for another reason (something on top, barricaded...): never again in this job,
+	-- counted with its reason (the tools first: what the player can fix)
+	if moveProps.scrapUseTool and (not result.haveTool or not result.haveTool2)
+	then
+		skip(object, moveProps, nil, "IGUI_AutoPilot_A_Skip_NoTools");
+	else
+		skip(object, moveProps, nil, "IGUI_AutoPilot_A_Skip_GameRefused");
+	end
 
 	return false;
 end
@@ -578,7 +601,7 @@ function AutoPilotMoon.Automation:workDismantlerSquare(square, player)
 
 	if AutoPilotMoon.Zones:isProtected(square, player) or AutoPilotMoon.Zones:isProtectedObject(object)
 	then
-		A:getJobSet("dismantlerTried")[object] = true;
+		skip(object, plan.moveProps, nil, "IGUI_AutoPilot_A_Skip_Protected");
 
 		return;
 	end
@@ -593,10 +616,10 @@ function AutoPilotMoon.Automation:workDismantlerSquare(square, player)
 			end
 		end
 
-		-- a locked container stays unexplored: the object is not tried again
+		-- a locked container (or one not reached) stays unexplored: the object is not tried again, counted
 		if hasUnexploredContainer(object)
 		then
-			A:getJobSet("dismantlerTried")[object] = true;
+			skip(object, plan.moveProps, nil, "IGUI_AutoPilot_A_Skip_NotOpened");
 		end
 
 		return;
@@ -639,7 +662,7 @@ function AutoPilotMoon.Automation:workDismantlerSquare(square, player)
 
 		if not moveProps:walkToAndEquip(player, square, "scrap")
 		then
-			AutoPilotMoon:message(getText("IGUI_AutoPilot_A_ObjectSkipped", objectName(moveProps), getText("IGUI_AutoPilot_A_Reason_NoTools")));
+			skip(object, moveProps, "IGUI_AutoPilot_A_Reason_NoTools");
 
 			return;
 		end

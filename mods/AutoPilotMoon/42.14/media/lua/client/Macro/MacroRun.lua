@@ -34,6 +34,13 @@
 -- 3x3 at the feet, not in its container), or something new since the recipe was QUEUED (in the inventory or at the
 -- feet: in multiplayer the outputs arrive before the client's perform, a photo there saw them already), or what the
 -- recipe keeps changed.
+--
+-- The notifications (20/11/2026, WP1c of ANALISI-NOTIFICHE-DISCORD.md, sections 3.3 and 3.6): every reason a macro
+-- ends or stops with is made with AutoPilotMoon.Notify:why (its text key, without IGUI_AutoPilot_A_, is the code of
+-- the event the centralino sends: MacroR_NoItem, MacroDoneLimit...) or Notify:code ("MacroDone", "internal": no text),
+-- in the same frame as the stop; fail and finish keep that code in Run.last.code. The same in MacroBody.lua,
+-- MacroFood.lua and MacroItems.lua for the reasons they make. A refusal at the start is never sent (Notify:sayUnsent:
+-- the player just asked for it). Every action confirmed goes to Notify:onMacroAction (the sentinel materials_low).
 
 AutoPilotMoon = AutoPilotMoon or {};
 AutoPilotMoon.Macro = AutoPilotMoon.Macro or {};
@@ -76,6 +83,16 @@ end
 
 local function Places()
 	return AutoPilotMoon.Macro.Places;
+end
+
+-- the text of the reason of a stop or an end, its key remembered for the notifications (the event's code)
+local function whyText(key, a, b, c)
+	return AutoPilotMoon.Notify:why(key, a, b, c);
+end
+
+-- the code of the reason made last in this frame (the key Notify:why or Notify:code remembered), nil when none
+local function reasonCode()
+	return AutoPilotMoon.Notify:keyCode();
 end
 
 -- the skills the server keeps out of the macros (MacroExcludedSkills: game ids or names, separated by ";" or ","): a
@@ -610,32 +627,32 @@ local function notKnown(player, recipe)
 	return player ~= nil and recipe ~= nil and not AutoPilotMoon.Macro.Names:isLearned(player, recipe);
 end
 
--- why an action does not start, in words (5.3)
+-- why an action does not start, in words (5.3); the key remembered for the notifications
 local function reasonText(op, reason, recipe, player)
 	local name = recipeName(recipe);
 
 	if reason == "dark"
 	then
-		return getText("IGUI_AutoPilot_A_MacroR_Dark", name);
+		return whyText("IGUI_AutoPilot_A_MacroR_Dark", name);
 	elseif reason == "surface"
 	then
-		return getText("IGUI_AutoPilot_A_MacroR_Surface", name);
+		return whyText("IGUI_AutoPilot_A_MacroR_Surface", name);
 	elseif reason == "noitem" and op.work
 	then
 		-- repair() / sharpen(): nothing damaged, nothing to sharpen (favourites never)
-		return getText(op.work == "sharpen" and "IGUI_AutoPilot_A_MacroR_NothingToSharpen" or "IGUI_AutoPilot_A_MacroR_NothingToRepair", op.itemText);
+		return whyText(op.work == "sharpen" and "IGUI_AutoPilot_A_MacroR_NothingToSharpen" or "IGUI_AutoPilot_A_MacroR_NothingToRepair", op.itemText);
 	elseif reason == "noitem" and op.withText
 	then
-		return getText("IGUI_AutoPilot_A_MacroR_NoItem", op.withText);
+		return whyText("IGUI_AutoPilot_A_MacroR_NoItem", op.withText);
 	elseif reason == "refused" and notKnown(player, recipe)
 	then
-		return getText("IGUI_AutoPilot_A_MacroR_NotKnown", name, AutoPilotMoon.Macro.Names:learnHint(recipe));
+		return whyText("IGUI_AutoPilot_A_MacroR_NotKnown", name, AutoPilotMoon.Macro.Names:learnHint(recipe));
 	elseif reason == "fuel"
 	then
-		return getText("IGUI_AutoPilot_A_MacroR_NoFuel", name);
+		return whyText("IGUI_AutoPilot_A_MacroR_NoFuel", name);
 	end
 
-	return getText("IGUI_AutoPilot_A_MacroR_Refused", name);
+	return whyText("IGUI_AutoPilot_A_MacroR_Refused", name);
 end
 
 -- "smonta Martello a granchio" / "crea Assembla utensile medio" / "flessioni, 10 minuti" (the panel's "Ora:" line)
@@ -968,7 +985,9 @@ function AutoPilotMoon.Macro.Run:start(player, macro)
 
 	if refusal
 	then
-		AutoPilotMoon:say("bad", getText("IGUI_AutoPilot_A_JobNotStarted", getText("IGUI_AutoPilot_O_Context_Macro"), refusal), player);
+		-- never sent to the notifications (ANALISI-NOTIFICHE-DISCORD.md 3.9: the player just asked for it, also while
+		-- another job runs)
+		AutoPilotMoon.Notify:sayUnsent("bad", getText("IGUI_AutoPilot_A_JobNotStarted", getText("IGUI_AutoPilot_O_Context_Macro"), refusal), player);
 
 		return false, refusal;
 	end
@@ -1112,16 +1131,20 @@ local function shortSummary(run)
 end
 
 -- the macro ends well (end of the text, a limit, a condition, "non si puo' piu' fare"); endText: the reason or nil
-local function finish(run, endText)
+-- (made with Notify:why, or Notify:code("MacroDone") before); line: the line of stop() / stop_if(). Run.last.code: the
+-- code of the notification (MacroDone, MacroDoneLimit...)
+local function finish(run, endText, line)
 	run.ended = true;
-	Run.last = { name = run.name, reason = "done", endText = endText, shortText = shortSummary(run) };
+	Run.last = { name = run.name, reason = "done", endText = endText, shortText = shortSummary(run), code = reasonCode(),
+		line = line };
 	A:stopAll("done");
 end
 
--- the macro stops at a line with a reason (5.3)
+-- the macro stops at a line with a reason (5.3), its text made with Notify:why in this frame (Run.last.code: the code of
+-- the notification, MacroR_NoItem...)
 local function fail(run, op, text)
 	run.ended = true;
-	Run.last = { name = run.name, reason = "because", line = op.line, text = text };
+	Run.last = { name = run.name, reason = "because", line = op.line, text = text, code = reasonCode() };
 	A:stopBecause(getText("IGUI_AutoPilot_A_MacroLine", op.line, text));
 end
 
@@ -1158,7 +1181,7 @@ local function iterate(run, frame, i, states)
 
 	if run.loops >= maxLoops
 	then
-		finish(run, getText("IGUI_AutoPilot_A_MacroDoneLoops", maxLoops));
+		finish(run, whyText("IGUI_AutoPilot_A_MacroDoneLoops", maxLoops));
 
 		return false;
 	end
@@ -1179,8 +1202,25 @@ local function now()
 	return getTimestampMs();
 end
 
+-- an action confirmed, told to the notifications (the sentinel materials_low): never an error for the macro
+local function notifyAction(run, pending)
+	local notify = AutoPilotMoon.Notify;
+
+	if notify.onMacroAction == nil
+	then
+		return;
+	end
+
+	local ok, err = pcall(notify.onMacroAction, notify, run, pending);
+
+	if not ok
+	then
+		print("AutoPilot (Moon): macro: notify: " .. tostring(err));
+	end
+end
+
 -- an action of the frame done and confirmed: counted, the line after
-local function actionDone(run, frame)
+local function actionDone(run, frame, pending)
 	frame.pc = frame.pc + 1;
 	AutoPilotMoon.Progress:count("IGUI_AutoPilot_P_C_MacroActions", 1);
 	AutoPilotMoon.Progress:addUnitsDone(1);
@@ -1197,6 +1237,7 @@ local function actionDone(run, frame)
 	local xp = experience(run, false);
 
 	AutoPilotMoon.Progress:setDoneText(#xp > 0 and table.concat(xp, " - ") or nil);
+	notifyAction(run, pending);
 end
 
 -- the recipe at a bench (wave 1, MacroBench.lua): the bench, the wait for a friend at it, the walk, "in use", the
@@ -1207,7 +1248,7 @@ local function actAtBench(run, frame, op, time)
 
 	if not B:isEnabled()
 	then
-		fail(run, op, getText("IGUI_AutoPilot_A_MacroR_BenchesOff"));
+		fail(run, op, whyText("IGUI_AutoPilot_A_MacroR_BenchesOff"));
 
 		return;
 	end
@@ -1217,7 +1258,7 @@ local function actAtBench(run, frame, op, time)
 
 	if #list == 0
 	then
-		fail(run, op, getText("IGUI_AutoPilot_A_MacroR_NoBench", benchText, B:radius()));
+		fail(run, op, whyText("IGUI_AutoPilot_A_MacroR_NoBench", benchText, B:radius()));
 
 		return;
 	end
@@ -1240,7 +1281,7 @@ local function actAtBench(run, frame, op, time)
 		if time - wait.since >= B.busyWaitMs
 		then
 			run.benchWait = nil;
-			fail(run, op, getText("IGUI_AutoPilot_A_MacroR_BenchBusy", B:nameOf(list[1].object, list[1].id), name, math.floor(B.busyWaitMs / 1000)));
+			fail(run, op, whyText("IGUI_AutoPilot_A_MacroR_BenchBusy", B:nameOf(list[1].object, list[1].id), name, math.floor(B.busyWaitMs / 1000)));
 
 			return;
 		end
@@ -1261,14 +1302,14 @@ local function actAtBench(run, frame, op, time)
 		then
 			-- walked once already and still not there
 			run.benchWalk = nil;
-			fail(run, op, getText("IGUI_AutoPilot_A_MacroR_BenchFar", name));
+			fail(run, op, whyText("IGUI_AutoPilot_A_MacroR_BenchFar", name));
 
 			return;
 		end
 
 		if not ISEntityUI.WalkToEntity(player, object, B.walkDistance)
 		then
-			fail(run, op, getText("IGUI_AutoPilot_A_MacroR_BenchFar", name));
+			fail(run, op, whyText("IGUI_AutoPilot_A_MacroR_BenchFar", name));
 
 			return;
 		end
@@ -1284,7 +1325,7 @@ local function actAtBench(run, frame, op, time)
 
 	if not ISEntityUI.CanOpenWindowFor(player, object)
 	then
-		fail(run, op, getText("IGUI_AutoPilot_A_MacroR_BenchClosed", name));
+		fail(run, op, whyText("IGUI_AutoPilot_A_MacroR_BenchClosed", name));
 
 		return;
 	end
@@ -1295,7 +1336,7 @@ local function actAtBench(run, frame, op, time)
 	then
 		if op.possibleFirst and (reason == "noitem" or ((reason == "refused" or reason == "fuel") and not notKnown(player, about)))
 		then
-			finish(run, getText(reason == "fuel" and "IGUI_AutoPilot_A_MacroDoneNoFuel" or "IGUI_AutoPilot_A_MacroDoneCannot", recipeName(about)));
+			finish(run, whyText(reason == "fuel" and "IGUI_AutoPilot_A_MacroDoneNoFuel" or "IGUI_AutoPilot_A_MacroDoneCannot", recipeName(about)));
 		else
 			fail(run, op, reasonText(op, reason, about, player));
 		end
@@ -1310,7 +1351,7 @@ local function actAtBench(run, frame, op, time)
 
 	if action == nil
 	then
-		fail(run, op, getText("IGUI_AutoPilot_A_MacroR_NotQueued", recipeName(recipe)));
+		fail(run, op, whyText("IGUI_AutoPilot_A_MacroR_NotQueued", recipeName(recipe)));
 
 		return;
 	end
@@ -1345,7 +1386,7 @@ local function actItems(run, frame, op, time)
 			finish(run, why);
 		elseif kind == "nothing" and op.possibleFirst
 		then
-			finish(run, getText("IGUI_AutoPilot_A_MacroDoneCannot", op.desc));
+			finish(run, whyText("IGUI_AutoPilot_A_MacroDoneCannot", op.desc));
 		else
 			fail(run, op, why);
 		end
@@ -1371,14 +1412,14 @@ local function skillLimits(run, op)
 
 		if excluded[string.lower(id)]
 		then
-			fail(run, op, getText("IGUI_AutoPilot_A_MacroR_Excluded", perk:getName()));
+			fail(run, op, whyText("IGUI_AutoPilot_A_MacroR_Excluded", perk:getName()));
 
 			return false;
 		end
 
 		if maxLevels > 0 and run.levelStart[id] and run.player:getPerkLevel(perk) - run.levelStart[id] >= maxLevels
 		then
-			finish(run, getText("IGUI_AutoPilot_A_MacroDoneLevels", maxLevels, perk:getName()));
+			finish(run, whyText("IGUI_AutoPilot_A_MacroDoneLevels", maxLevels, perk:getName()));
 
 			return false;
 		end
@@ -1394,7 +1435,7 @@ local function act(run, frame, op)
 
 	if run.actions >= maxActions
 	then
-		finish(run, getText("IGUI_AutoPilot_A_MacroDoneLimit", maxActions));
+		finish(run, whyText("IGUI_AutoPilot_A_MacroDoneLimit", maxActions));
 
 		return;
 	end
@@ -1459,7 +1500,7 @@ local function act(run, frame, op)
 				return;
 			elseif kind == "nothing" and op.possibleFirst
 			then
-				finish(run, getText("IGUI_AutoPilot_A_MacroDoneCannot", op.desc));
+				finish(run, whyText("IGUI_AutoPilot_A_MacroDoneCannot", op.desc));
 			else
 				fail(run, op, why);
 			end
@@ -1484,7 +1525,7 @@ local function act(run, frame, op)
 		-- "while possible" ends well when the materials are over; a recipe not known yet is a reason to say instead
 		if op.possibleFirst and (reason == "noitem" or (reason == "refused" and not notKnown(run.player, about)))
 		then
-			finish(run, getText("IGUI_AutoPilot_A_MacroDoneCannot", recipeName(about)));
+			finish(run, whyText("IGUI_AutoPilot_A_MacroDoneCannot", recipeName(about)));
 		else
 			fail(run, op, reasonText(op, reason, about, run.player));
 		end
@@ -1498,7 +1539,7 @@ local function act(run, frame, op)
 
 	if action == nil
 	then
-		fail(run, op, getText("IGUI_AutoPilot_A_MacroR_NotQueued", recipeName(recipe)));
+		fail(run, op, whyText("IGUI_AutoPilot_A_MacroR_NotQueued", recipeName(recipe)));
 
 		return;
 	end
@@ -1694,7 +1735,7 @@ local function confirmCraft(run, pending)
 	if pending.interrupted and not pending.performed
 	then
 		pending.wait:cancel();
-		fail(run, op, getText("IGUI_AutoPilot_A_MacroR_Interrupted"));
+		fail(run, op, whyText("IGUI_AutoPilot_A_MacroR_Interrupted"));
 
 		return;
 	end
@@ -1709,12 +1750,12 @@ local function confirmCraft(run, pending)
 	if answer == "done"
 	then
 		run.pending = nil;
-		actionDone(run, pending.frame);
+		actionDone(run, pending.frame, pending);
 
 		return;
 	end
 
-	fail(run, op, getText("IGUI_AutoPilot_A_MacroR_NoEffect", recipeName(pending.recipe)));
+	fail(run, op, whyText("IGUI_AutoPilot_A_MacroR_NoEffect", recipeName(pending.recipe)));
 end
 
 local function confirm(run)
@@ -1748,7 +1789,7 @@ local function confirm(run)
 	then
 		AutoPilotMoon.Progress:setWaiting(false);
 		run.pending = nil;
-		actionDone(run, pending.frame);
+		actionDone(run, pending.frame, pending);
 	elseif answer == "fail"
 	then
 		AutoPilotMoon.Progress:setWaiting(false);
@@ -1772,7 +1813,7 @@ local function checkHandlers(run, states)
 
 			if handler.inRow > Run.handlerInRow
 			then
-				fail(run, handler, getText("IGUI_AutoPilot_A_MacroR_HandlerLoop", Run.handlerInRow));
+				fail(run, handler, whyText("IGUI_AutoPilot_A_MacroR_HandlerLoop", Run.handlerInRow));
 
 				return false;
 			end
@@ -1793,6 +1834,8 @@ function AutoPilotMoon.Macro.Run:step(player)
 
 	if run == nil or run.player ~= player
 	then
+		-- the macro of this job is not there any more: an internal error (the notifications' code "internal")
+		AutoPilotMoon.Notify:code("internal");
 		A:stopAll("aborted");
 
 		return "busy";
@@ -1816,7 +1859,7 @@ function AutoPilotMoon.Macro.Run:step(player)
 
 	if maxMinutes > 0 and now() - run.startedAt >= maxMinutes * 60000
 	then
-		finish(run, getText("IGUI_AutoPilot_A_MacroDoneMinutes", maxMinutes));
+		finish(run, whyText("IGUI_AutoPilot_A_MacroDoneMinutes", maxMinutes));
 
 		return "busy";
 	end
@@ -1860,6 +1903,8 @@ function AutoPilotMoon.Macro.Run:step(player)
 		then
 			if frame == run.main
 			then
+				-- the end of the text: no reason to say, the notifications' code "MacroDone"
+				AutoPilotMoon.Notify:code("MacroDone");
 				finish(run, nil);
 
 				return "busy";
@@ -1896,7 +1941,7 @@ function AutoPilotMoon.Macro.Run:step(player)
 		then
 			if Run:evalCondition(player, op.cond, states)
 			then
-				finish(run, getText(op.plain and "IGUI_AutoPilot_A_MacroDoneStop" or "IGUI_AutoPilot_A_MacroDoneStopIf", op.line));
+				finish(run, whyText(op.plain and "IGUI_AutoPilot_A_MacroDoneStop" or "IGUI_AutoPilot_A_MacroDoneStopIf", op.line), op.line);
 
 				return "busy";
 			end

@@ -52,6 +52,9 @@ function AutoPilotMoon.Automation:checkLumberjackSquare(square, player)
 
 	if AutoPilotMoon.Zones:isProtected(square, player)
 	then
+		-- the square became protected during the job: counted, as every job does (the panel, the notifications)
+		AutoPilotMoon.Progress:warn("IGUI_AutoPilot_A_Skip_Protected");
+
 		return "discard";
 	end
 
@@ -63,14 +66,14 @@ function AutoPilotMoon.Automation:checkLumberjackSquare(square, player)
 
 	if not AutoPilotMoon.Item:getBestWoodChoppingAxe(player)
 	then
-		A:stopBecause(getText("IGUI_AutoPilot_A_Reason_NeedTool", getText("IGUI_AutoPilot_T_NeedAxe")));
+		A:stopBecause(AutoPilotMoon.Notify:why("IGUI_AutoPilot_A_Reason_NeedTool", getText("IGUI_AutoPilot_T_NeedAxe")));
 
 		return "discard";
 	end
 
 	if not player:isEnduranceSufficientForAction()
 	then
-		A:finishEarly(getText("IGUI_AutoPilot_A_TooTired", title()));
+		A:finishEarly(AutoPilotMoon.Notify:why("IGUI_AutoPilot_A_TooTired", title()));
 
 		return "discard";
 	end

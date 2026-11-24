@@ -209,6 +209,8 @@ local reasonKeys = {
 	unwell = "IGUI_AutoPilot_A_Reason_Unwell",
 	-- the player's master switch turned off in the Options (client/06_AP_Switch.lua)
 	switchedoff = "IGUI_AutoPilot_A_Reason_SwitchedOff",
+	-- the button "Ferma" pressed on Discord (20/11/2026, client/47_AP_Notify.lua, Notify:control("stop"))
+	remote = "IGUI_AutoPilot_A_Reason_Remote",
 };
 
 AutoPilotMoon.Automation.reasonKeys = reasonKeys;
@@ -223,7 +225,8 @@ function AutoPilotMoon.Automation:getReasonText(reason)
 	return nil;
 end
 
--- timed actions: on a stop the engine clears only what the job queued itself, except for zombies and death
+-- timed actions: on a stop the engine clears only what the job queued itself, except for zombies, death and a stop
+-- from Discord (decision D7 of 20/11/2026: whoever presses there is not at the keyboard)
 
 local function snapshotActions(player)
 	local snapshot = {};
@@ -264,7 +267,7 @@ function AutoPilotMoon.Automation:releaseActions(job, reason)
 		return;
 	end
 
-	if reason == "dead" or reason == "zombies"
+	if reason == "dead" or reason == "zombies" or reason == "remote"
 	then
 		ISTimedActionQueue.clear(player);
 
@@ -467,7 +470,15 @@ function AutoPilotMoon.Automation:discardHead(job, stuck)
 
 		if stuck
 		then
-			AutoPilotMoon:message(getText("IGUI_AutoPilot_A_SquareSkipped", AutoPilotMoon.Automation:getTitle(job.definition)), false, job.player);
+			local text = getText("IGUI_AutoPilot_A_SquareSkipped", AutoPilotMoon.Automation:getTitle(job.definition));
+
+			AutoPilotMoon:message(text, false, job.player);
+
+			-- the notifications (3.5): nothing happened there, the square is left
+			if AutoPilotMoon.Notify:isActive()
+			then
+				AutoPilotMoon.Notify:emit("warn", "square_skipped", { text = text, n1 = job.skipped });
+			end
 		end
 	end
 end
@@ -635,9 +646,10 @@ function AutoPilotMoon.Automation:startSquareProcessingQueue(items, runLockVaria
 	then
 		AutoPilotMoon.Automation.lastStartRefusal = reason;
 
+		-- a refusal the player just asked for: never sent as a notification, even while another job runs
 		if reasonKeys[reason] and chainRun == nil
 		then
-			AutoPilotMoon:say("bad", getText("IGUI_AutoPilot_A_JobNotStarted", title, getText(reasonKeys[reason])), player);
+			AutoPilotMoon.Notify:sayUnsent("bad", getText("IGUI_AutoPilot_A_JobNotStarted", title, getText(reasonKeys[reason])), player);
 		end
 
 		return false;
@@ -664,7 +676,7 @@ function AutoPilotMoon.Automation:startSquareProcessingQueue(items, runLockVaria
 
 		if chainRun == nil
 		then
-			AutoPilotMoon:say("bad", getText("IGUI_AutoPilot_A_NothingToDo", title), player);
+			AutoPilotMoon.Notify:sayUnsent("bad", getText("IGUI_AutoPilot_A_NothingToDo", title), player);
 		end
 
 		return false;
@@ -950,7 +962,8 @@ function AutoPilotMoon.Automation:stopSquareProcessingQueue(runLockVariable)
 end
 
 -- stops the running job through the automation's own stop function (and its chain, if it is a phase of one).
--- reason: done, user, zombies, vehicle, asleep, dead, nosquare, notallowed, unwell, switchedoff, aborted (the
+-- reason: done, user, zombies, vehicle, asleep, dead, nosquare, notallowed, unwell, switchedoff, remote (the button
+-- "Ferma" on Discord, client/47_AP_Notify.lua: the whole action queue goes, as for zombies), aborted (the
 -- automation said why),
 -- because (Automation:stopBecause, with Automation.stopText). Between two phases of a chain there is no job: the chain
 -- stops.

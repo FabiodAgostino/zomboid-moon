@@ -9,6 +9,9 @@
 -- after the main menu in multiplayer), then the switch decides
 -- (Switch:start; when on it derives the cursor and window classes, whose base classes are in the game's server/
 -- folder, loaded after client/, and installs the hooks of the macros).
+-- The notifications (20/11/2026, client/47_AP_Notify.lua): the Progress observer is added when the master switch turns
+-- on (Notify:startup, 23/11/2026; before, here at load); while a run or the watch after a stop is open, Notify:beforeUpdate / afterUpdate go around the engine's part of the player
+-- update, each in pcall (the engine not: its error stays in the log, and the mark left on finds it).
 
 AutoPilotMoon = AutoPilotMoon or {};
 AutoPilotMoon.Event = AutoPilotMoon.Event or {};
@@ -21,20 +24,9 @@ function AutoPilotMoon.Event.initialize()
 	AutoPilotMoon.Switch:start();
 end
 
-function AutoPilotMoon.Event.onPlayerUpdate(player)
-	if #AutoPilotMoon.messageQueue > 0
-	then
-		AutoPilotMoon:showNextMessage();
-	end
-
-	-- a macro being recorded (MACRO-AUTOPILOT.md 3): only while recording, only for its player
-	local recorder = AutoPilotMoon.Macro and AutoPilotMoon.Macro.Recorder;
-
-	if recorder and recorder.session and recorder.session.player == player
-	then
-		recorder:update(player);
-	end
-
+-- the job or the chain of this player, one frame (the engine is not in pcall: an error of it stays in the log, and the
+-- notifications' mark left on finds it, client/47_AP_Notify.lua)
+local function runEngine(player)
 	local job = AutoPilotMoon.Automation.job;
 
 	if job == nil
@@ -56,6 +48,40 @@ function AutoPilotMoon.Event.onPlayerUpdate(player)
 	AutoPilotMoon.Automation:update(player);
 end
 
+-- the notifications (client/47_AP_Notify.lua), only while a run or the watch after a stop is open; never breaks a frame
+local function notifyFrame(method, player)
+	local notify = AutoPilotMoon.Notify;
+
+	if notify and notify.live
+	then
+		local ok, err = pcall(notify[method], notify, player);
+
+		if not ok
+		then
+			print("AutoPilot (Moon): notify: " .. tostring(err));
+		end
+	end
+end
+
+function AutoPilotMoon.Event.onPlayerUpdate(player)
+	if #AutoPilotMoon.messageQueue > 0
+	then
+		AutoPilotMoon:showNextMessage();
+	end
+
+	-- a macro being recorded (MACRO-AUTOPILOT.md 3): only while recording, only for its player
+	local recorder = AutoPilotMoon.Macro and AutoPilotMoon.Macro.Recorder;
+
+	if recorder and recorder.session and recorder.session.player == player
+	then
+		recorder:update(player);
+	end
+
+	notifyFrame("beforeUpdate", player);
+	runEngine(player);
+	notifyFrame("afterUpdate", player);
+end
+
 -- a local player died: whatever it was doing stops, its messages are dropped
 function AutoPilotMoon.Event.onPlayerDeath(player)
 	local job = AutoPilotMoon.Automation.job;
@@ -64,6 +90,14 @@ function AutoPilotMoon.Event.onPlayerDeath(player)
 	if (job and job.player == player) or (job == nil and chainRun and chainRun.player == player)
 	then
 		AutoPilotMoon.Automation:stopAll("dead");
+	end
+
+	-- the notifications' watch after a stop: "dead" (client/47_AP_Notify.lua)
+	local ok, err = pcall(AutoPilotMoon.Notify.onPlayerDeath, AutoPilotMoon.Notify, player);
+
+	if not ok
+	then
+		print("AutoPilot (Moon): notify: " .. tostring(err));
 	end
 
 	if AutoPilotMoon.Event.currentPlayer == player
@@ -148,6 +182,9 @@ function AutoPilotMoon.Event.onCreateContextMenu(playerNum, contextMenu, worldob
 end
 
 Events.OnGameStart.Add(AutoPilotMoon.Event.initialize);
+
+-- the notifications follow every start and end of a job, chain or macro: their observer of Progress is added by
+-- Notify:startup when the master switch turns on and taken away by Notify:shutdown (client/47_AP_Notify.lua)
 
 -- only while the master switch is on
 AutoPilotMoon.Switch:bind("OnPlayerUpdate", AutoPilotMoon.Event.onPlayerUpdate);

@@ -201,6 +201,8 @@ function AutoPilotMoon.Haul:confirmGrab(h)
 			if h.tries[entry.id] >= Haul.maxTries
 			then
 				h.givenUp[entry.id] = true;
+				-- the notifications: the item refused (a1)
+				AutoPilotMoon.Notify:warnArgs("IGUI_AutoPilot_A_Reason_ServerRefused", entry.item and entry.item:getDisplayName() or nil);
 				AutoPilotMoon.Progress:warn("IGUI_AutoPilot_A_Reason_ServerRefused");
 			end
 		else

@@ -509,7 +509,7 @@ Stencil:define("farmHarvest", {
 	check = function(square, player, ctx)
 		if player:getInventoryWeight() >= player:getMaxWeight()
 		then
-			A:stopBecause(getText("IGUI_AutoPilot_A_Reason_BagFull"));
+			A:stopBecause(AutoPilotMoon.Notify:why("IGUI_AutoPilot_A_Reason_BagFull"));
 
 			return "skip";
 		end

@@ -261,7 +261,7 @@ AutoPilotMoon.Stencil:define("gardener", {
 
 		if kind == "grass" and player:getInventoryWeight() + A.gardenerWeightPerSquare > player:getMaxWeight()
 		then
-			A:finishEarly(getText("IGUI_AutoPilot_A_TooHeavy", title()));
+			A:finishEarly(AutoPilotMoon.Notify:why("IGUI_AutoPilot_A_TooHeavy", title()));
 
 			return "skip";
 		end
@@ -269,7 +269,7 @@ AutoPilotMoon.Stencil:define("gardener", {
 		if tool and tool.find(player) == nil
 		then
 			-- the tool broke (it was there at the start): every square after this one would fail the same way
-			A:stopBecause(getText("IGUI_AutoPilot_A_Reason_NeedTool", getText(tool.needKey)));
+			A:stopBecause(AutoPilotMoon.Notify:why("IGUI_AutoPilot_A_Reason_NeedTool", getText(tool.needKey)));
 
 			return "skip";
 		end

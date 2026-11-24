@@ -12,7 +12,11 @@
 -- every stop of the engine still applies while sitting, and a stop gets the character up.
 --
 -- Unwell (decision D1): when the player's option "Stop when you are unwell" is on (default), the engine refuses to
--- start and stops a job when thirst, hunger, an injury, bleeding or panic reach the levels of Rest.unwellLevels.
+-- start and stops a job when thirst, hunger, an injury, bleeding or panic reach the levels of Rest.unwellLevels
+-- (Rest.lastUnwell keeps which moodle and its level, for the notifications' detail unwell_<MOODLE>).
+-- The notifications (20/11/2026, client/47_AP_Notify.lua): "cannot sit" is told (RestCannotSit), and a rest that
+-- lasts more than 5 minutes is always told (rest_long, decision D1 of the owner: the short rests only with the
+-- player's option notifyRest, told by the centralino from the progress' "rest" event).
 
 AutoPilotMoon = AutoPilotMoon or {};
 AutoPilotMoon.Rest = AutoPilotMoon.Rest or {};
@@ -22,6 +26,10 @@ local Rest = AutoPilotMoon.Rest;
 Rest.sitTimeoutMs = 6000;      -- give up when the character is not sitting after this long
 Rest.standTimeoutMs = 4000;    -- longest wait for the character to be up again
 Rest.targetEndurance = 0.95;   -- rest until the endurance is back here
+Rest.longMs = 300000;          -- a rest longer than this is told to the notifications (decision D1 of 20/11/2026)
+
+-- the moodle and the level of the last "unwell" (the notifications' detail unwell_<MOODLE>, client/47_AP_Notify.lua)
+Rest.lastUnwell = Rest.lastUnwell or { moodle = nil, level = 0 };
 
 -- moodle -> level from which the character is unwell (moodle levels go from 0 to 4; MoodleType of 42.22)
 Rest.unwellLevels = {
@@ -82,8 +90,13 @@ function AutoPilotMoon.Rest:getUnwellReason(player, definition)
 			level = definition.unwellLevel(player, entry.moodle, level) or level;
 		end
 
-		if moodleLevel(player, entry.moodle) >= level
+		local current = moodleLevel(player, entry.moodle);
+
+		if current >= level
 		then
+			Rest.lastUnwell.moodle = entry.moodle;
+			Rest.lastUnwell.level = current;
+
 			return "unwell";
 		end
 	end
@@ -140,8 +153,27 @@ local function endRest(job, player, said)
 
 	if said
 	then
-		AutoPilotMoon:say("info", getText(said, title(job)), player);
+		local text = getText(said, title(job));
+
+		AutoPilotMoon:say("info", text, player);
+
+		-- it cannot sit: the notifications are told (3.5); the job goes on without resting
+		if said == "IGUI_AutoPilot_A_RestCannotSit" and AutoPilotMoon.Notify:isActive()
+		then
+			AutoPilotMoon.Notify:emit("warn", "RestCannotSit", { text = text });
+		end
 	end
+end
+
+-- a rest longer than Rest.longMs: told once per rest, whatever the option notifyRest (decision D1)
+local function checkLongRest(rest, now)
+	if rest.toldLong or now - (rest.sitAt or now) < Rest.longMs or not AutoPilotMoon.Notify:isActive()
+	then
+		return;
+	end
+
+	rest.toldLong = true;
+	AutoPilotMoon.Notify:emit("warn", "rest_long", { n1 = math.floor((now - rest.sitAt) / 60000) });
 end
 
 -- Called by the engine every frame of the job, after the stops: true while the character rests (the engine does
@@ -169,6 +201,8 @@ function AutoPilotMoon.Rest:update(job, player)
 
 		rest.phase = "sitting";
 		rest.since = now;
+		rest.sitAt = now;
+		rest.toldLong = false;
 		rest.from = percent(endurance(player));
 
 		if not player:isSitOnGround()
@@ -201,6 +235,8 @@ function AutoPilotMoon.Rest:update(job, player)
 
 	if rest.phase == "resting"
 	then
+		checkLongRest(rest, now);
+
 		if endurance(player) >= Rest.targetEndurance or not player:isSitOnGround()
 		then
 			if player:isSitOnGround()

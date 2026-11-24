@@ -50,6 +50,12 @@ local function Wait()
 	return AutoPilotMoon.Wait;
 end
 
+-- the text of why eat() / drink() find nothing, its key remembered for the notifications (the event's code of the stop
+-- that follows: MacroR_NoFood...; the game's own "cannot eat more": the code "stopped" with the key in its detail)
+local function whyText(key, a)
+	return AutoPilotMoon.Notify:why(key, a);
+end
+
 local function moodle(player, name)
 	return AutoPilotMoon.Macro.Run:moodleLevel(player, name);
 end
@@ -452,7 +458,7 @@ end
 function AutoPilotMoon.Macro.Food:chooseFood(player, op, opts)
 	if not (opts and opts.ignoreFull) and moodle(player, "FOOD_EATEN") >= 3
 	then
-		return nil, getText("Tooltip_CantEatMore"), nil, nil;
+		return nil, whyText("Tooltip_CantEatMore"), nil, nil;
 	end
 
 	local found = collectFood(player, op, opts);
@@ -484,30 +490,30 @@ function AutoPilotMoon.Macro.Food:chooseFood(player, op, opts)
 	then
 		-- a container within reach with no answer seen: never "nothing to eat" for sure (a "while possible" would end as
 		-- if done)
-		return nil, getText("IGUI_AutoPilot_A_MacroR_NotSeenNear", F:names(found.unsure)), nil, nil;
+		return nil, whyText("IGUI_AutoPilot_A_MacroR_NotSeenNear", F:names(found.unsure)), nil, nil;
 	end
 
 	if noOpener
 	then
-		return nil, getText("IGUI_AutoPilot_A_MacroR_NoCanOpener"), "nothing", nil;
+		return nil, whyText("IGUI_AutoPilot_A_MacroR_NoCanOpener"), "nothing", nil;
 	end
 
 	if found.cans > 0 and op.openCans == false
 	then
-		return nil, getText("IGUI_AutoPilot_A_MacroR_CansClosed"), "nothing", nil;
+		return nil, whyText("IGUI_AutoPilot_A_MacroR_CansClosed"), "nothing", nil;
 	end
 
 	if found.frozen > 0
 	then
-		return nil, getText("IGUI_AutoPilot_A_MacroR_OnlyFrozen"), "nothing", nil;
+		return nil, whyText("IGUI_AutoPilot_A_MacroR_OnlyFrozen"), "nothing", nil;
 	end
 
 	if found.unhappy > 0
 	then
-		return nil, getText("IGUI_AutoPilot_A_MacroR_OnlyUnpleasant"), "nothing", nil;
+		return nil, whyText("IGUI_AutoPilot_A_MacroR_OnlyUnpleasant"), "nothing", nil;
 	end
 
-	return nil, getText(F:nearAllowed(op) and "IGUI_AutoPilot_A_MacroR_NoFood" or "IGUI_AutoPilot_A_MacroR_NoFoodOn"), "nothing", nil;
+	return nil, whyText(F:nearAllowed(op) and "IGUI_AutoPilot_A_MacroR_NoFood" or "IGUI_AutoPilot_A_MacroR_NoFoodOn"), "nothing", nil;
 end
 
 -- The portion of eatItem: amount "all" (or nil) 1; "half" / "quarter" only when the game's "Eat" menu offers it for
@@ -649,10 +655,10 @@ function AutoPilotMoon.Macro.Food:chooseDrink(player, op, opts)
 
 	if #unsure > 0
 	then
-		return nil, getText("IGUI_AutoPilot_A_MacroR_NotSeenNear", F:names(unsure)), nil, nil;
+		return nil, whyText("IGUI_AutoPilot_A_MacroR_NotSeenNear", F:names(unsure)), nil, nil;
 	end
 
-	return nil, getText(F:nearAllowed(op) and "IGUI_AutoPilot_A_MacroR_NoDrink" or "IGUI_AutoPilot_A_MacroR_NoDrinkOn"), "nothing", nil;
+	return nil, whyText(F:nearAllowed(op) and "IGUI_AutoPilot_A_MacroR_NoDrink" or "IGUI_AutoPilot_A_MacroR_NoDrinkOn"), "nothing", nil;
 end
 
 -- ============================================================================================================

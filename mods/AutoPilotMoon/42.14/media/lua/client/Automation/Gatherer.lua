@@ -202,7 +202,7 @@ function AutoPilotMoon.Automation:checkGathererSquare(square, player)
 		return "busy";
 	elseif pending == "failed"
 	then
-		A:stopBecause(getText(reasonKey));
+		A:stopBecause(AutoPilotMoon.Notify:why(reasonKey));
 
 		return "discard";
 	end
@@ -216,7 +216,7 @@ function AutoPilotMoon.Automation:checkGathererSquare(square, player)
 			return "busy";
 		end
 
-		A:finishDone(getText("IGUI_AutoPilot_A_LimitReached", title(),
+		A:finishDone(AutoPilotMoon.Notify:why("IGUI_AutoPilot_A_LimitReached", title(),
 			getText("IGUI_AutoPilot_T_Limit_Items", AutoPilotMoon.Sandbox:getInteger("GathererItemsPerJob"))));
 
 		return "discard";
@@ -252,7 +252,7 @@ function AutoPilotMoon.Automation:checkGathererSquare(square, player)
 			return "busy";
 		end
 
-		A:stopBecause(getText("IGUI_AutoPilot_A_Reason_BagFull"));
+		A:stopBecause(AutoPilotMoon.Notify:why("IGUI_AutoPilot_A_Reason_BagFull"));
 
 		return "discard";
 	end

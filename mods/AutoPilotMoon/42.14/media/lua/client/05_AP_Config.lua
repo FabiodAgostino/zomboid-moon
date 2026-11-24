@@ -21,6 +21,13 @@
 --   macroAutoIndent        the macro editor's smart keys: indentation, pairs, Tab, Ctrl+Z... (4.13, 19/11/2026)
 --   macroHover             the macro editor's help under the mouse (4.13, 19/11/2026)
 --   enable<Name>           the job <name> is shown in the menu ("Jobs in the menu", one tick per job and chain)
+--   notifyDiscord          "off" / "all" / "problems": private notifications on Discord (20/11/2026, off by default,
+--                          ANALISI-NOTIFICHE-DISCORD.md 2.1, client/47_AP_Notify.lua; they need ZomBOT (Moon))
+--   notifyJobs             "all" / "macros": for every job or only the macros
+--   notifyEarly, notifyRest, notifyManual   booleans: the early warnings (on), the rests (off, decision D1), the
+--                          player's own stop (on, decision D8)
+--   notifyThisRun          session only (Notify registers it): the panel's tick for the job running or the next one;
+--                          back to notifyDiscord at the end of every job
 --   any other key given to Options:register(key, default): a boolean of this game session only, not saved
 
 AutoPilotMoon = AutoPilotMoon or {};
@@ -65,11 +72,31 @@ O.specs = {
         tooltipKey = "IGUI_AutoPilot_MO_MacroAutoIndent_Tooltip" },
     macroHover = { kind = "tick", nameKey = "IGUI_AutoPilot_MO_MacroHover", default = true,
         tooltipKey = "IGUI_AutoPilot_MO_MacroHover_Tooltip" },
+    -- the private notifications on Discord (20/11/2026, ANALISI-NOTIFICHE-DISCORD.md 2.1, client/47_AP_Notify.lua): off
+    -- by default; they need ZomBOT (Moon) and the account linked on Discord (the line under the first one). notify =
+    -- true: a change is told to the notifications at once
+    notifyDiscord = { kind = "combo", nameKey = "IGUI_AutoPilot_MO_Notify", default = 1,
+        values = { "off", "all", "problems" },
+        itemKeys = { "IGUI_AutoPilot_MO_Notify_Off", "IGUI_AutoPilot_MO_Notify_All", "IGUI_AutoPilot_MO_Notify_Problems" },
+        tooltipKey = "IGUI_AutoPilot_MO_Notify_Tooltip", noteKey = "IGUI_AutoPilot_MO_Notify_Note", notify = true },
+    notifyJobs = { kind = "combo", nameKey = "IGUI_AutoPilot_MO_NotifyJobs", default = 1,
+        values = { "all", "macros" },
+        itemKeys = { "IGUI_AutoPilot_MO_NotifyJobs_All", "IGUI_AutoPilot_MO_NotifyJobs_Macros" },
+        tooltipKey = "IGUI_AutoPilot_MO_NotifyJobs_Tooltip", notify = true },
+    notifyEarly = { kind = "tick", nameKey = "IGUI_AutoPilot_MO_NotifyEarly", default = true,
+        tooltipKey = "IGUI_AutoPilot_MO_NotifyEarly_Tooltip", notify = true },
+    -- decision D1: the rests only when the player wants them (a rest over 5 minutes is always told)
+    notifyRest = { kind = "tick", nameKey = "IGUI_AutoPilot_MO_NotifyRest", default = false,
+        tooltipKey = "IGUI_AutoPilot_MO_NotifyRest_Tooltip", notify = true },
+    -- decision D8: the short message of the player's own stop, which the player can turn off
+    notifyManual = { kind = "tick", nameKey = "IGUI_AutoPilot_MO_NotifyManual", default = true,
+        tooltipKey = "IGUI_AutoPilot_MO_NotifyManual_Tooltip", notify = true },
 };
 
 O.pageOrder = { "enabled", "haloMode", "openPanelOnStart", "showJobArea", "uiSounds", "autoRest", "restLevel", "stopWhenUnwell",
     "panelKey", "macroEditorKey", "menuIcon", "menuJobs", "unloadBeforeScrapping", "macroCodeFont", "macroColors",
-    "macroSuggest", "macroAutoIndent", "macroHover" };
+    "macroSuggest", "macroAutoIndent", "macroHover", "notifyDiscord", "notifyJobs", "notifyEarly", "notifyRest",
+    "notifyManual" };
 
 -- The ticks of "Jobs in the menu", in this order. PZAPI.ModOptions saves a multiple tickbox by position: once released,
 -- this list is only appended to (never reordered, never shortened). A job not in the list comes after, in the order it
@@ -205,6 +232,12 @@ function AutoPilotMoon.Options:buildPage()
             for j, itemKey in ipairs(spec.itemKeys)
             do
                 combo:addItem(itemKey, j == spec.default);
+            end
+
+            -- a line under it (the notifications: what they need)
+            if spec.noteKey and page.addDescription
+            then
+                page:addDescription(spec.noteKey);
             end
         elseif spec.kind == "key"
         then
@@ -398,6 +431,8 @@ function AutoPilotMoon.Options:watchPage()
         then
             AutoPilotMoon.Switch:sync();
         end
+
+        O:notifyChanged();
     end
 
     O:greyOthers(O:get("enabled") == true);
@@ -529,6 +564,12 @@ function AutoPilotMoon.Options:set(key, value, skipSave)
 
         O.session[key] = value;
 
+        -- the panel's tick of the notifications for this job (client/47_AP_Notify.lua)
+        if key == "notifyThisRun"
+        then
+            O:notifyChanged();
+        end
+
         return true;
     end
 
@@ -548,7 +589,30 @@ function AutoPilotMoon.Options:set(key, value, skipSave)
         end
     end
 
+    if changed and spec and spec.notify
+    then
+        O:notifyChanged();
+    end
+
     return changed;
+end
+
+-- an option of the notifications may have changed: the notifications are told (client/47_AP_Notify.lua; a pref, the
+-- per-run tick, start_late), only while the master switch is on; never an error for the caller
+function AutoPilotMoon.Options:notifyChanged()
+    local notify = AutoPilotMoon.Notify;
+
+    if notify == nil or notify.onOptionsChanged == nil or AutoPilotMoon.Switch == nil or not AutoPilotMoon.Switch:isOn()
+    then
+        return;
+    end
+
+    local ok, err = pcall(notify.onOptionsChanged, notify);
+
+    if not ok
+    then
+        print("AutoPilot (Moon): notify: " .. tostring(err));
+    end
 end
 
 -- the game's options file (every mod's page is written together, as the Options screen does)

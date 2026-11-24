@@ -67,6 +67,20 @@ local function sitting(player)
 	return player:isSitOnGround() or player:isSittingOnFurniture();
 end
 
+-- the text of the reason of a stop, its key remembered for the notifications (the event's code: MacroR_CannotSit...;
+-- a refusal of the game with its own text: the code "stopped" with the key in its detail)
+local function whyText(key, a, b, c)
+	return AutoPilotMoon.Notify:why(key, a, b, c);
+end
+
+-- a line with nothing to do, or done only in part (MacroR_NoSeat, MacroR_NotThirsty, MacroR_AllFull,
+-- MacroR_AlreadyReadNext, MacroR_FilledPart): said over the head, and a warning of the summary for the notifications
+local function note(player, code, text, fields)
+	AutoPilotMoon:say("info", text, player);
+	fields.text = text;
+	AutoPilotMoon.Notify:emit("warn", code, fields);
+end
+
 -- ============================================================================================================
 -- Texts
 -- ============================================================================================================
@@ -142,34 +156,34 @@ end
 local function exerciseRefusal(player, op, data)
 	if data == nil
 	then
-		return getText("IGUI_AutoPilot_A_MacroR_NoExercise", op.exercise);
+		return whyText("IGUI_AutoPilot_A_MacroR_NoExercise", op.exercise);
 	end
 
 	local threshold = ISFitnessUI and ISFitnessUI.enduranceLevelThreshold or 2;
 
 	if moodle(player, "ENDURANCE") > threshold
 	then
-		return getText("Tooltip_TooExhaustedFitness");
+		return whyText("Tooltip_TooExhaustedFitness");
 	end
 
 	if moodle(player, "HEAVY_LOAD") > 2
 	then
-		return getText("Tooltip_TooHeavyFitness");
+		return whyText("Tooltip_TooHeavyFitness");
 	end
 
 	if player:getVariableBoolean("sitonground") or sitting(player)
 	then
-		return getText("Tooltip_StandStillFitness");
+		return whyText("Tooltip_StandStillFitness");
 	end
 
 	if moodle(player, "PAIN") > 3
 	then
-		return getText("Tooltip_TooMuchPainFitness");
+		return whyText("Tooltip_TooMuchPainFitness");
 	end
 
 	if data.item and not player:getInventory():contains(data.item, true)
 	then
-		return getText("IGUI_AutoPilot_A_MacroR_NeedEquipment", AutoPilotMoon.Macro.Names:itemName(data.item));
+		return whyText("IGUI_AutoPilot_A_MacroR_NeedEquipment", AutoPilotMoon.Macro.Names:itemName(data.item));
 	end
 
 	return nil;
@@ -192,7 +206,7 @@ local function startExercise(run, op)
 
 	if not ISFitnessUI.equipItems(ui)
 	then
-		return nil, getText("IGUI_AutoPilot_A_MacroR_NeedEquipment", AutoPilotMoon.Macro.Names:itemName(data.item)), nil;
+		return nil, whyText("IGUI_AutoPilot_A_MacroR_NeedEquipment", AutoPilotMoon.Macro.Names:itemName(data.item)), nil;
 	end
 
 	local action = ISFitnessAction:new(player, op.exercise, op.minutes, data, data.type);
@@ -230,7 +244,7 @@ local function exercised(run, pending)
 end
 
 local function exerciseFailed(run, pending)
-	return getText("IGUI_AutoPilot_A_MacroR_ExerciseNoEffect", pending.op.exercise);
+	return whyText("IGUI_AutoPilot_A_MacroR_ExerciseNoEffect", pending.op.exercise);
 end
 
 -- ============================================================================================================
@@ -321,7 +335,7 @@ local function startRest(run, op)
 			pending.seat = seat;
 			ISWorldObjectContextMenu.onRest(seat, player:getPlayerNum());
 		else
-			AutoPilotMoon:say("info", getText("IGUI_AutoPilot_A_MacroR_NoSeat", Body.seatRadius), player);
+			note(player, "MacroR_NoSeat", getText("IGUI_AutoPilot_A_MacroR_NoSeat", Body.seatRadius), { n1 = Body.seatRadius });
 			player:reportEvent("EventSitOnGround");
 		end
 	else
@@ -347,7 +361,7 @@ local function confirmRest(run, pending, waited)
 		then
 			run.resting = nil;
 
-			return "fail", getText("IGUI_AutoPilot_A_MacroR_CannotSit");
+			return "fail", whyText("IGUI_AutoPilot_A_MacroR_CannotSit");
 		end
 
 		return "busy";
@@ -495,7 +509,7 @@ local function chooseWaiting(run, op, choose)
 		if choice == nil and uncertain and kind == "nothing"
 		then
 			-- no answer from the server: never "nothing" for sure (a "while possible" would end as if done)
-			return nil, getText("IGUI_AutoPilot_A_MacroR_NotSeenNear", names), nil;
+			return nil, whyText("IGUI_AutoPilot_A_MacroR_NotSeenNear", names), nil;
 		end
 	end
 
@@ -558,15 +572,15 @@ local function eatFailed(run, pending, why)
 	if pending.can and goneEverywhere(run.player, pending)
 	then
 		-- opened (the closed can is gone), the meal never came: the server's command did not arrive
-		return getText("IGUI_AutoPilot_A_MacroR_CanNoMeal", pending.name);
+		return whyText("IGUI_AutoPilot_A_MacroR_CanNoMeal", pending.name);
 	end
 
 	if why == "refused" and pending.fromName
 	then
-		return getText("IGUI_AutoPilot_A_MacroR_EatRefused", pending.name, pending.fromName);
+		return whyText("IGUI_AutoPilot_A_MacroR_EatRefused", pending.name, pending.fromName);
 	end
 
-	return getText("IGUI_AutoPilot_A_MacroR_NotEaten", pending.name);
+	return whyText("IGUI_AutoPilot_A_MacroR_NotEaten", pending.name);
 end
 
 -- drink(source=True): the nearest clean source, as the right click's "Drink" (ISWorldObjectContextMenu.onDrink: the
@@ -577,7 +591,7 @@ local function startDrinkSource(run, op)
 
 	if source == nil
 	then
-		return nil, getText("IGUI_AutoPilot_A_MacroR_NoSource", Food().sourceRadius), "nothing";
+		return nil, whyText("IGUI_AutoPilot_A_MacroR_NoSource", Food().sourceRadius), "nothing";
 	end
 
 	local thirst = stat(player, "THIRST");
@@ -585,7 +599,7 @@ local function startDrinkSource(run, op)
 	-- the game drinks from a source what the thirst asks (thirst x 2 of water): not thirsty, nothing to do
 	if thirst * 2 < 0.01
 	then
-		AutoPilotMoon:say("info", getText("IGUI_AutoPilot_A_MacroR_NotThirsty"), player);
+		note(player, "MacroR_NotThirsty", getText("IGUI_AutoPilot_A_MacroR_NotThirsty"), {});
 
 		return nil, nil, "skip";
 	end
@@ -652,15 +666,15 @@ end
 local function drinkFailed(run, pending, why)
 	if pending.source
 	then
-		return getText("IGUI_AutoPilot_A_MacroR_NotDrunkSource", pending.name);
+		return whyText("IGUI_AutoPilot_A_MacroR_NotDrunkSource", pending.name);
 	end
 
 	if why == "refused" and pending.fromName
 	then
-		return getText("IGUI_AutoPilot_A_MacroR_DrinkRefused", pending.name, pending.fromName);
+		return whyText("IGUI_AutoPilot_A_MacroR_DrinkRefused", pending.name, pending.fromName);
 	end
 
-	return getText("IGUI_AutoPilot_A_MacroR_NotDrunk", pending.name);
+	return whyText("IGUI_AutoPilot_A_MacroR_NotDrunk", pending.name);
 end
 
 -- refill(): the bottles carried that can take clean water, at the nearest clean source, as the right click's "Fill"
@@ -679,19 +693,19 @@ local function startRefill(run, op)
 				return nil, getText("IGUI_AutoPilot_A_MacroR_AllFull"), "nothing";
 			end
 
-			AutoPilotMoon:say("info", getText("IGUI_AutoPilot_A_MacroR_AllFull"), player);
+			note(player, "MacroR_AllFull", getText("IGUI_AutoPilot_A_MacroR_AllFull"), {});
 
 			return nil, nil, "skip";
 		end
 
-		return nil, getText("IGUI_AutoPilot_A_MacroR_NoBottle"), nil;
+		return nil, whyText("IGUI_AutoPilot_A_MacroR_NoBottle"), nil;
 	end
 
 	local source = Food():findSource(player, items);
 
 	if source == nil
 	then
-		return nil, getText("IGUI_AutoPilot_A_MacroR_NoSource", Food().sourceRadius), nil;
+		return nil, whyText("IGUI_AutoPilot_A_MacroR_NoSource", Food().sourceRadius), nil;
 	end
 
 	local fills = {};
@@ -721,7 +735,7 @@ local function expectFilled(wait, run, pending)
 end
 
 local function refillFailed(run, pending, why)
-	return getText("IGUI_AutoPilot_A_MacroR_NotFilled", pending.name);
+	return whyText("IGUI_AutoPilot_A_MacroR_NotFilled", pending.name);
 end
 
 -- has_food(), has_drink() (conditions): what eat() / drink() would find now, nothing queued; a container within reach
@@ -800,7 +814,7 @@ function AutoPilotMoon.Macro.Body:chooseSmoke(player, op)
 
 	if #items == 0
 	then
-		return nil, getText("IGUI_AutoPilot_A_MacroR_NoSmoke"), "nothing";
+		return nil, whyText("IGUI_AutoPilot_A_MacroR_NoSmoke"), "nothing";
 	end
 
 	table.sort(items, bySmoke);
@@ -819,7 +833,7 @@ function AutoPilotMoon.Macro.Body:chooseSmoke(player, op)
 		missing = missing or names;
 	end
 
-	return nil, getText("ContextMenu_Require", missing or ""), nil;
+	return nil, whyText("ContextMenu_Require", missing or ""), nil;
 end
 
 local function uses(item)
@@ -868,7 +882,7 @@ local function noteSmoked(run)
 end
 
 local function smokeFailed(run, pending)
-	return getText("IGUI_AutoPilot_A_MacroR_NotSmoked", pending.name);
+	return whyText("IGUI_AutoPilot_A_MacroR_NotSmoked", pending.name);
 end
 
 -- ============================================================================================================
@@ -923,29 +937,29 @@ function AutoPilotMoon.Macro.Body:readRefusal(player, book)
 
 	if player:tooDarkToRead()
 	then
-		return getText(picture and "ContextMenu_TooDarkToSee" or "ContextMenu_TooDark");
+		return whyText(picture and "ContextMenu_TooDarkToSee" or "ContextMenu_TooDark");
 	end
 
 	if player:hasTrait(CharacterTrait.ILLITERATE) and not picture
 	then
-		return getText("ContextMenu_Illiterate");
+		return whyText("ContextMenu_Illiterate");
 	end
 
 	local skill = skillBookOf(book);
 
 	if skill and book:getLvlSkillTrained() ~= -1 and book:getLvlSkillTrained() > player:getPerkLevel(skill.perk) + 1
 	then
-		return getText("ContextMenu_TooComplicated");
+		return whyText("ContextMenu_TooComplicated");
 	end
 
 	if skill and book:getMaxLevelTrained() ~= -1 and book:getMaxLevelTrained() <= player:getPerkLevel(skill.perk)
 	then
-		return getText("ContextMenu_TooSimple");
+		return whyText("ContextMenu_TooSimple");
 	end
 
 	if book:hasTag(ItemTag.UNINTERESTING)
 	then
-		return getText("ContextMenu_EmptyNotebook");
+		return whyText("ContextMenu_EmptyNotebook");
 	end
 
 	return nil;
@@ -960,7 +974,7 @@ function AutoPilotMoon.Macro.Body:chooseBook(player, op)
 
 	if #books == 0
 	then
-		return nil, getText("IGUI_AutoPilot_A_MacroR_NoBook", op.itemText or ""), "nothing";
+		return nil, whyText("IGUI_AutoPilot_A_MacroR_NoBook", op.itemText or ""), "nothing";
 	end
 
 	-- one not read yet first (two copies of a magazine: the one still to read)
@@ -1001,10 +1015,11 @@ local function startRead(run, op)
 		-- nothing left to read: a "while possible" ends well, else the line after (like rest() already rested)
 		if op.possibleFirst
 		then
-			return nil, getText("IGUI_AutoPilot_A_MacroR_AlreadyRead", book:getDisplayName()), "nothing";
+			return nil, whyText("IGUI_AutoPilot_A_MacroR_AlreadyRead", book:getDisplayName()), "nothing";
 		end
 
-		AutoPilotMoon:say("info", getText("IGUI_AutoPilot_A_MacroR_AlreadyReadNext", book:getDisplayName()), player);
+		note(player, "MacroR_AlreadyReadNext", getText("IGUI_AutoPilot_A_MacroR_AlreadyReadNext", book:getDisplayName()),
+			{ a1 = book:getDisplayName() });
 
 		return nil, nil, "skip";
 	end
@@ -1043,7 +1058,7 @@ local function read(run, pending)
 end
 
 local function readFailed(run, pending)
-	return getText("IGUI_AutoPilot_A_MacroR_NotRead", pending.name);
+	return whyText("IGUI_AutoPilot_A_MacroR_NotRead", pending.name);
 end
 
 -- "Adesso si puo' fare?" for read(): nil when it can start now
@@ -1145,7 +1160,8 @@ function AutoPilotMoon.Macro.Body:confirm(run, pending)
 	if pending.kind == "refill" and info and info.arrived > 0
 	then
 		-- some bottles filled, then the source ran dry (or the server refused the rest): done, said
-		AutoPilotMoon:say("info", getText("IGUI_AutoPilot_A_MacroR_FilledPart", info.arrived, info.total, pending.name), run.player);
+		note(run.player, "MacroR_FilledPart", getText("IGUI_AutoPilot_A_MacroR_FilledPart", info.arrived, info.total, pending.name),
+			{ n1 = info.arrived, n2 = info.total, a1 = pending.name });
 
 		return "done";
 	end
@@ -1155,10 +1171,10 @@ function AutoPilotMoon.Macro.Body:confirm(run, pending)
 		if pending.source or pending.kind == "refill"
 		then
 			-- the game's walk next to the source could not start (no free square next to it)
-			return "fail", getText("IGUI_AutoPilot_A_MacroR_SourceUnreachable", pending.name);
+			return "fail", whyText("IGUI_AutoPilot_A_MacroR_SourceUnreachable", pending.name);
 		end
 
-		return "fail", getText("IGUI_AutoPilot_A_MacroR_WaitNotQueued", Body:describe(pending.op));
+		return "fail", whyText("IGUI_AutoPilot_A_MacroR_WaitNotQueued", Body:describe(pending.op));
 	end
 
 	return "fail", failures[pending.kind](run, pending, why);

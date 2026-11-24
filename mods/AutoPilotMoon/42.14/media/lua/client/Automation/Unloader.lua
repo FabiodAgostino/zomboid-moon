@@ -123,7 +123,17 @@ local function settleWait()
 		then
 			-- nothing went out: the server refused the transfers
 			A:getJobSet("unloaderTried")[pending.container] = true;
-			AutoPilotMoon:message(getText("IGUI_AutoPilot_A_UnableToEmptyContainer"));
+
+			local text = getText("IGUI_AutoPilot_A_UnableToEmptyContainer");
+
+			AutoPilotMoon:message(text);
+
+			-- the notifications (ANALISI-NOTIFICHE-DISCORD.md 3.5): which container, how many items did not go out
+			if AutoPilotMoon.Notify:isActive()
+			then
+				AutoPilotMoon.Notify:emit("warn", "UnableToEmptyContainer", { text = text,
+					a1 = AutoPilotMoon.Destination:getContainerName(pending.container), n1 = info.total });
+			end
 		end
 	end
 
@@ -142,10 +152,6 @@ function AutoPilotMoon.Automation:stopUnloader()
 	AutoPilotMoon.Automation:stopSquareProcessingQueue("unloaderWorking");
 end
 
-local function summary(key)
-	return getText(key, getText("IGUI_AutoPilot_O_Context_Unloader"), AutoPilotMoon.Automation:getJobCount("unloaderMoved"));
-end
-
 -- one step on a square: decide (removeCheckFunction), then the square function carries the plan out
 function AutoPilotMoon.Automation:checkUnloaderSquare(square, player)
 	local A = AutoPilotMoon.Automation;
@@ -159,6 +165,9 @@ function AutoPilotMoon.Automation:checkUnloaderSquare(square, player)
 
 	if AutoPilotMoon.Zones:isProtected(square, player)
 	then
+		-- the square became protected during the job: counted, as every job does (the panel, the notifications)
+		AutoPilotMoon.Progress:warn("IGUI_AutoPilot_A_Skip_Protected");
+
 		return "discard";
 	end
 
@@ -167,7 +176,7 @@ function AutoPilotMoon.Automation:checkUnloaderSquare(square, player)
 
 	if moved >= jobCap
 	then
-		A:finishEarly(summary("IGUI_AutoPilot_A_UnloaderCapReached"));
+		A:finishEarly(AutoPilotMoon.Notify:why("IGUI_AutoPilot_A_UnloaderCapReached", getText("IGUI_AutoPilot_O_Context_Unloader"), moved));
 
 		return "discard";
 	end
@@ -228,7 +237,19 @@ function AutoPilotMoon.Automation:checkUnloaderSquare(square, player)
 
 				if #step == 0
 				then
-					AutoPilotMoon:message(getText("IGUI_AutoPilot_A_FloorFull"));
+					local text = getText("IGUI_AutoPilot_A_FloorFull");
+
+					AutoPilotMoon:message(text);
+
+					-- the notifications (ANALISI-NOTIFICHE-DISCORD.md 3.5): one square after another, so told at 1, 5,
+					-- 20... of the squares left (n1), with the last container (a1) and its items (n2)
+					local count, due = AutoPilotMoon.Notify:stepCount("FloorFull");
+
+					if due
+					then
+						AutoPilotMoon.Notify:emit("warn", "FloorFull", { text = text,
+							a1 = AutoPilotMoon.Destination:getContainerName(container), n1 = count, n2 = #items });
+					end
 
 					return "discard";
 				end
@@ -259,10 +280,19 @@ function AutoPilotMoon.Automation:workUnloaderSquare(square, player)
 		return;
 	end
 
+	-- every container given up here is counted with its reason (the panel, the notifications): never left silently
 	if AutoPilotMoon.Zones:isProtected(square, player) or AutoPilotMoon.Zones:isProtectedObject(plan.object)
-		or AutoPilotMoon.Item:isLockedFor(plan.object, plan.container, player)
 	then
 		A:getJobSet("unloaderTried")[plan.container] = true;
+		AutoPilotMoon.Progress:warn("IGUI_AutoPilot_A_Skip_Protected");
+
+		return;
+	end
+
+	if AutoPilotMoon.Item:isLockedFor(plan.object, plan.container, player)
+	then
+		A:getJobSet("unloaderTried")[plan.container] = true;
+		AutoPilotMoon.Progress:warn("IGUI_AutoPilot_A_Skip_NotOpened");
 
 		return;
 	end
@@ -270,6 +300,7 @@ function AutoPilotMoon.Automation:workUnloaderSquare(square, player)
 	if not AutoPilotMoon.Square:walkTo(player, square, true)
 	then
 		A:getJobSet("unloaderTried")[plan.container] = true;
+		AutoPilotMoon.Progress:warn("IGUI_AutoPilot_A_Skip_Unreachable");
 
 		return;
 	end
@@ -281,6 +312,7 @@ function AutoPilotMoon.Automation:workUnloaderSquare(square, player)
 		if not plan.container:isExplored()
 		then
 			A:getJobSet("unloaderTried")[plan.container] = true;
+			AutoPilotMoon.Progress:warn("IGUI_AutoPilot_A_Skip_NotOpened");
 		end
 
 		return;

@@ -253,6 +253,8 @@ local function settle(trip, info)
 
 			if trip.failures[entry.id] >= Carry.maxTries
 			then
+				-- the notifications: the item refused (a1)
+				AutoPilotMoon.Notify:warnArgs("IGUI_AutoPilot_A_Reason_ServerRefused", entry.name);
 				AutoPilotMoon.Progress:warn("IGUI_AutoPilot_A_Reason_ServerRefused");
 			end
 		end
@@ -429,7 +431,8 @@ function AutoPilotMoon.Carry:step(trip)
 				wait:expectIn(item, target);
 			end
 
-			table.insert(pending, { id = item:getID(), action = action, target = target, floor = onFloor });
+			table.insert(pending, { id = item:getID(), name = item:getDisplayName(), action = action, target = target,
+				floor = onFloor });
 		end
 	end
 

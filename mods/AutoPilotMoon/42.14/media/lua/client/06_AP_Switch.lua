@@ -13,7 +13,8 @@
 --     them after us, ours stays in its chain and only calls the game's: no macro, no recording, nothing else);
 --   - no window of the mod is in the game's UI list (the game updates even the hidden ones at every frame).
 -- Turning it off while something runs: the job, chain or macro stops as with "Ferma" with the reason "AutoPilot spento
--- nelle Opzioni", a recording is thrown away (with a message), the area or destination choice is cancelled, the panel,
+-- nelle Opzioni" (that stop is still told to the notifications, then Notify:shutdown: 20/11/2026), a recording is
+-- thrown away (with a message), the area or destination choice is cancelled, the panel,
 -- the macro editor, the recipe picker and the recorder's preview close. The messages already queued are still shown
 -- (a handler of OnPlayerUpdate that removes itself when the queue is empty), then nothing.
 -- The server's switches (Enable*, sandbox) are untouched: an automation needs both.
@@ -159,6 +160,11 @@ local function turnOn()
     end);
 
     bindAll();
+
+    -- the notifications (20/11/2026, client/47_AP_Notify.lua): the panel's tick from the option, the mode told
+    safely(function()
+        AutoPilotMoon.Notify:startup();
+    end);
 end
 
 local function turnOff()
@@ -170,6 +176,11 @@ local function turnOff()
         then
             AutoPilotMoon.Automation:stopAll("switchedoff");
         end
+    end);
+
+    -- the notifications: that stop has been told (switchedoff); the run, the watch after a stop end, "off" is told
+    safely(function()
+        AutoPilotMoon.Notify:shutdown();
     end);
 
     -- a recording is thrown away (the game's actions never touched), the preview of a finished one closes

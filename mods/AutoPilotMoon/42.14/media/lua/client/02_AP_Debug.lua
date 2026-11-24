@@ -43,7 +43,7 @@ function AutoPilotMoon:wantsMessage(level, player)
 	return true;
 end
 
-local function remember(text, level)
+local function remember(text, level, player)
 	local log = AutoPilotMoon.messageLog;
 
 	table.insert(log, { text = text, level = level, at = getTimestampMs() });
@@ -51,6 +51,20 @@ local function remember(text, level)
 	while #log > AutoPilotMoon.maxLoggedMessages
 	do
 		table.remove(log, 1);
+	end
+
+	-- the notifications (20/11/2026, client/47_AP_Notify.lua): every sentence said during a run, shown or not (the
+	-- sentence of an end, a "bad" one that becomes warn/other); only while a run or the watch after a stop is open
+	local notify = AutoPilotMoon.Notify;
+
+	if notify and notify.live
+	then
+		local ok, err = pcall(notify.onMessage, notify, level, text, player);
+
+		if not ok
+		then
+			print("AutoPilot (Moon): notify: " .. tostring(err));
+		end
 	end
 end
 
@@ -105,7 +119,7 @@ end
 local function enqueue(position, level, message, player)
 	local text = AutoPilotMoon:printValue(message);
 
-	remember(text, level);
+	remember(text, level, player);
 
 	player = player or AutoPilotMoon:getPlayer();
 
