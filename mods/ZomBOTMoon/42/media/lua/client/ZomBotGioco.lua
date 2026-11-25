@@ -10,7 +10,12 @@
 --     question for the bot (one every 10 s, 30 an hour, here and there). «ZomBOT ci pensa...» right away; the answer
 --     arrives as ZomBOT's lines in this player's own chat window, seen by nobody else;
 --   the container that holds what was asked for blinks for 60 s when the asker is inside a base, until clicked or
---     opened (or until another one starts blinking);
+--     opened (or until another one starts blinking). Since 25/11/2026 (the user: «più lampeggiante e magari una
+--     freccia dinamica a schermo che ti porta fino al contenitore») it flashes 2.5 times a second in two colours,
+--     yellow and red, with an outline of the same colours, a ring pulsing on its square, and the game's own arrow
+--     towards it: on the border of the player's screen when the container is off it, over the container when on it
+--     (stairs up or down when it is on another floor), with the metres and «2 piani sopra» beside it. The arrow goes
+--     at 1.5 tiles on the same floor, when the player is dead, and with the blink;
 --   coloured crates: any player picks a colour from the «ZomBOT» right click on a crate (the user, 28/10/2026: not
 --     only the admins), the server keeps it in the object's modData (zombotColor) and tells everyone; the colour is
 --     the same for the whole server, seen by all the players with this mod, each painting it on their own screen;
@@ -41,6 +46,28 @@
 --     UIManager with the object under the mouse;
 --   getFileReader(name, false) is nil when the file is missing, getFileWriter(name, true, false) rewrites it, both in
 --     Zomboid/Lua of this computer.
+--
+-- Verified on 25/11/2026 for the arrow, in the jar of this PC (GameVersion 42.21; the server has 42.22.2, the same
+-- classes are used by the game's own foraging, tutorial and debug Lua) with javap and reflection:
+--   getWorldMarkers() (LuaManager.GlobalObject) gives zombie.iso.WorldMarkers; it, DirectionArrow, GridSquareMarker and
+--     PlayerHomingPoint are exposed (LuaManager.Exposer). WorldMarkers.render() is called by
+--     IngameState.renderFrameTextInternal(playerIndex) on every frame of every player, no debug needed;
+--   addDirectionArrow(IsoPlayer, x, y, z, texture or nil, r, g, b, a) (DebugUIs/ISSpawnHordeUI.lua uses it) is one
+--     arrow for that player (IsoPlayer.playerIndex): each frame updateDirectionArrows takes the container at the
+--     player's floor on the screen (PlayerCamera.XToScreenExact / zoom); within 300 tiles and inside the border 100 px in
+--     (WorldMarkers.PlayerScreen, the player's own part of a split screen) it draws dir_arrow_down over it, or
+--     dir_arrow_stairs_up / _down when z differs, else dir_arrow_up turned towards it on that border (the angle eased).
+--     The textures are media/textures/highlights/<name>.png, 48 px. For a container below it draws texStairsUp (it
+--     reads texStairsDown and draws the other): setTexStairsUp gets the right one. setActive, setRGBA,
+--     setRenderWidth/Height, remove (only marks it; the list drops it at the next update, so setActive(false) first);
+--   addGridSquareMarker(square, r, g, b, doAlpha, size) (circle_center + circle_only_highlight): with doAlpha its alpha
+--     goes from alphaMin to alphaMax and back by fadeSpeed × GameTime multiplier a frame (default 0.006, 0.3, 1);
+--     drawn at its floor (FBORenderWorldMarkers, the 42 renderer);
+--   IsoObject.setOutlineHighlight(playerIndex, on) / setOutlineHighlightCol(playerIndex, r, g, b, a): the outline the
+--     loot window gives the open container (ISInventoryPage:updateContainerHighlight, FBORenderObjectOutline);
+--   isoToScreenX/Y(playerIndex, x, y, z) are absolute screen pixels (IsoCamera.getScreenLeft/Top added, zoom
+--     divided); getPlayerScreenLeft/Top/Width/Height(playerIndex); getCore():getZoom(playerIndex);
+--   math.atan2 is in the game's Lua (se.krka.kahlua.j2se.MathLib: atan2, deg, huge...); a C Lua 5.4+ has only atan.
 if isServer() and not isClient() then return end
 
 ZomBotGioco = ZomBotGioco or {}
@@ -53,10 +80,21 @@ G.MIN_TEXT, G.MAX_TEXT = 3, 300
 G.GAP_MS = 10000 -- between two questions, as the server
 G.PER_HOUR = 30
 G.BLINK_MS = 60000
-G.BLINK_STEP_MS = 400
+-- 2.5 flashes a second (25/11/2026, the user: «più lampeggiante»; it was 400 ms): fast, and under the 3 a second
+-- that can hurt a photosensitive player
+G.BLINK_STEP_MS = 200
 G.KEEP_ANSWERS = 8
 G.HOW_TO = "Scrivi in chat: zombot dove trovo le asce?"
-G.BLINK_RGBA = { 1.0, 0.92, 0.15, 0.9 }
+-- two strong colours, one flash each: the container, its outline, the ring on its square and the arrow take them
+G.BLINK_COLORS = { { 1.0, 0.92, 0.10, 1.0 }, { 1.0, 0.28, 0.12, 1.0 } }
+G.ARROW_DIM = 0.45 -- the arrow's alpha between two flashes
+G.ARROW_SIZE = 48 -- px: the game's arrows (media/textures/highlights/dir_arrow_*.png) at their own size
+G.ARROW_NEAR = 1.5 -- tiles: nearer than this, on the same floor, no arrow (the blink alone guides)
+G.ARROW_INSET = 100 -- px: the game's arrow stays this far inside the player's screen (WorldMarkers.PlayerScreen)
+G.LABEL_GAP = 46 -- px: the words, from the arrow towards the middle of the screen
+G.MARKER_SIZE = 1.3 -- the pulsing ring on the container's square (WorldMarkers.GridSquareMarker)
+G.MARKER_FADE = 0.04 -- its alpha step a frame (the game's default 0.006 is a slow breath)
+G.GUIDE_GOLD = { 0.94, 0.70, 0.20 } -- the metres under the arrow, ZomBOT's gold
 
 -- readable on wood and metal; the ids are what the server keeps
 G.PALETTE = {
@@ -100,6 +138,13 @@ end
 local function playerNum()
     local ok, n = pcall(function() return getPlayer():getPlayerNum() end)
     return ok and n or 0
+end
+
+-- the game's language for the words on the screen: "IT", "EN"... (Translator.getLanguage():name())
+function G.lang()
+    local ok, name = pcall(function() return Translator.getLanguage():name() end)
+    if ok and type(name) == "string" and name ~= "" then return name end
+    return "IT"
 end
 
 -- -- the setting on this computer ----------------------------------------------------------------------------------
@@ -380,7 +425,10 @@ function G.onLoadSquare(square)
     G.known[key] = nil
     -- the square of the container blinking came again: its object is a new one
     local blink = G.blink
-    if blink and blink.x == x and blink.y == y and blink.z == z then blink.object, blink.nextMs = nil, 0 end
+    -- (it starts with a flash, at once; the ring on the square stays)
+    if blink and blink.x == x and blink.y == y and blink.z == z then
+        blink.object, blink.nextMs, blink.on = nil, 0, false
+    end
     local objects = square:getObjects()
     for i = 0, objects:size() - 1 do
         local object = objects:get(i)
@@ -447,18 +495,178 @@ function G.label(name, kind)
     return text or (kind and kind ~= "" and kind) or "contenitore"
 end
 
+-- The game's markers (zombie.iso.WorldMarkers, getWorldMarkers()), called through pcall with their arguments: no new
+-- function on every tick.
+local function newArrow(num, x, y, z, c)
+    local arrow = getWorldMarkers():addDirectionArrow(getSpecificPlayer(num), x, y, z, nil, c[1], c[2], c[3], c[4])
+    arrow:setRenderWidth(G.ARROW_SIZE)
+    arrow:setRenderHeight(G.ARROW_SIZE)
+    arrow:setActive(false) -- G.guide shows it when the player is far enough
+    return arrow
+end
+
+local function newMarker(square, c)
+    local marker = getWorldMarkers():addGridSquareMarker(square, c[1], c[2], c[3], true, G.MARKER_SIZE)
+    marker:setFadeSpeed(G.MARKER_FADE)
+    marker:setAlphaMin(0.3)
+    marker:setAlphaMax(1.0)
+    return marker
+end
+
+-- remove() only marks it, the list drops it at the next update: off first, so it goes in this very frame
+local function dropMarker(marker)
+    marker:setActive(false)
+    marker:remove()
+end
+
+local function setActive(marker, on) marker:setActive(on) end
+local function arrowColour(arrow, c, a) arrow:setRGBA(c[1], c[2], c[3], a) end
+local function markerColour(marker, c) marker:setR(c[1]); marker:setG(c[2]); marker:setB(c[3]) end
+-- the game draws the icon of the stairs going up for a container below too (DirectionArrow, texStairsDown is read
+-- but texStairsUp drawn): the right one is put in its place
+local function stairs(arrow, name) arrow:setTexStairsUp(name) end
+
+local function lightObject(object, num, c, on)
+    object:setHighlightColor(num, c[1], c[2], c[3], c[4])
+    object:setHighlighted(num, on, false)
+    if on then object:setOutlineHighlightCol(num, c[1], c[2], c[3], 1) end
+end
+
+local function outlineOn(object, num, c)
+    object:setOutlineHighlightCol(num, c[1], c[2], c[3], 1)
+    object:setOutlineHighlight(num, true)
+end
+
 local function findBlinkObject(blink)
     if blink.object then return blink.object end
     local square = nil
     pcall(function() square = getCell():getGridSquare(blink.x, blink.y, blink.z) end)
     if square == nil then return nil end -- not loaded here yet: tried again at the next step
+    if blink.marker == nil then -- once (false: the game would not make it)
+        local ok, marker = pcall(newMarker, square, G.stepColour(blink.step))
+        blink.marker = ok and marker or false
+    end
     local object = G.containerObject(square, blink.index)
     if object == nil then return nil end
     blink.object = object
     blink.entry = G.entryAt(blink.x, blink.y, blink.z, blink.index)
     if blink.entry then restore(object, blink.entry.original) end -- the blink in its own colour, not mixed
     pcall(function() ISInventoryPage.OnObjectHighlighted(blink.playerNum, object, true) end)
+    pcall(outlineOn, object, blink.playerNum, G.stepColour(blink.step))
     return object
+end
+
+-- the colour of a step: two steps (a flash and its pause) of each
+function G.stepColour(step)
+    return G.BLINK_COLORS[math.floor((math.max(step or 1, 1) - 1) / 2) % 2 + 1]
+end
+
+-- «2 piani sopra», «1 floor down»; "" on the same floor
+function G.floorText(floors, lang)
+    if floors == nil or floors == 0 then return "" end
+    local n = math.abs(floors)
+    if lang ~= "IT" then
+        return string.format("%d", n) .. (n == 1 and " floor " or " floors ") .. (floors > 0 and "up" or "down")
+    end
+    return string.format("%d", n) .. (n == 1 and " piano " or " piani ") .. (floors > 0 and "sopra" or "sotto")
+end
+
+-- where this player stands, or nothing (no player, dead)
+local function standing(num)
+    local player = getSpecificPlayer(num)
+    if player == nil or player:isDead() then return nil end
+    return player:getX(), player:getY(), player:getZ()
+end
+
+-- Every tick of a blink: the arrow on or off, the distance and the floor of its words. Strings are made only when
+-- the metres or the floor change.
+function G.guide(blink)
+    local ok, px, py, pz = pcall(standing, blink.playerNum)
+    local show = false
+    if ok and px then
+        pz = math.floor(pz)
+        local dx, dy = blink.x + 0.5 - px, blink.y + 0.5 - py
+        local metres = math.sqrt(dx * dx + dy * dy)
+        local floors = blink.z - pz
+        show = floors ~= 0 or metres > G.ARROW_NEAR
+        blink.pz = pz
+        local rounded = math.floor(metres + 0.5)
+        if rounded ~= blink.metres or floors ~= blink.floors then
+            blink.metres, blink.floors = rounded, floors
+            blink.distanceText = string.format("%d m", rounded)
+            blink.floorText = G.floorText(floors, blink.lang)
+            blink.textWidth = nil -- measured again when drawn
+        end
+        local level = floors > 0 and 1 or (floors < 0 and -1 or 0)
+        if level ~= blink.level then
+            blink.level = level
+            if blink.arrow and level ~= 0 then
+                pcall(stairs, blink.arrow, level > 0 and "dir_arrow_stairs_up" or "dir_arrow_stairs_down")
+            end
+        end
+    end
+    if show ~= blink.guideOn then
+        blink.guideOn = show
+        if blink.arrow then pcall(setActive, blink.arrow, show) end
+    end
+end
+
+local atan2 = math.atan2 or function(y, x) return math.atan(y, x) end -- the game's Lua has atan2 (a C Lua 5.4+: atan)
+
+-- Where the words go on the player's screen (left, top, width, height) for a container seen at (tx, ty) on it, as
+-- the game places its arrow (WorldMarkers.updateDirectionArrows): over the container when that point is inside the
+-- border ARROW_INSET px in ("view"), else on that border, on the line from the middle of the screen towards it
+-- ("edge"), with the words just inside. Returns the mode, the angle of that line (degrees, 0 = up, clockwise; nil in
+-- view) and the point.
+function G.guidePlace(tx, ty, left, top, width, height)
+    local cx, cy = left + width / 2, top + height / 2
+    local hw = math.max(width / 2 - G.ARROW_INSET, 1)
+    local hh = math.max(height / 2 - G.ARROW_INSET, 1)
+    local dx, dy = tx - cx, ty - cy
+    if math.abs(dx) <= hw and math.abs(dy) <= hh then return "view", nil, tx, ty end
+    local angle = math.deg(atan2(dx, -dy))
+    if angle < 0 then angle = angle + 360 end
+    local sx = dx ~= 0 and hw / math.abs(dx) or math.huge
+    local sy = dy ~= 0 and hh / math.abs(dy) or math.huge
+    local s = math.min(sx, sy) -- the line meets the border here
+    local length = math.sqrt(dx * dx + dy * dy) * s
+    local k = s * math.max(length - G.LABEL_GAP, 0) / length
+    return "edge", angle, cx + dx * k, cy + dy * k
+end
+
+-- The words of the guide, drawn by its element on every frame: the metres and the floor if another one.
+function G.drawGuide(ui, blink)
+    local num = blink.playerNum
+    local left, top = getPlayerScreenLeft(num), getPlayerScreenTop(num)
+    local width, height = getPlayerScreenWidth(num), getPlayerScreenHeight(num)
+    -- at the player's floor, as the game's arrow
+    local tx, ty = isoToScreenX(num, blink.x, blink.y, blink.pz), isoToScreenY(num, blink.x, blink.y, blink.pz)
+    local mode, angle, x, y = G.guidePlace(tx, ty, left, top, width, height)
+    blink.mode, blink.angle = mode, angle
+    local floorText = blink.floorText or ""
+    if blink.textWidth == nil then
+        local tm = getTextManager()
+        local w = tm:MeasureStringX(UIFont.Medium, blink.distanceText or "")
+        if floorText ~= "" then w = math.max(w, tm:MeasureStringX(UIFont.Small, floorText)) end
+        blink.textWidth = w
+    end
+    local w = blink.textWidth + 12
+    local h = blink.fontMedium + (floorText ~= "" and blink.fontSmall or 0) + 4
+    if mode == "view" then -- above the game's arrow, which stands over the container (smaller when zoomed out)
+        local zoom = getCore():getZoom(num)
+        local size = zoom > 1 and G.ARROW_SIZE / zoom or G.ARROW_SIZE
+        y = y - size / 2 - 6 - h / 2
+    end
+    -- whole on this player's screen
+    local bx = math.min(math.max(x - w / 2, left + 2), left + width - w - 2)
+    local by = math.min(math.max(y - h / 2, top + 2), top + height - h - 2)
+    blink.labelX, blink.labelY = bx + w / 2, by + h / 2
+    local gold = G.GUIDE_GOLD
+    ui:drawRect(bx, by, w, h, 0.6, 0, 0, 0)
+    ui:drawTextCentre(blink.distanceText or "", bx + w / 2, by + 2, gold[1], gold[2], gold[3], 1, UIFont.Medium)
+    if floorText ~= "" then
+        ui:drawTextCentre(floorText, bx + w / 2, by + 2 + blink.fontMedium, 1, 1, 1, 1, UIFont.Small)
+    end
 end
 
 -- whether the loot window shows this object's container
@@ -476,6 +684,11 @@ function G.stopBlink(why)
     if blink == nil then return end
     G.blink = nil
     G.blinkStopped = why
+    -- the arrow, its words and the ring go with it
+    if blink.arrow then pcall(dropMarker, blink.arrow) end
+    if blink.marker then pcall(dropMarker, blink.marker) end
+    local guide = blink.guide
+    if guide then pcall(function() guide:setVisible(false); guide:removeFromUIManager() end) end
     local object = blink.object
     if object then
         pcall(function() object:setHighlighted(blink.playerNum, false, false) end)
@@ -485,6 +698,8 @@ function G.stopBlink(why)
             local c = getCore():getObjectHighlitedColor()
             object:setHighlightColor(blink.playerNum, c:getR(), c:getG(), c:getB(), c:getA())
         end)
+        -- the outline off before the loot window looks (it outlines its open container again, in its own colour)
+        pcall(function() object:setOutlineHighlight(blink.playerNum, false) end)
         -- the loot window takes it back (and highlights it again if it is the open container)
         pcall(function() ISInventoryPage.OnObjectHighlighted(blink.playerNum, object, false) end)
         G.paint(object, G.entryAt(blink.x, blink.y, blink.z, blink.index))
@@ -496,8 +711,26 @@ function G.startBlink(args)
     local x, y, z = tonumber(args.x), tonumber(args.y), tonumber(args.z)
     if not (x and y and z) then return end
     local seconds = math.min(tonumber(args.seconds) or 60, 60)
-    G.blink = { x = x, y = y, z = z, index = tonumber(args.index) or -1, playerNum = playerNum(),
-        untilMs = getTimestampMs() + seconds * 1000, nextMs = 0, on = false }
+    local num = playerNum()
+    local blink = { x = x, y = y, z = z, index = tonumber(args.index) or -1, playerNum = num,
+        untilMs = getTimestampMs() + seconds * 1000, nextMs = 0, on = false, step = 0, guideOn = false,
+        lang = G.lang(), fontMedium = 20, fontSmall = 16 }
+    pcall(function()
+        blink.fontMedium = getTextManager():getFontHeight(UIFont.Medium)
+        blink.fontSmall = getTextManager():getFontHeight(UIFont.Small)
+    end)
+    G.blink = blink
+    -- the game's arrow towards it (squares not loaded too: it needs only where), off until G.guide says
+    local ok, arrow = pcall(newArrow, num, x, y, z, G.BLINK_COLORS[1])
+    blink.arrow = ok and arrow or nil
+    -- the words of the arrow: an element of one pixel that lets the clicks through, drawing on the player's screen
+    pcall(function()
+        local guide = ZomBotGiocoGuide:new()
+        guide:initialise()
+        guide:addToUIManager()
+        blink.guide = guide
+        guide:backMost() -- under every window
+    end)
     G.tick()
 end
 
@@ -506,17 +739,20 @@ function G.tick()
     if blink == nil then return end
     local nowMs = getTimestampMs()
     if nowMs >= blink.untilMs then return G.stopBlink("time") end
+    G.guide(blink)
     if nowMs < blink.nextMs then return end
     blink.nextMs = nowMs + G.BLINK_STEP_MS
+    blink.step = blink.step + 1
+    local c = G.stepColour(blink.step)
+    local flash = blink.step % 2 == 1
+    -- the arrow and the ring pulse even before the square is loaded here
+    if blink.arrow then pcall(arrowColour, blink.arrow, c, flash and 1 or G.ARROW_DIM) end
+    if blink.marker then pcall(markerColour, blink.marker, c) end
     local object = findBlinkObject(blink)
     if object == nil then return end
     if G.isOpen(object, blink.playerNum) then return G.stopBlink("open") end
     blink.on = not blink.on
-    local c = G.BLINK_RGBA
-    pcall(function()
-        object:setHighlightColor(blink.playerNum, c[1], c[2], c[3], c[4])
-        object:setHighlighted(blink.playerNum, blink.on, false)
-    end)
+    pcall(lightObject, object, blink.playerNum, c, blink.on)
 end
 
 -- a left click on the object, or on anything on its square (the floor in front of a low crate)
@@ -550,7 +786,9 @@ function G.onServerCommand(module, command, args)
         local where = G.label(args.name, args.type)
         local distance = tonumber(args.distance)
         local far = distance and string.format(", a %d m", math.floor(distance + 0.5)) or ""
-        G.say("lampeggia '" .. where .. "'" .. far .. ". Si ferma con un clic, aprendo il contenitore o dopo un minuto.")
+        local arrow = (distance == nil or distance > G.ARROW_NEAR) and ": segui la freccia" or ""
+        G.say("lampeggia '" .. where .. "'" .. far .. arrow
+            .. ". Si ferma con un clic, aprendo il contenitore o dopo un minuto.")
     elseif command == "color" then
         G.onColor(args)
     elseif command == "done" or command == "error" then
@@ -639,6 +877,27 @@ function G.show(class, width, height, ...)
     return window
 end
 
+-- The words of the arrow while a container blinks: one pixel at the top left of the screen that lets the clicks go
+-- through (wantMouseEvents false: ISUIElement:instantiate gives it to setConsumeMouseEvents, as ISToolTip and
+-- ISSleepingUI do) and draws on the screen of the player who asked. Made by G.startBlink, removed by G.stopBlink.
+ZomBotGiocoGuide = ISUIElement:derive("ZomBotGiocoGuide")
+
+function ZomBotGiocoGuide:new()
+    local o = ISUIElement.new(self, 0, 0, 1, 1)
+    o.wantMouseEvents = false
+    return o
+end
+
+function ZomBotGiocoGuide:render()
+    local blink = G.blink
+    if blink == nil or blink.guide ~= self or not blink.guideOn or blink.pz == nil then return end
+    local ok, err = pcall(G.drawGuide, self, blink)
+    if not ok and not blink.guideFailed then -- once, not on every frame
+        blink.guideFailed = true
+        print("ZomBotGioco: arrow words failed: " .. tostring(err))
+    end
+end
+
 -- the main window: how to ask, the colouring switch, the last answers, the other mods' buttons
 ZomBotGiocoMain = ZomBotGiocoWindow:derive("ZomBotGiocoMain")
 G.OWN_EXTRAS = { ["zombot-colors"] = true, ["zombot-window"] = true } -- the switch and the window are here already
@@ -653,7 +912,7 @@ function ZomBotGiocoMain:createChildren()
     ISCollapsableWindow.createChildren(self)
     local width = self.width - PAD * 2
     self.intro = G.wrap(G.HOW_TO .. " Se sei dentro una base, il contenitore pi\195\185 vicino che le ha lampeggia per un "
-        .. "minuto: cliccalo o aprilo per fermarlo.", width)
+        .. "minuto e una freccia ti ci porta: cliccalo o aprilo per fermarlo.", width)
     local y = self:top() + FONT_HGT_MEDIUM + 4 + #self.intro * FONT_HGT_SMALL + PAD
     self.colorsBox = ISTickBox:new(PAD, y, textWidth("Colora le casse") + 40, BUTTON_HGT, "", self,
         ZomBotGiocoMain.onColorsBox)
@@ -867,6 +1126,7 @@ local function onTick()
     local ok, err = pcall(G.tick)
     if not ok then
         print("ZomBotGioco: blink failed: " .. tostring(err))
+        pcall(G.stopBlink, "error") -- the arrow, its words and the ring too, never left on the screen
         G.blink = nil
     end
 end

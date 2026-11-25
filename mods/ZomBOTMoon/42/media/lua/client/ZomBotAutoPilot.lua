@@ -5,11 +5,17 @@
 -- AutoPilot never talks to the network. Since its version 1.5 it raises local events (AutoPilotMoon.Notify, contract
 -- version 1, AutoPilot's tests/notify_contract.json: subscribe, unsubscribe, getMode, getRun, control, setStatus) and
 -- this file forwards them:
---   - at the start of a game, or at the first ticks if AutoPilot loads later, it looks for AutoPilotMoon.Notify with
---     version 1. Without it (no AutoPilot, an older one, a newer contract) it does nothing at all;
---   - handshake: "hello" {v = 1, ap, mode, to, lang}; the server answers "welcome" {v, sess}. Until then the events
---     wait (the last 20); with no answer in 10 s the server has no bridge: nothing more is sent this game and
---     AutoPilot shows «noserver» (a late welcome still opens the way);
+--   - from the first tick of a game, for a minute (AutoPilot may load later), it looks for AutoPilotMoon.Notify with
+--     version 1. Without it (no AutoPilot, an older one, a newer contract) it sends nothing at all (one line in the
+--     console says why);
+--   - handshake: "hello" {v = 1, ap, mode, to, lang}; the server answers "welcome" {v, sess}. Nothing ever leaves from
+--     OnGameStart (why: below). The first hello goes GATE_MS (3 s) after the first OnTick of the game, only in a game
+--     on a server (isClient()) and with a player that has a username. Without a welcome it goes again every 10 s for
+--     the first minute, then every 30 s, as long as the game lasts (the server takes one hello every 5 s); after 10 s
+--     AutoPilot shows «noserver» meanwhile, and the first welcome opens the way (AutoPilot's status goes back to
+--     «waiting» until the bot says how the link stands). Until then the events wait: the last 20, always keeping the
+--     newest setting (kind "pref"), which leaves first. Every OnGameStart (another game in the same process too)
+--     starts all of this again from scratch;
 --   - every event goes to the server as "event" (a flat copy, with `to`, the Discord key the player confirmed), for
 --     the player of the job (event.playerNum), at most 5 a second and 60 a minute (a stop or a critical event passes
 --     beyond them, at most 10 a minute); the ones left out become one "flood" event with how many;
@@ -41,6 +47,17 @@
 -- ISTimedActionQueue.clear(player) stops the action under way and empties the queue. ISModalDialog:new(x, y, w, h,
 -- text, yesno, target, onclick, player, param1, param2) calls onclick(target, button, param1, param2), button.internal
 -- "YES" or "NO". Translator.getLanguage():name() is "IT", "EN"...
+--
+-- Why the hello waits (25/11/2026, 42.22 with javap; the server's _cmd log of that day had 165 ZomBOT.state and 7
+-- ZomBotGioco.ask of the player and not one ZomBotAP command): IngameState.enter() fires OnGameStart and OnLoad, and
+-- only after them GameClient.sendPlayerConnect and the wait for the server's answer. GameClient.ingame becomes true in
+-- IngameState.UpdateStuff(), which updateInternal() calls right before the first OnTick. LuaManager.GlobalObject.
+-- sendClientCommand(player, ...) uses the connection only when GameClient.client and GameClient.ingame are both true,
+-- otherwise SinglePlayerClient.sendClientCommand, a queue nobody reads in multiplayer: a command sent from OnGameStart
+-- is lost without an error. In a second game of the same process it can instead leave before PlayerConnect, and the
+-- server drops it («receiveClientCommand: player is null»). Lua cannot read GameClient.ingame (isClient() is
+-- GameClient.client, isIngameState() only says which state runs), so: the first tick, 3 s more, a player, and the
+-- retries. JukeboxMoon's hello works the same way (from OnTick, again every 5 s until its welcome).
 if isServer() and not isClient() then return end
 
 ZomBotAutoPilot = ZomBotAutoPilot or {}
@@ -49,7 +66,11 @@ local Z = ZomBotAutoPilot
 Z.MODULE = "ZomBotAP"
 Z.CONTRACT = 1 -- AutoPilotMoon.Notify.version this file speaks
 Z.FILE = "zombot_autopilot.txt"
-Z.WELCOME_MS = 10000
+Z.WELCOME_MS = 10000 -- no welcome this long after the first hello: AutoPilot shows «noserver» (the hellos go on)
+Z.GATE_MS = 3000 -- from the first OnTick of a game to the first hello
+Z.RETRY_MS, Z.RETRY_LATE_MS = 10000, 30000 -- the hello again: every 10 s for the first minute, then every 30 s
+Z.RETRY_FAST_MS = 60000
+Z.LOG_MS = 60000 -- a hello sent again is said in the console at most once a minute
 Z.BEAT_MS = 30000
 Z.STEP_MS = 1000 -- the bridge's own work, once a second
 Z.DETECT_MS = 60000 -- looking for AutoPilot after the game starts
@@ -240,12 +261,22 @@ function Z.stopAutoPilot()
     return "noautopilot"
 end
 
+-- one line in the console, once a game for each `key`
+Z.logged = Z.logged or {}
+function Z.logOnce(key, text)
+    if Z.logged[key] then return end
+    Z.logged[key] = true
+    print("ZomBotAutoPilot: " .. text)
+end
+
 -- AutoPilotMoon.Notify when it speaks this file's contract; nil otherwise ("incompatible": a newer one)
 function Z.find()
     local ok, notify = pcall(function() return AutoPilotMoon and AutoPilotMoon.Notify end)
     if not ok or type(notify) ~= "table" then return nil end
     if notify.version ~= Z.CONTRACT or type(notify.subscribe) ~= "function" then
         Z.state = "incompatible"
+        Z.logOnce("incompatible", "AutoPilot (Moon) speaks the alerts' contract " .. tostring(notify.version)
+            .. ", this bridge " .. Z.CONTRACT .. ": no alerts")
         return nil
     end
     return notify
@@ -263,8 +294,7 @@ function Z.detect()
     local ok = pcall(notify.subscribe, notify, Z.listener)
     if not ok then return false end
     Z.notify = notify
-    Z.state = "hello"
-    Z.hello()
+    Z.state = "hello" -- the hello itself waits for the connection (Z.greet)
     return true
 end
 
@@ -307,15 +337,76 @@ function Z.keyFor(player)
 end
 
 -- -- to the server ---------------------------------------------------------------------------------------------------
-function Z.hello()
+-- whether a command can reach the server now: a game on a server, GATE_MS after its first tick, with a player (the
+-- top of this file says why OnGameStart and the first tick are too early)
+function Z.connected(t)
+    if Z.firstTick == nil or t - Z.firstTick < Z.GATE_MS then return false end
+    local ok, client = pcall(function() return isClient() end)
+    if not ok or client ~= true then
+        Z.logOnce("local", "not a game on a server: no alerts")
+        return false
+    end
+    return Z.username(Z.mainPlayer()) ~= nil
+end
+
+-- the hello, the first of the game or one more; false when there is no player to speak for yet
+function Z.hello(t)
     local player = Z.mainPlayer()
     local user = Z.username(player)
-    if user == nil then return end -- no player yet: tried again at the next step
-    Z.mainUser = user
-    Z.active = Z.keys[user]
+    if user == nil then return false end -- tried again at the next step
+    if Z.mainUser ~= user then Z.mainUser, Z.active = user, Z.keys[user] end
     local args = { v = 1, ap = Z.notify.version, mode = Z.mode(), to = Z.active or "", lang = Z.lang() }
-    Z.state, Z.helloAt = "waiting", now() -- before sending: the answer may come back at once
-    if not Z.send(player, "hello", args) then Z.state = "hello" end
+    local first = Z.firstHelloAt == nil
+    if first then
+        Z.state, Z.firstHelloAt = "waiting", t -- before sending: the answer may come back at once
+    else
+        Z.retries = Z.retries + 1
+    end
+    Z.helloAt = t
+    -- the console: the first hello, the first one again, then at most once a minute
+    local say = first or Z.retries == 1 or t - Z.helloLogAt >= Z.LOG_MS
+    if say and not first then print("ZomBotAutoPilot: no welcome yet, retrying") end
+    if Z.send(player, "hello", args) and say then
+        Z.helloLogAt = t
+        print("ZomBotAutoPilot: hello sent")
+    end
+    return true
+end
+
+-- before the first hello: it leaves as soon as the game is connected; a game that never is (a game without a server,
+-- no player) shows «noserver» as a server without the bridge would
+function Z.greet(t)
+    if Z.connected(t) then
+        Z.hello(t)
+    elseif t - Z.firstTick >= Z.GATE_MS + Z.WELCOME_MS and Z.lastStatus ~= "noserver" then
+        Z.status("noserver")
+    end
+end
+
+-- after a hello and before a welcome: «noserver» after WELCOME_MS, the hello again on its schedule, forever
+function Z.retry(t)
+    if Z.state == "waiting" and t - Z.firstHelloAt >= Z.WELCOME_MS then
+        Z.state = "noserver" -- what AutoPilot shows meanwhile; the events still wait
+        Z.status("noserver")
+    end
+    local gap = Z.RETRY_LATE_MS
+    if Z.helloAt - Z.firstHelloAt < Z.RETRY_FAST_MS then gap = Z.RETRY_MS end
+    if t - Z.helloAt >= gap then Z.hello(t) end
+end
+
+-- an event kept until the welcome: the last WAITING_KEEP, the newest setting always among them (only the newest
+-- setting matters: an older one goes)
+function Z.keep(e)
+    local list = Z.waiting
+    if e.kind == "pref" then
+        for i = #list, 1, -1 do
+            if list[i].kind == "pref" then table.remove(list, i) end
+        end
+    end
+    list[#list + 1] = e
+    while #list > Z.WAITING_KEEP do
+        if list[1].kind == "pref" then table.remove(list, 2) else table.remove(list, 1) end
+    end
 end
 
 -- whether one more event may leave now
@@ -396,10 +487,10 @@ function Z.receive(event)
     e.to = nil
     if e.run ~= nil then e.run = tostring(e.run) end
     track(e)
-    if Z.state == "hello" or Z.state == "waiting" then
-        Z.waiting[#Z.waiting + 1] = e
-        while #Z.waiting > Z.WAITING_KEEP do table.remove(Z.waiting, 1) end
-    elseif Z.state == "ready" then
+    local state = Z.state
+    if state == "hello" or state == "waiting" or state == "noserver" then
+        Z.keep(e)
+    elseif state == "ready" then
         Z.forward(e)
     end
 end
@@ -417,13 +508,24 @@ function Z.beat(t)
 end
 
 -- -- from the server -------------------------------------------------------------------------------------------------
+-- the server's answer to a hello of this game (a welcome before any hello of this game is not for it)
 function Z.onWelcome(args)
-    if Z.notify == nil then return end
+    local state = Z.state
+    if Z.notify == nil or (state ~= "waiting" and state ~= "noserver" and state ~= "ready") then return end
     Z.sess = type(args.sess) == "string" and args.sess or nil
     Z.state = "ready"
+    print("ZomBotAutoPilot: welcome")
+    -- «noserver» was not true: AutoPilot's «waiting», until the bot says how the link stands (linkinfo)
+    if Z.lastStatus == "noserver" then Z.status(nil) end
     local waiting = Z.waiting
     Z.waiting = {}
-    for _, e in ipairs(waiting) do Z.forward(e) end
+    -- the setting first, so the limits never leave it behind; then the rest in order
+    for _, e in ipairs(waiting) do
+        if e.kind == "pref" then Z.forward(e) end
+    end
+    for _, e in ipairs(waiting) do
+        if e.kind ~= "pref" then Z.forward(e) end
+    end
 end
 
 function Z.ack(id, action, result)
@@ -571,37 +673,40 @@ function Z.onServerCommand(module, command, args)
 end
 
 -- -- start -----------------------------------------------------------------------------------------------------------
+-- a new game (OnGameStart, every time: a second game in the same process starts from scratch too). Nothing is looked
+-- for or sent here: the first tick does it (the top of this file says why)
 function Z.start()
-    if Z.begun then return end
     Z.begun = true
     if Z.notify then pcall(Z.notify.unsubscribe, Z.notify, Z.listener) end
-    Z.notify, Z.state, Z.helloAt, Z.sess = nil, "none", 0, nil
+    Z.notify, Z.state, Z.sess = nil, "none", nil
+    Z.firstTick, Z.firstHelloAt, Z.helloAt, Z.helloLogAt, Z.retries = nil, nil, 0, 0, 0
     Z.waiting, Z.sentAt, Z.urgentAt, Z.dropped, Z.lastDropped = {}, {}, {}, 0, nil
     Z.run, Z.ended, Z.beatFor, Z.beatAt = nil, nil, nil, 0
     Z.said, Z.declined, Z.active, Z.mainUser, Z.leaving = {}, {}, nil, nil, nil
+    Z.logged = {}
     Z.closeDialog()
     Z.loadKeys()
-    Z.nextStep = 0
-    Z.detectUntil = now() + Z.DETECT_MS
-    Z.detect()
+    Z.nextStep, Z.detectUntil = 0, 0
 end
 
 function Z.tick()
     if not Z.begun then Z.start() end
     local t = now()
+    if Z.firstTick == nil then Z.firstTick, Z.detectUntil = t, t + Z.DETECT_MS end
     if t < Z.nextStep then return end
     Z.nextStep = t + Z.STEP_MS
-    local state = Z.state
-    if state == "none" then
-        if t <= Z.detectUntil then Z.detect() end
-    elseif state == "hello" then
-        Z.hello()
-    elseif state == "waiting" then
-        if t - Z.helloAt >= Z.WELCOME_MS then
-            -- the server has no bridge (yet): nothing more leaves this game
-            Z.state, Z.waiting = "noserver", {}
-            Z.status("noserver")
+    if Z.state == "none" then
+        if t <= Z.detectUntil then
+            Z.detect()
+        else
+            Z.logOnce("missing", "no AutoPilot (Moon) with the alerts in this game: no alerts")
         end
+    end
+    local state = Z.state
+    if state == "hello" then
+        Z.greet(t)
+    elseif state == "waiting" or state == "noserver" then
+        Z.retry(t)
     elseif state == "ready" then
         if Z.dropped > 0 and Z.allowed(false, t) then Z.flood() end
         Z.beat(t)
@@ -618,7 +723,7 @@ end
 if not Z.registered then
     Z.registered = true
     Events.OnServerCommand.Add(safe(function(...) Z.onServerCommand(...) end, "server command"))
-    Events.OnGameStart.Add(safe(function() Z.start() end, "start"))
+    Events.OnGameStart.Add(safe(function() Z.start() end, "start")) -- never a command from here
     Events.OnTick.Add(safe(function() Z.tick() end, "tick"))
     local exitEvent = Events.OnTickEvenPaused or Events.OnTick
     exitEvent.Add(safe(function() Z.exitTick() end, "logout"))
