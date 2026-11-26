@@ -10,7 +10,8 @@
 --             until the game stops it for fatigue (26/11/2026, ANALISI-AUTONOMIA.md 3.6)
 --   rest      the "Rest" of a seat's right click: ISWorldObjectContextMenu.onRest (walk, sit on the furniture, or on
 --             the ground next to it); "Sit on ground" (reportEvent("EventSitOnGround")) without a seat; up again
---             ("forceGetUp") when the endurance is back
+--             ("forceGetUp") when the endurance is back; with minutes (26/11/2026, 1.6.2, MACRO-AUTOPILOT.md 22) seated
+--             that many game minutes even when rested (pain, sickness), then up (with until: then until the endurance)
 --   eat       the inventory's "Eat": ISInventoryPaneContextMenu.eatItem (and "Open and Eat" for a can), for the food
 --             carried or within reach (MacroFood.lua, 20/11/2026: the loot window's containers, the game moves the food
 --             into the inventory and what is left back)
@@ -32,7 +33,8 @@
 -- Body:probe(player, op) -> nil (it can be done now) and what it would do (food and water, the exercise chosen at
 --   random), or the reason's text ("Adesso si puo' fare?")
 -- Body:pickExercise(player, run) -> the exercise exercise() without a type does now, or nil (none the character can do);
---   Body:exerciseMinutes(op) -> the game minutes given to ISFitnessAction
+--   Body:exerciseMinutes(op) -> the game minutes given to ISFitnessAction; Body:restMinutesMs(op) -> the real ms of
+--   rest(minutes=N), from the server's day length, nil without minutes; Body:minutesText(n) -> "5 minuti" / "1 minuto"
 -- Body:describe(op, exercise) -> the panel's "Ora:" text (exercise: the one chosen at random, else op's)
 -- Body:hasFood(player, op), Body:hasDrink(player, op), Body:hasSmoke(player, op) -> the conditions has_food(),
 --   has_drink(), has_smoke()
@@ -51,7 +53,9 @@ local Body = AutoPilotMoon.Macro.Body;
 
 Body.seatRadius = 8;            -- the nearest seat within this many squares (same floor)
 Body.sitTimeoutMs = 20000;      -- idle and still not sitting after this: the macro stops
-Body.restMaxMs = 600000;        -- at most 10 real minutes on a seat, then up again (the endurance may not come back)
+Body.restMaxMs = 600000;        -- at most 10 real minutes on a seat, then up again (the endurance may not come back);
+                                -- rest(minutes=N) too: a long N on a server with long days never freezes a run
+Body.restDayFallback = 60;      -- rest(minutes=N): the real minutes of a day when the game does not say (the default)
 Body.standTimeoutMs = 4000;
 Body.canConfirmMs = 8000;       -- "Open and Eat": the server queues the eating after the can is open (Wait's exception)
 -- exercise() without minutes (26/11/2026, ANALISI-AUTONOMIA.md 3.6): until the game stops it for fatigue
@@ -107,6 +111,16 @@ end
 -- Texts
 -- ============================================================================================================
 
+-- "5 minuti", "1 minuto" (rest(minutes=N), 1.6.2: the panel's texts of the seated wait)
+function AutoPilotMoon.Macro.Body:minutesText(n)
+	if n == 1
+	then
+		return getText("IGUI_AutoPilot_P_Now_MacroMinutesOne");
+	end
+
+	return getText("IGUI_AutoPilot_P_Now_MacroMinutes", n);
+end
+
 -- the body actions written in other files (Body:register, contract C2): kind -> { start, effect, failure, probe, describe }
 local registered = {};
 
@@ -131,6 +145,15 @@ function AutoPilotMoon.Macro.Body:describe(op, exercise)
 		return getText("IGUI_AutoPilot_P_Now_MacroExerciseTired", name);
 	elseif op.kind == "rest"
 	then
+		-- rest(minutes=N) (1.6.2): "riposa seduto per 5 minuti", with until "... per almeno 5 minuti, poi fino al 95%"
+		if op.minutes and op.untilPct
+		then
+			return getText("IGUI_AutoPilot_P_Now_MacroRestForUntil", Body:minutesText(op.minutes), op.untilPct);
+		elseif op.minutes
+		then
+			return getText("IGUI_AutoPilot_P_Now_MacroRestFor", Body:minutesText(op.minutes));
+		end
+
 		return getText("IGUI_AutoPilot_P_Now_MacroRest", op.untilPct);
 	elseif op.kind == "eat"
 	then
@@ -466,15 +489,44 @@ function AutoPilotMoon.Macro.Body:findSeat(player)
 	return best;
 end
 
+-- rest(minutes=N) (26/11/2026, 1.6.2, MACRO-AUTOPILOT.md 22): the real milliseconds of N game minutes, counted as
+-- exercise(minutes=) counts them (GameTime.getMinutesPerDay: the real minutes of a day of the game, the server's day
+-- length; Body.restDayFallback when the game does not say); nil without minutes. Body.restMaxMs stays the ceiling.
+function AutoPilotMoon.Macro.Body:restMinutesMs(op)
+	if op.minutes == nil
+	then
+		return nil;
+	end
+
+	local perDay = getGameTime():getMinutesPerDay();
+
+	if perDay == nil or perDay <= 0
+	then
+		perDay = Body.restDayFallback;
+	end
+
+	return math.max(1, math.floor(op.minutes * perDay * 60000 / 1440));
+end
+
+-- the game minutes still to sit of rest(minutes=N), at least 1 while seated (the ceiling counted: never more than the
+-- real minutes left before it)
+local function restMinutesLeft(pending, seatedMs)
+	local leftMs = math.min(pending.minutesMs, Body.restMaxMs) - seatedMs;
+
+	return math.max(1, math.ceil(leftMs * pending.op.minutes / pending.minutesMs));
+end
+
 local function startRest(run, op)
 	local player = run.player;
 
-	if AutoPilotMoon.Rest:getEndurancePercent(player) >= op.untilPct and not sitting(player)
+	-- rested and standing: nothing to do, the line after; rest(minutes=N) sits all the same (1.6.2: pain, sickness)
+	if op.minutes == nil and AutoPilotMoon.Rest:getEndurancePercent(player) >= op.untilPct and not sitting(player)
 	then
 		return nil, nil, "skip";
 	end
 
-	local pending = { kind = "rest", phase = "sitting", since = now() };
+	-- already sitting: the minutes count from now, never up and down again
+	local pending = { kind = "rest", phase = "sitting", since = now(), minutesMs = Body:restMinutesMs(op) };
 
 	if sitting(player)
 	then
@@ -522,11 +574,36 @@ local function confirmRest(run, pending, waited)
 
 	if pending.phase == "resting"
 	then
-		local percent = AutoPilotMoon.Rest:getEndurancePercent(player);
+		local op = pending.op;
+		local seatedMs = time - pending.since;
+		-- the ceiling (10 real minutes), or the game got the character up (a zombie, the seat taken): the rest is over
+		local over = seatedMs > Body.restMaxMs or not sitting(player);
 
-		AutoPilotMoon.Progress:setActivity("IGUI_AutoPilot_P_Now_MacroResting", percent, pending.op.untilPct);
+		if pending.minutesMs and seatedMs < pending.minutesMs
+		then
+			-- rest(minutes=N) (1.6.2): seated N game minutes whatever the endurance, "riposa seduto, ancora 3 minuti"
+			local left = restMinutesLeft(pending, seatedMs);
 
-		if percent >= pending.op.untilPct or time - pending.since > Body.restMaxMs or not sitting(player)
+			if pending.leftShown ~= left
+			then
+				pending.leftShown = left;
+				pending.leftText = Body:minutesText(left);
+			end
+
+			AutoPilotMoon.Progress:setActivity("IGUI_AutoPilot_P_Now_MacroRestingFor", pending.leftText);
+		elseif op.untilPct
+		then
+			-- rest(), rest(until=P); with minutes too, past them: until the endurance is back
+			local percent = AutoPilotMoon.Rest:getEndurancePercent(player);
+
+			AutoPilotMoon.Progress:setActivity("IGUI_AutoPilot_P_Now_MacroResting", percent, op.untilPct);
+			over = over or percent >= op.untilPct;
+		else
+			-- rest(minutes=N) without until: the minutes are over
+			over = true;
+		end
+
+		if over
 		then
 			if sitting(player)
 			then

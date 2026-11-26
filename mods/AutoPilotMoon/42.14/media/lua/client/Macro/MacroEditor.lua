@@ -2526,9 +2526,9 @@ function W:onInsert(button)
 
 	-- the food and the water (20/11/2026): carried or within reach, a can opened; only what is carried, never a can; a sink;
 	-- the bottles filled. The autonomy (26/11/2026, ANALISI-AUTONOMIA.md 3.4, 3.6): an exercise at random until the
-	-- game stops it for tiredness, a source of fun
-	for i, line in ipairs({ "exercise()", "exercise(\"pushups\", minutes=10)", "exercise(\"squats\", minutes=10)", "rest()", "rest(seat=\"ground\")",
-		"eat()", "eat(near=False, open_cans=False)", "drink()", "drink(source=True)", "refill()", "smoke()", "have_fun()",
+	-- game stops it for tiredness, a source of fun; seated 5 game minutes even when rested (1.6.2, MACRO-AUTOPILOT.md 22)
+	for i, line in ipairs({ "exercise()", "exercise(\"pushups\", minutes=10)", "exercise(\"squats\", minutes=10)", "rest()", "rest(minutes=5)",
+		"rest(seat=\"ground\")", "eat()", "eat(near=False, open_cans=False)", "drink()", "drink(source=True)", "refill()", "smoke()", "have_fun()",
 		"read(\"Base.BookMaintenance1\")" })
 	do
 		bodyMenu:addOption(line, self, W.onInsertLine, line);

@@ -12,7 +12,7 @@
 --   while <condition>:      while True:               wait(5)        stop_if(<condition>)    stop()
 --   if <condition>:   elif <condition>:   else:       exercise("pushups", minutes=10)
 --   when <condition>:   (top level: checked in the pauses between two actions)
---   rest(seat="nearest", until=95)   eat()   drink()   smoke()   pass   break
+--   rest(seat="nearest", until=95)   rest(minutes=5)   eat()   drink()   smoke()   pass   break
 --   eat(near=False, open_cans=False, amount="half", picky=False)   drink(source=True)   refill()   conditions
 --   has_food(), has_drink()   (smart food and water, 20/11/2026: what is carried or within reach, MACRO-AUTOPILOT.md 18)
 --   repair("Item", using="Material")   sharpen("Item")   read("Book")          (wave 0 of the work skills, 13/11/2026)
@@ -54,7 +54,9 @@
 --           at a workbench (wave 1): bench = true, benchSet (the bench ids of at=, a set; nil = any bench that fits),
 --           benchText (at= as written); smelt() is a craft action at a bench with smelt = true
 --           exercise: exercise (the game's id; nil: one at random, ANALISI-AUTONOMIA.md 3.6), minutes (nil: until the
---           game stops it for fatigue);  rest: seat "nearest" / "ground", untilPct
+--           game stops it for fatigue);  rest: seat "nearest" / "ground", untilPct (nil with minutes and no until),
+--           minutes (game minutes seated even when rested, Lang.restMinMinutes..Lang.restMaxMinutes; nil: until untilPct;
+--           26/11/2026, 1.6.2, MACRO-AUTOPILOT.md 22)
 --           eat / drink / smoke / read / refill: itemTypes (list or nil), itemText; eat: near (false: only what is
 --           carried; nil: within reach too), walk (false: never a walk to food farther than the reach; nil: within
 --           8 squares too, 3.5), openCans (false: never a can; nil: the game's "Open and Eat"), amount ("all" / "half"
@@ -286,6 +288,11 @@ do
 end
 
 Lang.seats = { "nearest", "ground" };
+-- rest(minutes=N) (26/11/2026, 1.6.2, MACRO-AUTOPILOT.md 22): game minutes seated even when rested, from 1 to an hour of
+-- the game (the longest exercise of the Fitness window); longer rests are a loop of short ones (the "when" blocks are
+-- checked only between two actions)
+Lang.restMinMinutes = 1;
+Lang.restMaxMinutes = 60;
 
 -- drink(source=True), refill(): a water source within this many squares (MacroFood.lua's F.sourceRadius, the same)
 Lang.sourceRadius = 8;
@@ -353,8 +360,9 @@ Lang.calls = {
 	-- stops it for fatigue)
 	exercise = { pos = { "type" }, kw = { type = "str", minutes = "num" }, req = {},
 		usage = "exercise(\"pushups\", minutes=10)", action = true, names = { type = "exercise" } },
-	rest = { pos = {}, kw = { seat = "str", ["until"] = "num" }, req = {}, usage = "rest(seat=\"nearest\", until=95)", action = true,
-		names = { seat = "seat" } },
+	-- minutes (26/11/2026, 1.6.2): seated that many game minutes even when rested (MACRO-AUTOPILOT.md 22)
+	rest = { pos = {}, kw = { seat = "str", ["until"] = "num", minutes = "num" }, req = {},
+		usage = "rest(seat=\"nearest\", until=95)  /  rest(minutes=5)", action = true, names = { seat = "seat" } },
 	-- smart food and water (20/11/2026): carried or within reach (near), cans opened (open_cans), the portion (amount),
 	-- what makes very unhappy too (picky=False); boolDefaults: what a boolean argument is when not written (the
 	-- suggestions write the other value). walk (26/11/2026, ANALISI-AUTONOMIA.md 3.5): within 8 squares too, walking
@@ -3531,7 +3539,15 @@ local function compileBody(ctx, name, bound)
 	elseif name == "rest"
 	then
 		action.seat = bound.seat and string.lower(bound.seat.v) or "nearest";
-		action.untilPct = bound["until"] and bound["until"].v or 95;
+		-- minutes (26/11/2026, 1.6.2, MACRO-AUTOPILOT.md 22): seated that many game minutes even when rested; with until
+		-- too, at least that long and then until the endurance is back; without until no endurance asked
+		action.minutes = bound.minutes and bound.minutes.v or nil;
+		action.untilPct = bound["until"] and bound["until"].v or nil;
+
+		if action.untilPct == nil and action.minutes == nil
+		then
+			action.untilPct = 95;
+		end
 
 		local seatKnown = false;
 
@@ -3547,8 +3563,16 @@ local function compileBody(ctx, name, bound)
 			return;
 		end
 
-		if not checkNumber(ctx, action.untilPct, 1, 100)
+		if action.untilPct ~= nil and not checkNumber(ctx, action.untilPct, 1, 100)
 		then
+			return;
+		end
+
+		if action.minutes ~= nil and (action.minutes < Lang.restMinMinutes or action.minutes > Lang.restMaxMinutes
+			or action.minutes ~= math.floor(action.minutes))
+		then
+			lineError(ctx, getText("IGUI_AutoPilot_E_P_BadRestMinutes", ctx.line, Lang.restMinMinutes, Lang.restMaxMinutes));
+
 			return;
 		end
 	else
