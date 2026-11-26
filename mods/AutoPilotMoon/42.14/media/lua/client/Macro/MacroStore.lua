@@ -56,6 +56,9 @@ Store.examples = {
 	{ nameKey = "IGUI_AutoPilot_MA_Ex6_Name", textKey = "IGUI_AutoPilot_MA_Ex6_Text" },
 	-- waves 2-3 (19/11/2026): the crates of an electrical workshop, take -> dismantle -> put what was made
 	{ nameKey = "IGUI_AutoPilot_MA_Ex7_Name", textKey = "IGUI_AutoPilot_MA_Ex7_Text" },
+	-- the autonomy (26/11/2026, ANALISI-AUTONOMIA.md 4): the training all day long without watching, a walk_to(x, y, z)
+	-- back to the training square, an exercise at random until tired, the handlers that keep the character alive
+	{ nameKey = "IGUI_AutoPilot_MA_Ex8_Name", textKey = "IGUI_AutoPilot_MA_Ex8_Text" },
 };
 
 -- a text of the translations with " <LINE> " between its lines, as lines with "\n"

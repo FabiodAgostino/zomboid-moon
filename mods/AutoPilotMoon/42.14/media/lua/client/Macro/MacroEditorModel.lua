@@ -174,6 +174,109 @@ function AutoPilotMoon.Macro.EditorModel:insertAt(text, line, column, piece)
 	return table.concat(list, "\n"), line, column + string.len(piece);
 end
 
+-- The walk_to( calls of a line: { name = first character of "walk_to", open = the "(", close = the ")" or nil (not
+-- closed on the line) }, outside quotes and comments
+local function walkCalls(line)
+	local L = AutoPilotMoon.Macro.Lang;
+	local plain = L.plainLine(line or "");
+	local calls = {};
+	local start = 1;
+
+	-- one character for one (plainLine): the positions are the line's
+	if string.len(plain) ~= string.len(line or "")
+	then
+		return calls;
+	end
+
+	local code = L.stripComment(plain);
+
+	while true
+	do
+		local s, e = string.find(code, "walk_to%s*%(", start);
+
+		if s == nil
+		then
+			return calls;
+		end
+
+		-- a word of its own ("my_walk_to(" is not it), not inside a text in quotes
+		local nameBefore = s > 1 and L.isNameChar(string.sub(code, s - 1, s - 1));
+		local _, quotes = string.gsub(string.sub(code, 1, s - 1), "[\"']", "");
+
+		if not nameBefore and quotes % 2 == 0
+		then
+			table.insert(calls, { name = s, open = e, close = string.find(code, ")", e + 1, true) });
+		end
+
+		start = e + 1;
+	end
+end
+
+-- "Localizza" (26/11/2026, ANALISI-AUTONOMIA.md 3.2): the numbers of a square written at the cursor (line, column
+-- 1-based; the cursor is before the character at column). Returns the new text, the line and the column after what
+-- was written:
+--   * on a walk_to(...) (the cursor anywhere from its name to just after its ")"), or on a line that is only one
+--     walk_to(...): its arguments replaced by "x, y, z" (to locate again: walk_to(1, 2), walk_to(1, 2, 3), walk_to(),
+--     walk_to("Posto")); a walk_to( not closed on the line: closed;
+--   * on an empty line (or spaces only): the line walk_to(x, y, z) with the indentation it should have (insertLine);
+--   * elsewhere: "x, y, z" at the cursor.
+function AutoPilotMoon.Macro.EditorModel:insertSpot(text, line, column, x, y, z)
+	local list = lines(text);
+	local spot = x .. ", " .. y .. ", " .. (z or 0);
+
+	line = math.max(1, math.min(line or #list, #list));
+
+	local current = list[line] or "";
+
+	column = math.max(1, math.min(column or (string.len(current) + 1), string.len(current) + 1));
+
+	if AutoPilotMoon.Macro.Lang.trim(current) == ""
+	then
+		local newText, newLine = M:insertLine(text, line, "walk_to(" .. spot .. ")");
+		local written = lines(newText)[newLine] or "";
+
+		return newText, newLine, string.len(written) + 1;
+	end
+
+	local calls = walkCalls(current);
+	local chosen = nil;
+
+	for i, call in ipairs(calls)
+	do
+		local last = call.close and (call.close + 1) or (string.len(current) + 1);
+
+		if chosen == nil and column >= call.name and column <= last
+		then
+			chosen = call;
+		end
+	end
+
+	-- the cursor elsewhere on a line that is just one walk_to(...)
+	if chosen == nil and #calls == 1
+	then
+		local code = codeOf(current);
+		local only = calls[1];
+
+		if only.close and string.match(code, "^walk_to%s*%b()$")
+		then
+			chosen = only;
+		end
+	end
+
+	if chosen
+	then
+		local after = chosen.close and string.sub(current, chosen.close) or ")";
+
+		list[line] = string.sub(current, 1, chosen.open) .. spot .. after;
+
+		return table.concat(list, "\n"), line, chosen.open + string.len(spot) + 2;
+	end
+
+	list[line] = string.sub(current, 1, column - 1) .. spot .. string.sub(current, column);
+
+	return table.concat(list, "\n"), line, column + string.len(spot);
+end
+
 -- the 1-based line and column of the text box's cursor offset (0-based, in the whole text)
 function AutoPilotMoon.Macro.EditorModel:cursorFromOffset(text, offset)
 	text = text or "";

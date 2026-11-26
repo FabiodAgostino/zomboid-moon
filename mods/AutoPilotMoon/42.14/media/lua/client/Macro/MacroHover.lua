@@ -238,6 +238,18 @@ function AutoPilotMoon.Macro.Hover.describe(line, pos, problems)
 		then
 			info.title = spec.usage;
 			help = textOrNil("IGUI_AutoPilot_E_Sug_Call_" .. lower);
+
+			-- walk_to (26/11/2026, ANALISI-AUTONOMIA.md 3.3): its two forms in the title, and what a walk leaves behind
+			if lower == "walk_to" and help
+			then
+				local door = textOrNil("IGUI_AutoPilot_E_Hover_WalkDoor");
+
+				if door
+				then
+					table.insert(info.lines, { text = help });
+					help = door;
+				end
+			end
 		end
 	elseif class == "param"
 	then

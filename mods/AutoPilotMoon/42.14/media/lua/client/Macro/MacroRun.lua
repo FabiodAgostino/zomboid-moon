@@ -41,6 +41,10 @@
 -- in the same frame as the stop; fail and finish keep that code in Run.last.code. The same in MacroBody.lua,
 -- MacroFood.lua and MacroItems.lua for the reasons they make. A refusal at the start is never sent (Notify:sayUnsent:
 -- the player just asked for it). Every action confirmed goes to Notify:onMacroAction (the sentinel materials_low).
+--
+-- Autonomy (26/11/2026, package P1 of ANALISI-AUTONOMIA.md): craving alone waits for the game's stress moodle (2.3);
+-- the guard of the "when" blocks counts apart the starts that did an action (3.8.1); an action that keeps the
+-- character busy too long is stopped through pending.busy (Run:busyTick, 3.8.2).
 
 AutoPilotMoon = AutoPilotMoon or {};
 AutoPilotMoon.Macro = AutoPilotMoon.Macro or {};
@@ -52,7 +56,12 @@ local Hooks = AutoPilotMoon.Macro.Hooks;
 local A = AutoPilotMoon.Automation;
 
 Run.maxControlOps = 64;       -- LOOP / END / STOPIF / IF / JUMP per frame at most
-Run.handlerInRow = 3;         -- a "when" that runs this many times with no action of the macro between: stop
+-- the guard of the "when" blocks (26/11/2026, ANALISI-AUTONOMIA.md 3.8.1), between two actions of the macro itself: a
+-- "when" may start this many times doing nothing (no action of its block confirmed); the next start stops the macro
+Run.handlerInRow = 3;
+-- and this many times doing something (have_fun() one reading a start, eat() with small foods...); the next start stops
+-- it too (a rest(until=20) under "when exerted >= 3" never runs forever)
+Run.handlerActsInRow = 10;
 Run.severeLevel = 4;          -- a moodle a "when" looks after stops the macro only at this level (11.4)
 -- the engine's "unwell" moodles a "when" can look after (eat, drink, stop calmly...): the others (injured, bleeding)
 -- always stop at the engine's level, nothing in the language treats a wound
@@ -83,6 +92,11 @@ end
 
 local function Places()
 	return AutoPilotMoon.Macro.Places;
+end
+
+-- have_fun() and has_fun() (26/11/2026, MacroFun.lua, contract C5 of ANALISI-AUTONOMIA.md 5)
+local function Fun()
+	return AutoPilotMoon.Macro.Fun;
 end
 
 -- the text of the reason of a stop or an end, its key remembered for the notifications (the event's code)
@@ -258,8 +272,26 @@ local function statePercent(states, word)
 	return value;
 end
 
+-- a smoker (the game's trait, CharacterTrait.SMOKER of 42.22: only a smoker's withdrawal grows, BodyDamage.UpdateBoredom);
+-- a game without the constant: the withdrawal alone says it
+local function isSmoker(player)
+	local trait = CharacterTrait and CharacterTrait.SMOKER or nil;
+
+	if trait == nil
+	then
+		return true;
+	end
+
+	return player:hasTrait(trait) == true;
+end
+
 -- a state word alone (16.1): the game shows it now. A moodle: its level is 1 or more (the game's own thresholds);
--- endurance: the endurance moodle (as exerted); craving: the game has started the nicotine withdrawal (above 0)
+-- endurance: the endurance moodle (as exerted); craving (26/11/2026, ANALISI-AUTONOMIA.md 2.3, decision DA1): a smoker
+-- in withdrawal while the game shows the stress moodle. The game's moodle reads Stats.getNicotineStress() = stress +
+-- withdrawal, so the withdrawal alone shows it above 0.25 (49%), with other stress sooner: what the player sees. The
+-- withdrawal above 0 alone (until 1.5.0) comes five times sooner than the moodle: the macro smoked five times as often.
+-- Just after a smoke() the withdrawal reads 0 for Run.smokeSettleMs (cravingRaw): in MP the moodle stays on for the
+-- second the new withdrawal takes to come
 local function stateOn(states, word)
 	local on = states.on[word];
 
@@ -267,7 +299,7 @@ local function stateOn(states, word)
 	then
 		if word == "craving"
 		then
-			on = cravingRaw(states) > 0;
+			on = cravingRaw(states) > 0 and isSmoker(states.player) and stateLevel(states, "STRESS") >= 1;
 		elseif word == "endurance"
 		then
 			on = stateLevel(states, "ENDURANCE") >= 1;
@@ -472,6 +504,17 @@ function AutoPilotMoon.Macro.Run:evalCondition(player, cond, states)
 	elseif k == "hasDrink"
 	then
 		return Body():hasDrink(player, cond.op);
+	elseif k == "hasFun"
+	then
+		-- has_fun() (26/11/2026, ANALISI-AUTONOMIA.md 3.4): what have_fun() would find now (MacroFun.lua), with the run
+		-- of this player (the readings it already used)
+		local run = Run.current;
+
+		return Fun():has(player, cond.op, (run and run.player == player) and run or nil) == true;
+	elseif k == "hasSmoke"
+	then
+		-- has_smoke() (3.8): smoke() would find something to smoke and to light it with now
+		return Body():hasSmoke(player, cond.op) == true;
 	elseif k == "not"
 	then
 		return not Run:evalCondition(player, cond.a, states);
@@ -1051,6 +1094,8 @@ function AutoPilotMoon.Macro.Run:start(player, macro)
 	for i, handler in ipairs(result.handlers)
 	do
 		handler.inRow = 0;
+		handler.actsInRow = 0;
+		handler.acted = false;
 		prepareOps(run, handler.ops, seen);
 	end
 
@@ -1225,12 +1270,24 @@ local function actionDone(run, frame, pending)
 	AutoPilotMoon.Progress:count("IGUI_AutoPilot_P_C_MacroActions", 1);
 	AutoPilotMoon.Progress:addUnitsDone(1);
 
-	-- an action of the macro itself: every "when" may run again three times
+	-- the first action of a "when"'s block (3.8.1): this start did something, it is not one of the starts doing nothing
+	-- (checkHandlers counted it among them when it started) but one of Run.handlerActsInRow
+	local handler = frame.handler;
+
+	if handler and not handler.acted
+	then
+		handler.acted = true;
+		handler.inRow = math.max(0, (handler.inRow or 0) - 1);
+		handler.actsInRow = (handler.actsInRow or 0) + 1;
+	end
+
+	-- an action of the macro itself: every "when" may start again, three times doing nothing, ten doing something
 	if frame == run.main
 	then
-		for i, handler in ipairs(run.result.handlers)
+		for i, other in ipairs(run.result.handlers)
 		do
-			handler.inRow = 0;
+			other.inRow = 0;
+			other.actsInRow = 0;
 		end
 	end
 
@@ -1361,6 +1418,7 @@ local function actAtBench(run, frame, op, time)
 	run.actions = run.actions + 1;
 	table.insert(run.starts, time);
 	run.pending = Run:craftPending(run, action, item, recipe, op, frame, kept);
+	run.pending.queuedAt = time;
 	AutoPilotMoon.Progress:setActivity("IGUI_AutoPilot_P_Now_MacroLine", op.line, op.desc);
 end
 
@@ -1395,6 +1453,8 @@ local function actItems(run, frame, op, time)
 	end
 
 	pending.frame = frame;
+	-- when the game's actions were queued: the busy time of pending.busy (Run:busyTick) counts from here
+	pending.queuedAt = time;
 	run.actions = run.actions + 1;
 	table.insert(run.starts, time);
 	run.pending = pending;
@@ -1510,6 +1570,7 @@ local function act(run, frame, op)
 
 		pending.op = op;
 		pending.frame = frame;
+		pending.queuedAt = time;
 		run.actions = run.actions + 1;
 		table.insert(starts, time);
 		run.pending = pending;
@@ -1549,6 +1610,7 @@ local function act(run, frame, op)
 	run.actions = run.actions + 1;
 	table.insert(starts, time);
 	run.pending = Run:craftPending(run, action, item, recipe, op, frame, kept);
+	run.pending.queuedAt = time;
 	AutoPilotMoon.Progress:setActivity("IGUI_AutoPilot_P_Now_MacroLine", op.line, op.desc);
 end
 
@@ -1798,7 +1860,9 @@ local function confirm(run)
 end
 
 -- the "when" blocks, in a pause of the macro itself (never inside another "when"): the first whose condition is true
--- starts; false when the macro stopped. states: the pass's states (16.2)
+-- starts; false when the macro stopped. states: the pass's states (16.2). The guard (3.8.1), between two actions of the
+-- macro itself: Run.handlerInRow starts doing nothing, Run.handlerActsInRow starts that did an action (actionDone);
+-- the start after them stops the macro at the line of the "when"
 local function checkHandlers(run, states)
 	if run.frame ~= run.main
 	then
@@ -1809,15 +1873,17 @@ local function checkHandlers(run, states)
 	do
 		if Run:evalCondition(run.player, handler.cond, states)
 		then
+			-- counted as a start doing nothing until an action of its block is confirmed
 			handler.inRow = (handler.inRow or 0) + 1;
 
-			if handler.inRow > Run.handlerInRow
+			if handler.inRow > Run.handlerInRow or (handler.actsInRow or 0) >= Run.handlerActsInRow
 			then
 				fail(run, handler, whyText("IGUI_AutoPilot_A_MacroR_HandlerLoop", Run.handlerInRow));
 
 				return false;
 			end
 
+			handler.acted = false;
 			run.frame = { ops = handler.ops, pc = 1, counters = {}, handler = handler };
 			AutoPilotMoon.Progress:setActivity("IGUI_AutoPilot_P_Now_MacroWhen", handler.line);
 
@@ -1910,8 +1976,19 @@ function AutoPilotMoon.Macro.Run:step(player)
 				return "busy";
 			end
 
-			-- the "when" is over: the macro goes on where it was
+			-- the "when" is over: the macro goes on where it was. When its block did something (an action confirmed,
+			-- handler.acted), its end is a pause of its own (26/11/2026, the integration of 1.6.0): the "when" blocks
+			-- are looked at again, the first true one starts (the same one too: have_fun() reads one thing a start,
+			-- eat() of small foods), with the states of this step, taken after that action. Without it the macro
+			-- went on at once: in the recipe of ANALISI-AUTONOMIA.md 4 a meal at the fridge, the walk back and a
+			-- smoke() left exercise() to start exhausted (the game's refusal stopped the macro) instead of rest().
+			-- A block that did nothing goes on as before (it never starts again in the same step).
 			run.frame = run.main;
+
+			if frame.handler and frame.handler.acted and not checkHandlers(run, states)
+			then
+				return "busy";
+			end
 		elseif op.op == "ACTION"
 		then
 			act(run, frame, op);
@@ -1966,8 +2043,61 @@ function AutoPilotMoon.Macro.Run:step(player)
 	return "busy";
 end
 
+-- A check with the character busy (contract C3 of ANALISI-AUTONOMIA.md 5, 3.8.2): the engine's step runs only with the
+-- character idle, so an action that never ends (a walk "in progress" forever, an exercise past the server's 30 real
+-- minutes) is looked at here, at every frame the character is doing something. The contract of the actions:
+--   pending.busy = function(run, pending, busyMs) return nil --[[ or "stop" ]] end
+-- busyMs: how long the character has been busy with the action, from when the step queued it (pending.queuedAt; the
+-- first busy frame for a pending without it); "stop": the engine clears the actions the macro queued
+-- (ISTimedActionQueue.clear: the game's StopAllActionQueue and the queue emptied, as the engine's stops do) and the
+-- step with the character idle confirms as always (the action's module knows why: it answered "stop"). A pending that
+-- answered "stop" is never asked again; while the character stays busy (an action the game still keeps going) the
+-- queue is cleared again every Run.busyClearMs. Called only with the character busy (checkMacroQueue): never between
+-- two actions, never during the engine's auto-rest. Returns "stop" when it cleared the queue, else nil.
+Run.busyClearMs = 1000;
+
+function AutoPilotMoon.Macro.Run:busyTick(player)
+	local run = Run.current;
+	local pending = run and run.player == player and run.pending or nil;
+
+	if pending == nil or type(pending.busy) ~= "function"
+	then
+		return nil;
+	end
+
+	local time = now();
+
+	if pending.busyStopped
+	then
+		if time - pending.busyStopped < Run.busyClearMs
+		then
+			return nil;
+		end
+	else
+		if pending.busySince == nil
+		then
+			pending.busySince = pending.queuedAt or time;
+		end
+
+		if pending.busy(run, pending, time - pending.busySince) ~= "stop"
+		then
+			return nil;
+		end
+	end
+
+	pending.busyStopped = time;
+	ISTimedActionQueue.clear(player);
+
+	return "stop";
+end
+
 -- the engine's names (Automation:register("macro"): checkMacroQueue, stopMacro)
 function AutoPilotMoon.Automation:checkMacroQueue(player)
+	if ISTimedActionQueue.isPlayerDoingAction(player)
+	then
+		Run:busyTick(player);
+	end
+
 	AutoPilotMoon.Automation:checkSquareProcessingQueue({
 		player = player,
 		runLockVariable = "macroWorking",

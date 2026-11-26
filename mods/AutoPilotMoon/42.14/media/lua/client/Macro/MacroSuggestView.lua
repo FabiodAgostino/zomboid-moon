@@ -468,6 +468,20 @@ function C:accept(index)
 		return;
 	end
 
+	-- "Localizza" inside walk_to( (26/11/2026): nothing written by the list, the editor's button does the rest (the
+	-- cursor is where the list was opened)
+	if entry.action == "locate"
+	then
+		self:close();
+
+		if self.window.onLocate
+		then
+			self.window:onLocate();
+		end
+
+		return;
+	end
+
 	local newText, newCaret = Suggest():apply(self.text, self.caret, ctx, entry);
 
 	self.window:replaceText(newText, newCaret, false);

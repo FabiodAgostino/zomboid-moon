@@ -5,7 +5,9 @@
 -- multiplayer the server does the work (every action below is a timed action of 42.22 with "complete", run by the
 -- server):
 --   exercise  the Fitness window: ISFitnessUI.equipItems / ISFitnessAction / ISTimedActionQueue.addGetUpAndThen, and
---             ISFitnessUI.update to give back what was in the hands; the window's refusals with its own texts
+--             ISFitnessUI.update to give back what was in the hands; the window's refusals with its own texts. Without
+--             a type one at random among those the character can do, never the one done just before; without minutes
+--             until the game stops it for fatigue (26/11/2026, ANALISI-AUTONOMIA.md 3.6)
 --   rest      the "Rest" of a seat's right click: ISWorldObjectContextMenu.onRest (walk, sit on the furniture, or on
 --             the ground next to it); "Sit on ground" (reportEvent("EventSitOnGround")) without a seat; up again
 --             ("forceGetUp") when the endurance is back
@@ -27,9 +29,19 @@
 --   possible" ends well) / "skip" (nothing to do: already rested) / "wait" (the containers within reach not arrived
 --   from the server yet: the step comes again) / nil (a refusal: the macro stops)
 -- Body:confirm(run, pending) -> "busy" / "done" / "fail", text   (only with the character idle)
--- Body:probe(player, op) -> nil (it can be done now) and what it would do (food and water), or the reason's text
---   ("Adesso si puo' fare?")
--- Body:hasFood(player, op), Body:hasDrink(player, op) -> the conditions has_food(), has_drink()
+-- Body:probe(player, op) -> nil (it can be done now) and what it would do (food and water, the exercise chosen at
+--   random), or the reason's text ("Adesso si puo' fare?")
+-- Body:pickExercise(player, run) -> the exercise exercise() without a type does now, or nil (none the character can do);
+--   Body:exerciseMinutes(op) -> the game minutes given to ISFitnessAction
+-- Body:describe(op, exercise) -> the panel's "Ora:" text (exercise: the one chosen at random, else op's)
+-- Body:hasFood(player, op), Body:hasDrink(player, op), Body:hasSmoke(player, op) -> the conditions has_food(),
+--   has_drink(), has_smoke()
+-- Body:register(kind, { start, effect, failure, probe, describe }) (26/11/2026, contract C2 of ANALISI-AUTONOMIA.md 5):
+--   a body action written in another file (have_fun: MacroFun.lua); start(run, op) answers as the starts here,
+--   effect(run, pending) -> true when done, failure(run, pending, why) -> the reason's text (whyText), probe(player, op)
+--   as Body:probe, describe(op) -> the panel's "Ora:" text
+-- eat() / drink(): a choice with far (an entry of MacroNear.lua, ANALISI-AUTONOMIA.md 3.5) walks there first
+--   (Near:approach: the step comes again), then the line starts again within reach
 
 AutoPilotMoon = AutoPilotMoon or {};
 AutoPilotMoon.Macro = AutoPilotMoon.Macro or {};
@@ -42,6 +54,16 @@ Body.sitTimeoutMs = 20000;      -- idle and still not sitting after this: the ma
 Body.restMaxMs = 600000;        -- at most 10 real minutes on a seat, then up again (the endurance may not come back)
 Body.standTimeoutMs = 4000;
 Body.canConfirmMs = 8000;       -- "Open and Eat": the server queues the eating after the can is open (Wait's exception)
+-- exercise() without minutes (26/11/2026, ANALISI-AUTONOMIA.md 3.6): until the game stops it for fatigue
+-- (ISFitnessAction:update, endurance moodle above ISFitnessUI.enduranceLevelThreshold). The game is given a time that
+-- does not end first but stays below the 30 real minutes after which the server no longer counts the repetitions
+-- (AnimEventEmulator.getDurationMax, 1 800 000 ms): this many real minutes, in game minutes of the server's day length
+Body.exerciseMaxRealMin = 20;
+Body.exerciseMinMinutes = 10;   -- never less than the Fitness window offers
+Body.exerciseMaxMinutes = 1440; -- never more than a day of the game
+-- busy with an exercise longer than this (real time, every exercise): the mod stops the game's action and the line is
+-- done (pending.busy, contract C3 of ANALISI-AUTONOMIA.md 5)
+Body.exerciseMaxMs = 1500000;
 
 local function now()
 	return getTimestampMs();
@@ -85,10 +107,28 @@ end
 -- Texts
 -- ============================================================================================================
 
-function AutoPilotMoon.Macro.Body:describe(op)
+-- the body actions written in other files (Body:register, contract C2): kind -> { start, effect, failure, probe, describe }
+local registered = {};
+
+-- exercise: the one chosen at random for this start (exercise() without a type), else the op's own
+function AutoPilotMoon.Macro.Body:describe(op, exercise)
+	if registered[op.kind] and registered[op.kind].describe
+	then
+		return registered[op.kind].describe(op);
+	end
+
 	if op.kind == "exercise"
 	then
-		return getText("IGUI_AutoPilot_P_Now_MacroExercise", op.exercise, op.minutes);
+		-- "esercizio pushups, 10 minuti" (as before 26/11/2026 with the minutes written), "esercizio squats, fino alla
+		-- stanchezza", "esercizio a caso, 20 minuti" (before the choice)
+		local name = exercise or op.exercise or getText("IGUI_AutoPilot_P_Now_MacroExerciseRandom");
+
+		if op.minutes
+		then
+			return getText("IGUI_AutoPilot_P_Now_MacroExercise", name, op.minutes);
+		end
+
+		return getText("IGUI_AutoPilot_P_Now_MacroExerciseTired", name);
 	elseif op.kind == "rest"
 	then
 		return getText("IGUI_AutoPilot_P_Now_MacroRest", op.untilPct);
@@ -146,17 +186,109 @@ end
 -- Exercise (ISFitnessUI / ISFitnessAction of 42.22)
 -- ============================================================================================================
 
-local function exerciseData(op)
+local function Lang()
+	return AutoPilotMoon.Macro.Lang;
+end
+
+local function exerciseData(exercise)
 	local table_ = FitnessExercises and FitnessExercises.exercisesType;
 
-	return table_ and table_[op.exercise] or nil;
+	return table_ and exercise and table_[exercise] or nil;
+end
+
+-- the exercises the character can do now, in the language's order: the game's (FitnessExercises.exercisesType) whose
+-- equipment it carries, as the Fitness window enables them (ISFitnessUI:addExerciseToList: contains(item, true))
+function AutoPilotMoon.Macro.Body:availableExercises(player)
+	local list = {};
+	local inventory = player:getInventory();
+
+	for i, exercise in ipairs(Lang().exercises)
+	do
+		local data = exerciseData(exercise);
+
+		if data and (data.item == nil or inventory:contains(data.item, true))
+		then
+			table.insert(list, exercise);
+		end
+	end
+
+	return list;
+end
+
+-- the exercise drawn for exercise() without a type and not started yet, by player number: "Adesso si puo' fare?" names
+-- it and the run does that one (a draw at every look would name another one each time)
+Body.drawn = {};
+
+-- exercise() without a type: one at random (ZombRand) among those the character can do, never the one done just before
+-- (run.lastExercise) when there is more than one (the stiffness spread over arms, legs and abs); nil: none
+function AutoPilotMoon.Macro.Body:pickExercise(player, run)
+	local list = Body:availableExercises(player);
+
+	if #list == 0
+	then
+		return nil;
+	end
+
+	local last = run and run.lastExercise or nil;
+	local candidates = {};
+
+	for i, exercise in ipairs(list)
+	do
+		if #list == 1 or exercise ~= last
+		then
+			table.insert(candidates, exercise);
+		end
+	end
+
+	local num = player:getPlayerNum();
+	local kept = Body.drawn[num];
+
+	for i, exercise in ipairs(candidates)
+	do
+		if exercise == kept
+		then
+			return kept;
+		end
+	end
+
+	local pick = candidates[1];
+
+	if #candidates > 1
+	then
+		pick = candidates[math.floor(ZombRand(#candidates)) + 1] or candidates[1];
+	end
+
+	Body.drawn[num] = pick;
+
+	return pick;
+end
+
+-- the game minutes given to ISFitnessAction: the ones written, else Body.exerciseMaxRealMin real minutes of the
+-- server's day (GameTime.getMinutesPerDay: the real minutes of a day of the game), from 10 to a day: the game stops the
+-- exercise for fatigue first
+function AutoPilotMoon.Macro.Body:exerciseMinutes(op)
+	if op.minutes
+	then
+		return op.minutes;
+	end
+
+	local perDay = getGameTime():getMinutesPerDay();
+
+	if perDay == nil or perDay <= 0
+	then
+		return Body.exerciseMaxMinutes;
+	end
+
+	local minutes = math.floor(Body.exerciseMaxRealMin * 1440 / perDay);
+
+	return math.max(Body.exerciseMinMinutes, math.min(Body.exerciseMaxMinutes, minutes));
 end
 
 -- the Fitness window's refusals (ISFitnessUI:updateButtons), with its own texts; nil: it can start
-local function exerciseRefusal(player, op, data)
+local function exerciseRefusal(player, exercise, data)
 	if data == nil
 	then
-		return whyText("IGUI_AutoPilot_A_MacroR_NoExercise", op.exercise);
+		return whyText("IGUI_AutoPilot_A_MacroR_NoExercise", exercise or table.concat(Lang().exercises, "/"));
 	end
 
 	local threshold = ISFitnessUI and ISFitnessUI.enduranceLevelThreshold or 2;
@@ -189,10 +321,22 @@ local function exerciseRefusal(player, op, data)
 	return nil;
 end
 
+-- busy with the exercise (contract C3): past Body.exerciseMaxMs of real time "stop" (the engine clears the actions of
+-- the macro, the step with the character idle confirms as always: the experience or the endurance spent)
+local function exerciseBusy(run, pending, busyMs)
+	if busyMs ~= nil and busyMs > Body.exerciseMaxMs
+	then
+		return "stop";
+	end
+
+	return nil;
+end
+
 local function startExercise(run, op)
 	local player = run.player;
-	local data = exerciseData(op);
-	local refusal = exerciseRefusal(player, op, data);
+	local exercise = op.exercise or Body:pickExercise(player, run);
+	local data = exerciseData(exercise);
+	local refusal = exerciseRefusal(player, exercise, data);
 
 	if refusal
 	then
@@ -209,14 +353,23 @@ local function startExercise(run, op)
 		return nil, whyText("IGUI_AutoPilot_A_MacroR_NeedEquipment", AutoPilotMoon.Macro.Names:itemName(data.item)), nil;
 	end
 
-	local action = ISFitnessAction:new(player, op.exercise, op.minutes, data, data.type);
+	local action = ISFitnessAction:new(player, exercise, Body:exerciseMinutes(op), data, data.type);
 
 	action.autopilotMacro = true;
 	ui.currentExercice = data.type;
 	ISTimedActionQueue.addGetUpAndThen(player, action);
 	run.reequip = ui;
+	run.lastExercise = exercise;
+	Body.drawn[player:getPlayerNum()] = nil;
 
-	return { kind = "exercise", xp0 = xpSum(player, op), endurance0 = stat(player, "ENDURANCE") };
+	if op.exercise == nil
+	then
+		-- the panel's "Ora:" (MacroRun shows op.desc once the action started) names the exercise chosen
+		op.desc = Body:describe(op, exercise);
+	end
+
+	return { kind = "exercise", exercise = exercise, xp0 = xpSum(player, op), endurance0 = stat(player, "ENDURANCE"),
+		busy = exerciseBusy };
 end
 
 -- the hands' items back once the exercise is over (ISFitnessUI:update does it when getCurrentExe() is nil)
@@ -244,7 +397,7 @@ local function exercised(run, pending)
 end
 
 local function exerciseFailed(run, pending)
-	return whyText("IGUI_AutoPilot_A_MacroR_ExerciseNoEffect", pending.op.exercise);
+	return whyText("IGUI_AutoPilot_A_MacroR_ExerciseNoEffect", pending.exercise);
 end
 
 -- ============================================================================================================
@@ -418,6 +571,11 @@ local function Food()
 	return AutoPilotMoon.Macro.Food;
 end
 
+-- the walk to what is within 8 squares (MacroNear.lua, contract C4 of ANALISI-AUTONOMIA.md 5)
+local function Near()
+	return AutoPilotMoon.Macro.Near;
+end
+
 local function usable(player, item)
 	return not item:isFavorite() and not item:isEquipped() and not player:isEquipped(item) and not item:isWorn();
 end
@@ -527,6 +685,8 @@ local function startEat(run, op)
 		return nil, why, kind;
 	end
 
+	if choice.far then return Near():approach(run, op, choice.far) end
+
 	local item = choice.item;
 	local part = Food():portion(player, choice, op.amount);
 	local pending = { kind = "eat", itemId = item:getID(), name = item:getDisplayName(), hunger0 = stat(player, "HUNGER"),
@@ -624,6 +784,8 @@ local function startDrink(run, op)
 	then
 		return nil, why, kind;
 	end
+
+	if choice.far then return Near():approach(run, op, choice.far) end
 
 	local item = choice.item;
 	local pending = { kind = "drink", itemId = item:getID(), name = item:getDisplayName(), thirst0 = stat(player, "THIRST"),
@@ -752,6 +914,11 @@ function AutoPilotMoon.Macro.Body:hasDrink(player, op)
 	end
 
 	return Food():chooseDrink(player, op) ~= nil;
+end
+
+-- has_smoke() (26/11/2026, ANALISI-AUTONOMIA.md 3.8): smoke() would find something to smoke and to light it with now
+function AutoPilotMoon.Macro.Body:hasSmoke(player, op)
+	return Body:chooseSmoke(player, op) ~= nil;
 end
 
 -- a drainable with something left (the game keeps its own copy of this local in every file that needs it)
@@ -1091,6 +1258,16 @@ local failures = { exercise = exerciseFailed, eat = eatFailed, drink = drinkFail
 -- the actions whose expectations are more than one effect: refill() (one per bottle)
 local expecters = { refill = expectFilled };
 
+-- A body action written in another file (contract C2 of ANALISI-AUTONOMIA.md 5, 26/11/2026: have_fun in MacroFun.lua):
+-- its start, the effect that confirms it, the reason when it did not happen, "Adesso si puo' fare?" and the panel's
+-- text, used as the ones of this file. A kind registered again replaces the one before.
+function AutoPilotMoon.Macro.Body:register(kind, action)
+	registered[kind] = action;
+	starts[kind] = action.start;
+	effects[kind] = action.effect;
+	failures[kind] = action.failure;
+end
+
 -- the first watched action of the game of that type (the meal among what eatItem queued: the transfer from a crate,
 -- the meal, the transfer back)
 local function watchedOfType(wait, typeName)
@@ -1117,7 +1294,7 @@ function AutoPilotMoon.Macro.Body:start(run, op)
 		then
 			-- the engine's wait: the game's actions just queued watched (a refusal at once), the effect looked at
 			-- while idle; "Open and Eat" waits longer (the meal comes with a command of the server)
-			local wait = AutoPilotMoon.Wait:new(run.player, { label = Body:describe(op),
+			local wait = AutoPilotMoon.Wait:new(run.player, { label = Body:describe(op, pending.exercise),
 				timeoutMs = pending.can and Body.canConfirmMs or nil });
 
 			wait:watchQueued(mark);
@@ -1263,12 +1440,31 @@ local function probeFood(player, op)
 	return nil, getText("IGUI_AutoPilot_E_NowDrinkSource", source.name);
 end
 
+-- "Adesso si puo' fare?" for exercise(): nil, and without a type the one the run will do ("fara' squats (scelto a
+-- caso)": drawn once, kept until started); else the window's refusal
+local function probeExercise(player, op)
+	local exercise = op.exercise or Body:pickExercise(player, nil);
+	local refusal = exerciseRefusal(player, exercise, exerciseData(exercise));
+
+	if refusal or op.exercise
+	then
+		return refusal;
+	end
+
+	return nil, getText("IGUI_AutoPilot_E_NowExerciseAny", exercise);
+end
+
 -- "Adesso si puo' fare?": nil when the action can start now (and, for the food and the water, what it would do), else
 -- why (nothing is queued)
 function AutoPilotMoon.Macro.Body:probe(player, op)
+	if registered[op.kind] and registered[op.kind].probe
+	then
+		return registered[op.kind].probe(player, op);
+	end
+
 	if op.kind == "exercise"
 	then
-		return exerciseRefusal(player, op, exerciseData(op));
+		return probeExercise(player, op);
 	elseif op.kind == "rest"
 	then
 		return nil;

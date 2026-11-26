@@ -193,8 +193,19 @@ function CursorMethods:deactivate()
 	self.tool:onDeactivate(self.session);
 end
 
+-- The controller's buttons: the game hands every button to the cursor and stops there (JoyPadSetup.onPressButton
+-- 42.22: getDrag(player):onJoypadPressButton, then return). Its base class ISBuildingObject does nothing with A (only B,
+-- Y, LB, RB) and DoTileBuilding sets "build" only from the mouse: as the game's own ISMoveableCursor, A builds here on
+-- the controller's square when the last render said it can (canBeBuild, set by DoTileBuilding at every frame). Before
+-- 26/11/2026 A did nothing in the area tool and in the picker (ANALISI-AUTONOMIA.md 3.2: to be seen in the game).
 function CursorMethods:onJoypadPressButton(joypadIndex, joypadData, button)
-	if button == Joypad.BButton
+	if button == Joypad.AButton
+	then
+		if self.canBeBuild and self.xJoypad ~= nil and self.yJoypad ~= nil
+		then
+			self:create(self.xJoypad, self.yJoypad, self.zJoypad or self.session.z);
+		end
+	elseif button == Joypad.BButton
 	then
 		self.tool:back(self.session);
 	elseif button == Joypad.YButton
@@ -843,6 +854,7 @@ Picker.refreshMs = 250;     -- the square under the cursor is looked at again th
 --   Destination:inspect: ok, x, y, z, reasonKey, object), describe(info) -> the line of the box, howKey (the "Click..."
 --   line), startAtPlayer (the cursor starts on the character: the corpses' pile, spec 3.5), noRemember (not the "last
 --   destination" of the containers), toDest(info) -> what onConfirm gets (default Destination:fromInfo).
+-- "Localizza" (26/11/2026, ANALISI-AUTONOMIA.md 3.2): title = the box's whole title (instead of titleText - whatKey).
 -- "Sul posto" (12/11/2026, the Sawyer: owner's test): onSpot = the text key of what happens then
 --   ("IGUI_AutoPilot_D_OnSpotPlanks"). It is the first and default choice: the cursor starts on the character, whose
 --   square means "Sul posto" (one click, or A, and it starts), told in the box in the "good" colour; any other square is
@@ -927,7 +939,7 @@ function AutoPilotMoon.DestinationPicker:refreshLines(session)
 	local lines = {};
 	local opts = session.opts;
 	local info = session.info;
-	local title = getText("IGUI_AutoPilot_D_Title", opts.titleText or "", getText(opts.whatKey or "IGUI_AutoPilot_D_TitleItems"));
+	local title = opts.title or getText("IGUI_AutoPilot_D_Title", opts.titleText or "", getText(opts.whatKey or "IGUI_AutoPilot_D_TitleItems"));
 
 	if opts.step
 	then

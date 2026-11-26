@@ -14,6 +14,15 @@
 --   equip("X", hand=...)       the inventory's "Equip" (ISInventoryPaneContextMenu.equipWeapon): primary, secondary,
 --                              both hands
 --   walk_to("P")               the walk next to the place (onto it for a place of ground)
+--   walk_to(x, y, z)           (26/11/2026, ANALISI-AUTONOMIA.md 3.3) the walk onto that square: a place of ground of its
+--                              own ({ kind = "ground", x, y, z, name = "x, y, z" }), checked as the places are (loaded,
+--                              not in a safehouse the character may not use, walkable, within MacroPlaceRadius of
+--                              where the macro started); already on it: the line after, nothing counted. Arrived = on
+--                              that very square (Carry:isNear), never the game action's own answer (the last node of
+--                              the game's path may not be it). Idle elsewhere: MacroR_WalkBlocked with the squares
+--                              still missing; walking past Items.walkTimeoutMs: the engine empties the queue
+--                              (pending.busy, contract C3) and MacroR_WalkTimeout. The game opens the closed doors on
+--                              the way and leaves them open; a locked door makes the walk fail.
 -- "made" (put, drop): what this run made, by id (the items that came into the inventory since the start, not by take).
 -- Never moved as cargo: a favourite, an equipped or a worn item (equip() may hold a favourite: the player asked for it).
 -- Taken from a place: never a favourite, an equipped item, furniture packed as an item, what the container does not
@@ -43,6 +52,17 @@ AutoPilotMoon.Macro.Items = AutoPilotMoon.Macro.Items or {};
 local Items = AutoPilotMoon.Macro.Items;
 
 Items.kinds = { take = true, put = true, drop = true, equip = true, walk_to = true };
+
+-- the longest a walk_to may walk (3.3): 15 s, 2 s more per square in a straight line, at most 2 minutes. The game's
+-- own "walking on the spot" check (zombie.ai.WalkingOnTheSpot) restarts whenever the animation does not move, so a
+-- walk could stay "in progress" for ever: this is looked at with the character busy (pending.busy, contract C3).
+Items.walkTimeoutBaseMs = 15000;
+Items.walkTimeoutPerSquareMs = 2000;
+Items.walkTimeoutMaxMs = 120000;
+
+function AutoPilotMoon.Macro.Items.walkTimeoutMs(squares)
+	return math.min(Items.walkTimeoutMaxMs, Items.walkTimeoutBaseMs + Items.walkTimeoutPerSquareMs * math.max(0, squares or 0));
+end
 
 local function Places()
 	return AutoPilotMoon.Macro.Places;
@@ -113,6 +133,9 @@ function AutoPilotMoon.Macro.Items:describe(op)
 	elseif op.kind == "equip"
 	then
 		return getText("IGUI_AutoPilot_P_Now_MacroEquip", itemLabel(op));
+	elseif op.spot
+	then
+		return getText("IGUI_AutoPilot_P_Now_MacroSpotWalk", op.placeName or "");
 	end
 
 	return getText("IGUI_AutoPilot_P_Now_MacroWalkTo", op.placeName or "");
@@ -198,9 +221,29 @@ end
 -- Places
 -- ============================================================================================================
 
+-- the square of walk_to(x, y, z) as a place of ground of its own (made once per line), else the line's place
+local function linePlace(op)
+	if op.place == nil and op.spot
+	then
+		if op.spotPlace == nil
+		then
+			local spot = op.spot;
+
+			op.spotPlace = { kind = "ground", x = spot.x, y = spot.y, z = spot.z or 0,
+				name = op.placeName or (spot.x .. ", " .. spot.y .. ", " .. (spot.z or 0)) };
+		end
+
+		return op.spotPlace;
+	end
+
+	return op.place;
+end
+
+Items.linePlace = linePlace;
+
 -- the place of a line, checked: the place resolved, or nil and why
 local function placeOf(player, op, center)
-	local place = op.place;
+	local place = linePlace(op);
 
 	if place == nil
 	then
@@ -638,6 +681,30 @@ local function startEquip(run, op)
 	return { kind = "equip", module = "items", entries = { { id = item:getID() } }, hand = hand, wait = wait };
 end
 
+-- squares in a straight line between the character and a place (the walk's longest time, the text of a walk that
+-- stopped short), at least 1
+local function squaresLeft(player, place)
+	local dx = place.x + 0.5 - player:getX();
+	local dy = place.y + 0.5 - player:getY();
+
+	return math.max(1, math.floor(math.sqrt(dx * dx + dy * dy) + 0.5));
+end
+
+-- With the character busy walking (contract C3, ANALISI-AUTONOMIA.md 3.8.2): past the walk's longest time, "stop":
+-- the engine empties the queue and the step, with the character idle again, says why (Items:confirm)
+local function walkBusy(run, pending, busyMs)
+	if busyMs ~= nil and busyMs >= pending.timeoutMs
+	then
+		pending.timedOutSeconds = math.floor(busyMs / 1000);
+
+		return "stop";
+	end
+
+	return nil;
+end
+
+-- walk_to("P") and walk_to(x, y, z): one walk per line (the game's walk next to the place, onto a square), never an
+-- action of its own when already there
 local function startWalk(run, op)
 	local player = run.player;
 	local place, resolved, why = placeOf(player, op, run.center);
@@ -657,7 +724,8 @@ local function startWalk(run, op)
 		return nil, whyText("IGUI_AutoPilot_A_MacroR_PlaceUnreachable", place.name), nil;
 	end
 
-	return { kind = "walkto", module = "items", place = place };
+	return { kind = "walkto", module = "items", place = place, spot = op.place == nil and op.spot ~= nil,
+		timeoutMs = Items.walkTimeoutMs(squaresLeft(player, place)), busy = walkBusy };
 end
 
 local starts = { take = startTake, put = startPut, drop = startDrop, equip = startEquip, walk_to = startWalk };
@@ -704,14 +772,36 @@ function AutoPilotMoon.Macro.Items:confirm(run, pending)
 
 	if pending.kind == "walkto"
 	then
-		local resolved = Places():resolve(pending.place, player);
+		local place = pending.place;
+		local arrived = false;
 
-		if resolved and isNear(player, pending.place, resolved)
+		if pending.spot
+		then
+			-- walk_to(x, y, z): on that very square (a place of ground: its coordinates only)
+			arrived = AutoPilotMoon.Carry:isNear(player, Places():dest(place), nil);
+		else
+			local resolved = Places():resolve(place, player);
+
+			arrived = resolved ~= nil and isNear(player, place, resolved);
+		end
+
+		if arrived
 		then
 			return "done";
 		end
 
-		return "fail", whyText("IGUI_AutoPilot_A_MacroR_PlaceUnreachable", pending.place.name);
+		if pending.timedOutSeconds
+		then
+			return "fail", whyText("IGUI_AutoPilot_A_MacroR_WalkTimeout", place.name, pending.timedOutSeconds);
+		end
+
+		if pending.spot
+		then
+			-- idle somewhere else: no way there (a locked door, nothing walkable), said with what was missing
+			return "fail", whyText("IGUI_AutoPilot_A_MacroR_WalkBlocked", place.name, squaresLeft(player, place));
+		end
+
+		return "fail", whyText("IGUI_AutoPilot_A_MacroR_PlaceUnreachable", place.name);
 	end
 
 	local wait = pending.wait;

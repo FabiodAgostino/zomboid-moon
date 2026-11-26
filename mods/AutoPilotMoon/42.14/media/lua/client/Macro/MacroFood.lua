@@ -11,6 +11,13 @@
 -- a ZomBOT gravestone, a container locked for the character, a square of a safehouse it may not use. The server can
 -- switch the search within reach off (MacroEatNear, on by default). A container never opened answers later in
 -- multiplayer (the engine's Wait:loadState): it is "loading" until then.
+-- The vicinity (26/11/2026, ANALISI-AUTONOMIA.md 3.5, MacroNear.lua): when nothing carried or within reach will do,
+-- eat() and drink() look within Near.radius squares in the character's building (walk=False, near=False or the server's
+-- MacroEatNear off: never): the nearest container already known (or item on the floor) with what the line takes is the
+-- choice's far (MacroBody.lua walks there with Near:approach, then the line starts again within reach); else, for the
+-- line the macro is starting only, the nearest kitchen container never opened (the walk, then the loot window asks for
+-- it), at most Near.maxLooks a line. has_food(), has_drink() and "Adesso si puo' fare?" never count a container never
+-- opened (the editor says it would look into it); the order of the food does not change (the vicinity after the reach).
 --
 -- The food eat() eats as it is (4.3): the game's own double click (ISInventoryPane: Food that feeds, not CantEat, not
 -- burnt, not rotten, not a poison the character recognises, not dangerous raw), and what a careful player leaves:
@@ -48,6 +55,11 @@ F.eatAmounts = { all = 1, half = 0.5, quarter = 0.25 };
 
 local function Wait()
 	return AutoPilotMoon.Wait;
+end
+
+-- the vicinity within 8 squares, walking (MacroNear.lua, contract C4 of ANALISI-AUTONOMIA.md 5)
+local function Near()
+	return AutoPilotMoon.Macro.Near;
 end
 
 -- the text of why eat() / drink() find nothing, its key remembered for the notifications (the event's code of the stop
@@ -221,6 +233,61 @@ local function readableNear(player, op, opts)
 	end
 
 	return ready, loading, unsure;
+end
+
+-- The vicinity (ring 3, MacroNear.lua): the nearest entry with an item test accepts, as a choice { item, group = 3,
+-- from = { container, name, group = 3 }, far = the entry } (best(container): the item of that container the line
+-- would take first; nil: entry.item); else, for the eat() / drink() line the macro is starting now (kind), the nearest
+-- kitchen container never opened (a choice without item: the walk, then a look). Never for a condition: what never
+-- opened only for the editor's "Adesso si puo' fare?", as a second value (the list it would look into).
+local function farChoice(player, op, kind, test, best)
+	if not Near():allowed(op)
+	then
+		return nil, nil;
+	end
+
+	local line = op.op == "ACTION" and op.kind == kind;
+	local starting = line and Near():starting(player, op);
+	local entry = Near():find(player, test, { unknown = line, memory = starting and Near():memory(player, op) or nil });
+
+	if entry == nil
+	then
+		return nil, nil;
+	end
+
+	local from = { container = entry.container, name = entry.name, group = 3 };
+
+	if entry.item == nil
+	then
+		if starting
+		then
+			return { group = 3, from = from, far = entry }, nil;
+		end
+
+		return nil, { entry };
+	end
+
+	local item = entry.container and best(entry.container) or entry.item;
+
+	return { item = item, id = item:getID(), group = 3, from = from, far = entry }, nil;
+end
+
+-- the items of a container a test accepts, as a Lua list (its own items, never inside a bag of it)
+local function itemsOf(container, test)
+	local list = {};
+	local items = container:getItems();
+
+	for i = 0, items:size() - 1
+	do
+		local item = items:get(i);
+
+		if item and test(item)
+		then
+			table.insert(list, item);
+		end
+	end
+
+	return list;
 end
 
 -- the names of entries, "Frigo, Pavimento"
@@ -450,9 +517,46 @@ local function collectFood(player, op, opts)
 	return found;
 end
 
+-- the food of the vicinity (MacroNear.lua): what eat() eats as it is, and the closed cans unless open_cans=False (the
+-- opener is looked for once within reach); in a container the best by the same order
+local function farFood(player, op)
+	local function takes(item)
+		local verdict = F:foodVerdict(player, item, op);
+
+		return verdict == "food" or (verdict == "can" and op.openCans ~= false);
+	end
+
+	local function best(container)
+		local list = {};
+
+		for i, item in ipairs(itemsOf(container, takes))
+		do
+			table.insert(list, { item = item, id = item:getID(), group = 3, days = daysLeft(item), hung = item:getHungChange(),
+				can = F:foodVerdict(player, item, op) == "can" });
+		end
+
+		table.sort(list, better);
+
+		return list[1] and list[1].item or nil;
+	end
+
+	local choice, looking = farChoice(player, op, "eat", takes, best);
+
+	if choice and choice.item
+	then
+		choice.days = daysLeft(choice.item);
+		choice.hung = choice.item:getHungChange();
+		choice.can = F:foodVerdict(player, choice.item, op) == "can";
+	end
+
+	return choice, looking;
+end
+
 -- What eat() would eat now: { item, group, from (nil: carried; else { container, group, name }), can, recipe (a can's
--- opening recipe), days }, or nil, the reason's text and its kind: "nothing" (nothing to eat: a "while possible" ends
--- well), "loading" (containers within reach not arrived yet: found.loading, the caller waits for them), nil (a refusal).
+-- opening recipe), days, far (the vicinity, MacroNear.lua: the entry to walk to first; item nil for a kitchen
+-- container never opened) }, or nil, the reason's text and its kind: "nothing" (nothing to eat: a "while possible" ends
+-- well), "loading" (containers within reach not arrived yet: found.loading, the caller waits for them; for the editor
+-- also the container never opened it would look into), nil (a refusal).
 -- opts.anyway: read the containers still loading as they are (after the wait); opts.ignoreFull: do not ask whether the
 -- character can eat more (has_food())
 function AutoPilotMoon.Macro.Food:chooseFood(player, op, opts)
@@ -484,6 +588,19 @@ function AutoPilotMoon.Macro.Food:chooseFood(player, op, opts)
 	if #found.loading > 0
 	then
 		return nil, nil, "loading", found.loading;
+	end
+
+	-- nothing carried or within reach will do: the vicinity, walking (ANALISI-AUTONOMIA.md 3.5)
+	local far, looking = farFood(player, op);
+
+	if far
+	then
+		return far;
+	end
+
+	if looking
+	then
+		return nil, nil, "loading", looking;
 	end
 
 	if #found.unsure > 0 and #found.list == 0
@@ -604,8 +721,8 @@ local function byDrink(a, b)
 	return a.id < b.id;
 end
 
--- What drink() would drink from now: { item, group, from }, or nil, the reason's text, the kind ("nothing", "loading"
--- with the containers still loading). opts.anyway as chooseFood.
+-- What drink() would drink from now: { item, group, from, far (the vicinity, as chooseFood) }, or nil, the reason's
+-- text, the kind ("nothing", "loading" with the containers still loading). opts.anyway as chooseFood.
 function AutoPilotMoon.Macro.Food:chooseDrink(player, op, opts)
 	local list = {};
 	local seen = {};
@@ -651,6 +768,33 @@ function AutoPilotMoon.Macro.Food:chooseDrink(player, op, opts)
 	if #loading > 0
 	then
 		return nil, nil, "loading", loading;
+	end
+
+	-- nothing carried or within reach: the vicinity, walking (ANALISI-AUTONOMIA.md 3.5), the emptiest bottle of the
+	-- nearest place that has one
+	local function takes(item)
+		return F:isSafeDrink(player, item, op);
+	end
+
+	local far, looking = farChoice(player, op, "drink", takes, function(container)
+		local bottles = itemsOf(container, takes);
+
+		table.sort(bottles, function(a, b)
+			return byDrink({ group = 3, amount = a:getFluidContainer():getAmount(), id = a:getID() },
+				{ group = 3, amount = b:getFluidContainer():getAmount(), id = b:getID() });
+		end);
+
+		return bottles[1];
+	end);
+
+	if far
+	then
+		return far;
+	end
+
+	if looking
+	then
+		return nil, nil, "loading", looking;
 	end
 
 	if #unsure > 0

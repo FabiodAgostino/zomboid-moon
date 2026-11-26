@@ -238,6 +238,11 @@ N.codes = {
 	MacroR_NotMoved = "stop problem",
 	MacroR_PartlyMoved = "stop problem",
 	MacroR_NoEquip = "stop problem",
+	-- autonomy (26/11/2026, ANALISI-AUTONOMIA.md 3.10): walk_to(x, y, z), have_fun()
+	MacroR_WalkBlocked = "stop problem",
+	MacroR_WalkTimeout = "stop problem",
+	MacroR_NoFun = "stop problem",
+	MacroR_FunTooDark = "stop problem",
 	MacroR_NotEquipped = "stop problem",
 	zombies_seen = "warn notice early",
 	attacked = "warn critical early",

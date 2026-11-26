@@ -12,6 +12,9 @@
 -- use are never used); the distance from where the macro starts is at most MacroPlaceRadius squares (any floor), else
 -- the macro does not start. Never a vehicle: it moves (a trunk is a destination of the jobs, not a place of a macro).
 -- Switch EnableMacroTransfers of the server (shared with take, put, drop, equip, walk_to), read at the moment.
+-- A square by its numbers (walk_to(x, y, z), 26/11/2026, ANALISI-AUTONOMIA.md 3.1-3.3) is not a place: nothing to mark,
+-- it lives in the text. The editor's "Localizza" chooses it with the same picker (Places:pickSpot: a square of the
+-- character's floor to stand on); the run makes it a place of ground of its own (MacroItems.lua) for the same checks.
 
 AutoPilotMoon = AutoPilotMoon or {};
 AutoPilotMoon.Macro = AutoPilotMoon.Macro or {};
@@ -342,6 +345,90 @@ function AutoPilotMoon.Macro.Places:pick(player, titleText, onConfirm, onCancel)
 			end
 
 			return AutoPilotMoon.Destination:describe(info);
+		end,
+		onConfirm = function(spot, info)
+			if onConfirm
+			then
+				onConfirm(spot, info);
+			end
+		end,
+		onCancel = function()
+			if onCancel
+			then
+				onCancel();
+			end
+		end,
+	});
+end
+
+-- ============================================================================================================
+-- "Localizza" (26/11/2026, ANALISI-AUTONOMIA.md 3.2): a square to walk to, by its numbers
+-- ============================================================================================================
+
+-- the numbers of a square as the text writes them: "12625, 4705, 0"
+function AutoPilotMoon.Macro.Places:spotText(x, y, z)
+	return x .. ", " .. y .. ", " .. (z or 0);
+end
+
+-- what the picker shows under the cursor: a square the character can stand on (a floor, not solid, not water, the
+-- rule of a place of ground and of Places:resolve), never in a safehouse the character may not use; its numbers and
+-- the game's name of its room when it has one ("12625, 4705, 0 (kitchen)": the game has no translation of them)
+function AutoPilotMoon.Macro.Places:inspectSpot(square, player)
+	if square == nil
+	then
+		return nil;
+	end
+
+	local info = { ok = true, kind = "spot", x = square:getX(), y = square:getY(), z = square:getZ() };
+	local room = square:getRoom();
+	local roomName = room and room.getName and room:getName() or nil;
+
+	info.nameText = Places:spotText(info.x, info.y, info.z);
+
+	if roomName and roomName ~= ""
+	then
+		info.roomText = roomName;
+	end
+
+	if AutoPilotMoon.Zones:isProtected(square, player)
+	then
+		info.ok, info.reasonKey = false, "IGUI_AutoPilot_D_Bad_Protected";
+	elseif square:isWaterSquare() or not square:TreatAsSolidFloor() or square:isSolid() or square:isSolidTrans()
+	then
+		info.ok, info.reasonKey = false, "IGUI_AutoPilot_D_Bad_Spot";
+	end
+
+	return info;
+end
+
+-- the picker's line of a square: "Casella 12625, 4705, 0 (kitchen)"
+function AutoPilotMoon.Macro.Places:describeSpot(info)
+	local text = getText("IGUI_AutoPilot_D_What_Spot", info.nameText or Places:spotText(info.x, info.y, info.z));
+
+	if info.roomText
+	then
+		text = text .. " (" .. info.roomText .. ")";
+	end
+
+	return text;
+end
+
+-- Opens the picker for a square (the editor's "Localizza"), on the character's floor only (changing floor cancels):
+-- onConfirm(spot, info) with spot = { x, y, z }; onCancel() (Esc, the right click, B). titleText: the box's title.
+function AutoPilotMoon.Macro.Places:pickSpot(player, titleText, onConfirm, onCancel)
+	return AutoPilotMoon.DestinationPicker:begin(player, {
+		title = titleText,
+		howKey = "IGUI_AutoPilot_D_How_Spot",
+		startAtPlayer = true,
+		noRemember = true,
+		inspect = function(square, who)
+			return Places:inspectSpot(square, who);
+		end,
+		toDest = function(info)
+			return { x = info.x, y = info.y, z = info.z };
+		end,
+		describe = function(info)
+			return Places:describeSpot(info);
 		end,
 		onConfirm = function(spot, info)
 			if onConfirm

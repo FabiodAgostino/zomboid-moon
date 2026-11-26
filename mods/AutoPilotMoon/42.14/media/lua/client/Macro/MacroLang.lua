@@ -26,6 +26,10 @@
 --   take("Item", from="Place", n=10)   put("Item", into="Place")   put("made", into="Place")   drop("Item", n=5)
 --   equip("Item", hand="both")   walk_to("Place");  conditions count("Item", at="Place") >= 3, space_left() < 5,
 --   space_left(at="Place")   (waves 2 and 3, 19/11/2026: items and the macro's named places)
+--   walk_to(12625, 4705, 0)   exercise()   have_fun()   eat(walk=False)   conditions has_fun(), has_smoke()
+--   (autonomy, 26/11/2026, ANALISI-AUTONOMIA.md 3: a square by its numbers, a negative number written -1, an exercise
+--   at random until the game stops it for fatigue, one source of fun a line, the walk to food within 8 squares;
+--   craving alone = a smoker in withdrawal while the game shows the stress moodle, 2.3)
 --
 -- Lang:check(text, resolver, opts) -> result
 --   result.ops        the main flat program: ACTION / WAIT / LOOP / END / STOPIF / IF / JUMP, jumps already worked out
@@ -34,7 +38,9 @@
 --                     Lang.maxProblems; result.more = how many past them
 --   result.errors, result.warnings   counts (errors block Run, warnings do not)
 --   result.requirements  what each craft line needs ("Attrezzi e materiali", 4.5): { line, recipe (id), recipeText,
---                     materials, tools ({ text, amount, types, tags, sharp }), skills ({ skill, name, level }), text }
+--                     materials, tools ({ text, amount, types, tags, sharp }), skills ({ skill, name, level }), text };
+--                     eat / drink / refill / smoke / have_fun lines: body (the command), near, walk, source, snacks
+--                     (have_fun), text
 --   result.actionCount  actions of the main program;  result.uses = { rest = true, ... } the body actions used
 --   result.notReady   the resolver's indexes are not built yet (nothing else is filled)
 -- opts: player (for "you do not know the recipe yet"), maxActions, maxLoops (the server's limits, for the warnings),
@@ -46,15 +52,19 @@
 --           craft actions too, with work = "repair" / "sharpen", the item in withTypes, materialText (using=);
 --           at a workbench (wave 1): bench = true, benchSet (the bench ids of at=, a set; nil = any bench that fits),
 --           benchText (at= as written); smelt() is a craft action at a bench with smelt = true
---           exercise: exercise (the game's id), minutes;  rest: seat "nearest" / "ground", untilPct
+--           exercise: exercise (the game's id; nil: one at random, ANALISI-AUTONOMIA.md 3.6), minutes (nil: until the
+--           game stops it for fatigue);  rest: seat "nearest" / "ground", untilPct
 --           eat / drink / smoke / read / refill: itemTypes (list or nil), itemText; eat: near (false: only what is
---           carried; nil: within reach too), openCans (false: never a can; nil: the game's "Open and Eat"), amount
---           ("all" / "half" / "quarter" / "auto"), picky (false: also what makes very unhappy); drink: amount (1 / 0.5
---           / 0.25), near, source (true: a sink, a barrel, a well of the world)
+--           carried; nil: within reach too), walk (false: never a walk to food farther than the reach; nil: within
+--           8 squares too, 3.5), openCans (false: never a can; nil: the game's "Open and Eat"), amount ("all" / "half"
+--           / "quarter" / "auto"), picky (false: also what makes very unhappy); drink: amount (1 / 0.5 / 0.25), near,
+--           walk, source (true: a sink, a barrel, a well of the world)
+--           have_fun (3.4): near, walk, snacks (nil = not written: true; false as written)
 --           take / put / drop / equip / walk_to (wave 2): itemTypes (nil with made = true: "made", what the run made),
 --           itemText, n (nil = all), hand (equip: "primary" / "secondary" / "both", nil = by the item), placeKey (the
 --           place's name in lower case), placeName (as written), place (the macro's place, nil when not marked or not
---           known: opts.places)
+--           known: opts.places); walk_to(x, y, z) (3.1): spot = { x = x, y = y, z = z } and placeName "x, y, z", no
+--           place nor placeKey
 --   WAIT    line, ms, seconds
 --   LOOP    line, mode "times" / "possible" / "while" / "forever", n, cond, condText, endIndex, firstAction, synthetic
 --   END     line, loopIndex
@@ -65,11 +75,14 @@
 -- (types) / "skill" (perk) / "moodle" (name, word) / "percent" (name, word) / "state" (word, moodle: a state word
 -- alone, 16) / "word" (name: dark, hour) / "xp" (perk) / "condition" (types) / "known" (recipes) / "benchFree"
 -- (benches: ids) / "space" (placeKey, place: space_left()) / "hasFood" / "hasDrink" (op: what eat() / drink() would look
--- for, { kind, itemTypes, near, openCans, picky, source }) / "num" (v) / "not" (a) / "and" / "or" (a, b) / "cmp" (op,
--- a, b); text = the condition as written; "count" with placeKey / place: count("X", at="P"). result.xpPerks: the
--- skills xp_gained() reads (their experience is noted at the start). result.placeRefs: { line, name, key, place } for
--- every place the text names (Run:getStartRefusal checks them); result.placesKnown: opts.places was given (the
--- macro's places by key).
+-- for, { kind, itemTypes, near, walk, openCans, picky, source }) / "hasFun" (op: what have_fun() would look for,
+-- { near, walk, snacks }) / "hasSmoke" (op: what smoke() would look for, { itemTypes, itemText }) / "num" (v) / "not"
+-- (a) / "and" / "or" (a, b) / "cmp" (op, a, b); text = the condition as written; "count" with placeKey / place:
+-- count("X", at="P"). result.xpPerks: the skills xp_gained() reads (their experience is noted at the start).
+-- result.placeRefs: { line, name, key, place } for every place the text names (Run:getStartRefusal checks them); a
+-- walk_to(x, y, z) too, with spot = true, key nil and place = { kind = "ground", x, y, z, name = "x, y, z" } (its
+-- distance from the start is checked like a place's); result.placesKnown: opts.places was given (the macro's places
+-- by key).
 --
 -- Kahlua: the file is ASCII; the accented and typographic characters are written as UTF-8 byte escapes, which the
 -- game's Lua compiler decodes into one character each.
@@ -165,9 +178,11 @@ Lang.moodleItalian = {
 	buio = "dark", scuro = "dark", notte = "dark", darkness = "dark", ora = "hour", orario = "hour", time = "hour",
 };
 
--- Italian (and English) words written by habit for a condition's call (20/11/2026): the call to write
+-- Italian (and English) words written by habit for a condition's call (20/11/2026): the call to write; has_fun and
+-- has_smoke since 26/11/2026 (ANALISI-AUTONOMIA.md 3.4, 3.8)
 Lang.callItalian = { cibo = "has_food", mangiare = "has_food", food = "has_food", acqua = "has_drink", bere = "has_drink",
-	water = "has_drink", drink = "has_drink" };
+	water = "has_drink", drink = "has_drink", divertimento = "has_fun", svago = "has_fun", fun = "has_fun",
+	sigarette = "has_smoke", sigaretta = "has_smoke", smoke = "has_smoke", cigarettes = "has_smoke" };
 
 -- the edit distance of two short words (the closest name of a word not known)
 local function distance(a, b)
@@ -272,6 +287,12 @@ Lang.seats = { "nearest", "ground" };
 
 -- drink(source=True), refill(): a water source within this many squares (MacroFood.lua's F.sourceRadius, the same)
 Lang.sourceRadius = 8;
+-- eat(), drink(), have_fun() walk to what is within this many squares (26/11/2026, MacroNear.lua's Near.radius, the
+-- same; ANALISI-AUTONOMIA.md 3.5)
+Lang.nearRadius = 8;
+-- walk_to(x, y, z) (3.1): the floors of 42 (z), x and y from 0 to Lang.maxNumber
+Lang.minFloor = -32;
+Lang.maxFloor = 31;
 
 -- the amounts of eat(amount="...") (20/11/2026): the game's "Eat" menu (all, half, quarter; half and quarter only when
 -- the game offers them for that food), "auto" the smallest portion that takes the hunger away
@@ -326,19 +347,22 @@ Lang.calls = {
 	wait = { pos = { "seconds" }, kw = { seconds = "num" }, req = { "seconds" }, usage = "wait(5)" },
 	stop_if = { pos = { "condition" }, kw = { condition = "cond" }, req = { "condition" }, usage = "stop_if(has(\"Item\", at_least=20))" },
 	stop = { pos = {}, kw = {}, req = {}, usage = "stop()" },
-	exercise = { pos = { "type" }, kw = { type = "str", minutes = "num" }, req = { "type" },
+	-- autonomy (26/11/2026, ANALISI-AUTONOMIA.md 3.6): the type and the minutes are optional (at random, until the game
+	-- stops it for fatigue)
+	exercise = { pos = { "type" }, kw = { type = "str", minutes = "num" }, req = {},
 		usage = "exercise(\"pushups\", minutes=10)", action = true, names = { type = "exercise" } },
 	rest = { pos = {}, kw = { seat = "str", ["until"] = "num" }, req = {}, usage = "rest(seat=\"nearest\", until=95)", action = true,
 		names = { seat = "seat" } },
 	-- smart food and water (20/11/2026): carried or within reach (near), cans opened (open_cans), the portion (amount),
 	-- what makes very unhappy too (picky=False); boolDefaults: what a boolean argument is when not written (the
-	-- suggestions write the other value)
-	eat = { pos = { "item" }, kw = { item = "str", open_cans = "bool", near = "bool", amount = "str", picky = "bool" }, req = {},
-		usage = "eat()", action = true, names = { item = "item", amount = "eatAmount" },
-		boolDefaults = { open_cans = true, near = true, picky = true } },
-	drink = { pos = { "item" }, kw = { item = "str", amount = "str", near = "bool", source = "bool" }, req = {},
+	-- suggestions write the other value). walk (26/11/2026, ANALISI-AUTONOMIA.md 3.5): within 8 squares too, walking
+	-- there (walk=False: only carried and within reach, as in 1.5.0)
+	eat = { pos = { "item" }, kw = { item = "str", open_cans = "bool", near = "bool", walk = "bool", amount = "str", picky = "bool" },
+		req = {}, usage = "eat()", action = true, names = { item = "item", amount = "eatAmount" },
+		boolDefaults = { open_cans = true, near = true, walk = true, picky = true } },
+	drink = { pos = { "item" }, kw = { item = "str", amount = "str", near = "bool", walk = "bool", source = "bool" }, req = {},
 		usage = "drink(amount=\"half\")", action = true, names = { item = "item", amount = "amount" },
-		boolDefaults = { near = true, source = false } },
+		boolDefaults = { near = true, walk = true, source = false } },
 	refill = { pos = { "item" }, kw = { item = "str" }, req = {}, usage = "refill()", action = true, names = { item = "item" } },
 	smoke = { pos = { "item" }, kw = { item = "str" }, req = {}, usage = "smoke()", action = true, names = { item = "item" } },
 	-- wave 0 of the work skills (13/11/2026): the game's repairs and sharpenings of an item it keeps, and reading a
@@ -364,8 +388,14 @@ Lang.calls = {
 		names = { item = "cargo" } },
 	equip = { pos = { "item" }, kw = { item = "str", hand = "str" }, req = { "item" }, usage = "equip(\"Item\")", action = true,
 		names = { item = "item", hand = "hand" } },
-	walk_to = { pos = { "place" }, kw = { place = "str" }, req = { "place" }, usage = "walk_to(\"Place\")", action = true,
-		names = { place = "place" } },
+	-- a place of the macro, or a square by its numbers (26/11/2026, ANALISI-AUTONOMIA.md 3.1): "strnum" = a text (the
+	-- place) or a number (x: then y is needed, z is 0 when not written)
+	walk_to = { pos = { "place", "y", "z" }, kw = { place = "strnum", y = "num", z = "num" }, req = { "place" },
+		usage = "walk_to(\"Place\")  /  walk_to(12625, 4705, 0)", action = true, names = { place = "place" } },
+	-- one source of fun a line (3.4): a reading not read yet, then a snack that cheers up; carried, within reach, within
+	-- 8 squares walking (near=False: only carried; walk=False: no walk; snacks=False: only readings)
+	have_fun = { pos = {}, kw = { near = "bool", walk = "bool", snacks = "bool" }, req = {}, usage = "have_fun()", action = true,
+		boolDefaults = { near = true, walk = true, snacks = true } },
 };
 
 -- what a condition can call; value: "bool" (alone, true or false) or "number" (to compare); names "anyRecipe": every
@@ -389,10 +419,16 @@ Lang.condCalls = {
 	-- wave 2: the weight the character can still carry (getMaxWeight - the inventory), or the room left in a place
 	space_left = { pos = {}, kw = { at = "str" }, req = {}, usage = "space_left() < 5", names = { at = "place" }, value = "number" },
 	-- smart food and water (20/11/2026): eat() / drink() would find something now (the same arguments)
-	has_food = { pos = { "item" }, kw = { item = "str", near = "bool", open_cans = "bool", picky = "bool" }, req = {},
-		usage = "has_food()", names = { item = "item" }, value = "bool", boolDefaults = { open_cans = true, near = true, picky = true } },
-	has_drink = { pos = { "item" }, kw = { item = "str", near = "bool", source = "bool" }, req = {}, usage = "has_drink()",
-		names = { item = "item" }, value = "bool", boolDefaults = { near = true, source = false } },
+	has_food = { pos = { "item" }, kw = { item = "str", near = "bool", walk = "bool", open_cans = "bool", picky = "bool" }, req = {},
+		usage = "has_food()", names = { item = "item" }, value = "bool",
+		boolDefaults = { open_cans = true, near = true, walk = true, picky = true } },
+	has_drink = { pos = { "item" }, kw = { item = "str", near = "bool", walk = "bool", source = "bool" }, req = {}, usage = "has_drink()",
+		names = { item = "item" }, value = "bool", boolDefaults = { near = true, walk = true, source = false } },
+	-- autonomy (26/11/2026, ANALISI-AUTONOMIA.md 3.4, 3.8): have_fun() would find something now (the same arguments);
+	-- smoke() would find something to smoke and to light it with
+	has_fun = { pos = {}, kw = { near = "bool", walk = "bool", snacks = "bool" }, req = {}, usage = "has_fun()", value = "bool",
+		boolDefaults = { near = true, walk = true, snacks = true } },
+	has_smoke = { pos = { "item" }, kw = { item = "str" }, req = {}, usage = "has_smoke()", names = { item = "item" }, value = "bool" },
 };
 
 -- The statements of a line other than the calls, as the editor's suggestions write them (MACRO-AUTOPILOT.md 4.12; the
@@ -431,14 +467,30 @@ Lang.italian = {
 	crea = "craft(\"...\")", smonta = "dismantle(\"...\")", ripeti = "repeat 10:  /  while possible:",
 	aspetta = "wait(5)", fermati = "stop_if(...)", se = "if ...:", altrimenti = "else:", quando = "when ...:",
 	mangia = "eat()", bevi = "drink()", fuma = "smoke()", riposa = "rest()", ["finch\195\169"] = "while ...:",
-	finche = "while ...:", hai = "has(\"...\")", non = "not", e = "and", o = "or", allenati = "exercise(\"pushups\")",
-	esercizio = "exercise(\"pushups\")", flessioni = "exercise(\"pushups\")", vero = "True", falso = "False",
+	finche = "while ...:", hai = "has(\"...\")", non = "not", e = "and", o = "or", allenati = "exercise()",
+	esercizio = "exercise()", flessioni = "exercise(\"pushups\")", vero = "True", falso = "False",
 	sempre = "while True:", altrimentise = "elif ...:", fai = "craft(\"...\")", ripara = "repair(\"...\")",
 	affila = "sharpen(\"...\")", leggi = "read(\"...\")", fondi = "smelt(\"...\")",
 	prendi = "take(\"...\", from=\"...\")", metti = "put(\"...\", into=\"...\")", posa = "drop(\"...\")",
 	lascia = "drop(\"...\")", equipaggia = "equip(\"...\")", impugna = "equip(\"...\")", vai = "walk_to(\"...\")",
 	cammina = "walk_to(\"...\")", conta = "count(\"...\")", riempi = "refill()", ricarica = "refill()",
+	muovi = "walk_to(12625, 4705, 0)", muoviti = "walk_to(12625, 4705, 0)", spostati = "walk_to(12625, 4705, 0)",
+	divertiti = "have_fun()", svagati = "have_fun()", rilassati = "have_fun()",
 };
+
+-- The calls written by habit with another word (26/11/2026, ANALISI-AUTONOMIA.md 3.1, 3.4): the call to write, with
+-- the arguments as written ("muovi(1, 2, 0)": walk_to(1, 2, 0); without arguments the example of Lang.callExamples).
+-- english: an English word (the hint says "maybe", not "this is Italian"). bare: only a call without arguments
+-- (leggi() = have_fun(); leggi("X") is read("X"), Lang.italian)
+Lang.habitCalls = {
+	move = { call = "walk_to", english = true }, move_to = { call = "walk_to", english = true },
+	go_to = { call = "walk_to", english = true }, muovi = { call = "walk_to" }, muoviti = { call = "walk_to" },
+	spostati = { call = "walk_to" }, divertiti = { call = "have_fun" }, svagati = { call = "have_fun" },
+	rilassati = { call = "have_fun" }, leggi = { call = "have_fun", bare = true },
+};
+-- "go" and "to" written together: built here, the word itself is kept out of the sources (a keyword of later Luas)
+Lang.habitCalls["go" .. "to"] = { call = "walk_to", english = true };
+Lang.callExamples = { walk_to = "walk_to(12625, 4705, 0)", have_fun = "have_fun()" };
 
 -- ============================================================================================================
 -- Reading a line
@@ -1378,6 +1430,20 @@ local function parseValue(p)
 
 	p.i = p.i + 1;
 
+	-- a negative number (26/11/2026, ANALISI-AUTONOMIA.md 3.1: the floors under the ground, z from -32): the sign right
+	-- before the digits, nothing between; the node's token is the number's (its place in the line), minus the sign's
+	if isSym(token, "-")
+	then
+		local digits = peek(p);
+
+		if digits and digits.k == "num" and digits.s == token.e + 1
+		then
+			p.i = p.i + 1;
+
+			return { k = "num", v = 0 - tonumber(digits.text), tok = digits, minus = token };
+		end
+	end
+
 	if token.k == "num"
 	then
 		return { k = "num", v = tonumber(token.text), tok = token };
@@ -1599,12 +1665,12 @@ local function bindArgs(ctx, name, spec, args)
 		end
 	end
 
-	-- the kinds: a name always in quotes, numbers, True / False
+	-- the kinds: a name always in quotes, numbers, True / False; "strnum" a name in quotes or a number (walk_to)
 	for key, node in pairs(bound)
 	do
 		local kind = spec.kw[key];
 
-		if kind == "str" and node.k ~= "str"
+		if (kind == "str" and node.k ~= "str") or (kind == "strnum" and node.k ~= "str" and node.k ~= "num")
 		then
 			if node.k == "name"
 			then
@@ -1835,7 +1901,8 @@ end
 -- a warning, never an error (every macro written before keeps working), with the form to write. Moodles: the levels a
 -- living character can have (Lang.stateInfo[word].reach) the comparison holds for are all of them, none, all but 0
 -- (= the word alone) or only 0 (= not the word). endurance and craving: a number within Lang.stateNear of one of the
--- game's thresholds (the endurance moodle at 75 / 50 / 25 / 10%, the craving above 0).
+-- game's thresholds (the endurance moodle at 75 / 50 / 25 / 10%; the craving at 49%, where the withdrawal alone gives
+-- the stress moodle: 26/11/2026, ANALISI-AUTONOMIA.md 2.3, it was "above 0" before).
 local FLIP = { ["<"] = ">", [">"] = "<", ["<="] = ">=", [">="] = "<=", ["=="] = "==", ["!="] = "!=" };
 
 local function holds(op, a, b)
@@ -1952,16 +2019,18 @@ local function stateHint(ctx, node, a, b)
 
 		nearText = getText("IGUI_AutoPilot_E_St_NearEndurance", near, Lang.stateLevelName(info.levels[nearLevel]));
 	else
-		-- craving: above 0 = alone (>= 0 and < 0 are always and never, said by nobody: left as written)
-		if (op == ">" or (op == ">=" and x > 0) or (op == "!=" and x == 0))
+		-- craving (26/11/2026, ANALISI-AUTONOMIA.md 2.3): alone it is true when the game shows the stress moodle, which
+		-- the withdrawal alone gives above Lang.cravingStressAt; a number near it, compared up or down, is the word alone
+		-- or its "not" (== and != said by nobody: left as written)
+		if above
 		then
 			suggestion = word;
-		elseif (op == "<" and x > 0) or op == "<=" or (op == "==" and x == 0)
+		elseif below
 		then
 			suggestion = "not " .. word;
 		end
 
-		nearText = getText("IGUI_AutoPilot_E_St_NearCraving");
+		nearText = getText("IGUI_AutoPilot_E_St_NearCraving", Lang.cravingStressAt);
 	end
 
 	if suggestion
@@ -2036,15 +2105,27 @@ local function warnFood(ctx, node, action)
 	end
 end
 
+-- where the food or the water is looked for, in words: carried, within reach, within Lang.nearRadius squares walking
+local function whereText(near, walk, onKey, reachKey, nearKey)
+	if walk
+	then
+		return getText(nearKey, Lang.nearRadius);
+	end
+
+	return getText(near and reachKey or onKey);
+end
+
 -- what an eat() / drink() / refill() line needs ("Attrezzi e materiali", 4.5): in words, and in data for ZomBOT
--- (entry.body = the command, entry.near, entry.source)
+-- (entry.body = the command, entry.near, entry.walk (26/11/2026: within Lang.nearRadius squares, walking), entry.source)
 local function foodNeeds(ctx, name, action)
 	local parts = {};
 	local near = action.near ~= false and ctx.opts.eatNear ~= false;
+	local walk = near and action.walk ~= false;
 
 	if name == "eat"
 	then
-		table.insert(parts, getText(near and "IGUI_AutoPilot_E_NeedsFoodNear" or "IGUI_AutoPilot_E_NeedsFoodOn"));
+		table.insert(parts, whereText(near, walk, "IGUI_AutoPilot_E_NeedsFoodOn", "IGUI_AutoPilot_E_NeedsFoodReach",
+			"IGUI_AutoPilot_E_NeedsFoodNear"));
 
 		if action.openCans ~= false
 		then
@@ -2052,7 +2133,8 @@ local function foodNeeds(ctx, name, action)
 		end
 	elseif name == "drink" and not action.source
 	then
-		table.insert(parts, getText(near and "IGUI_AutoPilot_E_NeedsDrinkNear" or "IGUI_AutoPilot_E_NeedsDrinkOn"));
+		table.insert(parts, whereText(near, walk, "IGUI_AutoPilot_E_NeedsDrinkOn", "IGUI_AutoPilot_E_NeedsDrinkReach",
+			"IGUI_AutoPilot_E_NeedsDrinkNear"));
 	else
 		if name == "refill"
 		then
@@ -2063,10 +2145,22 @@ local function foodNeeds(ctx, name, action)
 	end
 
 	local written = textOf(ctx, 1);
+	local carried = name ~= "refill" and not action.source;
 
-	table.insert(ctx.result.requirements, { line = ctx.line, body = name, recipeText = written, near = near and name ~= "refill"
-		and not action.source, source = name == "refill" or action.source == true, materials = {}, tools = {}, skills = {},
+	table.insert(ctx.result.requirements, { line = ctx.line, body = name, recipeText = written, near = near and carried,
+		walk = walk and carried, source = name == "refill" or action.source == true, materials = {}, tools = {}, skills = {},
 		text = getText("IGUI_AutoPilot_E_Needs", ctx.line, written, table.concat(parts, "; ")) });
+end
+
+-- the server switched off the containers within reach and the walk to them (MacroEatNear false; nil: not known,
+-- ZomBOT): near=True or walk=True written says it
+local function warnNearOff(ctx, bound, near, walk)
+	if ctx.opts.eatNear == false and (near == true or walk == true)
+	then
+		local token = (near == true and bound.near and bound.near.tok) or (bound.walk and bound.walk.tok) or nil;
+
+		warn(ctx, getText("IGUI_AutoPilot_E_P_NearOff", ctx.line), token, "nearOff", nil);
+	end
 end
 
 -- eat / drink / refill: the arguments, the warnings, what the line needs; false after an error (said)
@@ -2074,6 +2168,7 @@ local function compileFood(ctx, name, bound, action)
 	if name == "eat"
 	then
 		action.near = boolArg(bound, "near");
+		action.walk = boolArg(bound, "walk");
 		action.openCans = boolArg(bound, "open_cans");
 		action.picky = boolArg(bound, "picky");
 
@@ -2095,6 +2190,7 @@ local function compileFood(ctx, name, bound, action)
 	elseif name == "drink"
 	then
 		action.near = boolArg(bound, "near");
+		action.walk = boolArg(bound, "walk");
 		action.source = boolArg(bound, "source") == true;
 
 		if action.source and bound.item
@@ -2122,12 +2218,7 @@ local function compileFood(ctx, name, bound, action)
 		end
 	end
 
-	-- the server switched off the containers within reach (MacroEatNear false; nil: not known, ZomBOT)
-	if action.near == true and ctx.opts.eatNear == false
-	then
-		warn(ctx, getText("IGUI_AutoPilot_E_P_NearOff", ctx.line), bound.near.tok, "nearOff", nil);
-	end
-
+	warnNearOff(ctx, bound, action.near, action.walk);
 	foodNeeds(ctx, name, action);
 
 	return true;
@@ -2143,7 +2234,7 @@ local function compileHasFood(ctx, node)
 	end
 
 	local food = node.fn == "has_food";
-	local op = { kind = food and "eat" or "drink", near = boolArg(bound, "near") };
+	local op = { kind = food and "eat" or "drink", near = boolArg(bound, "near"), walk = boolArg(bound, "walk") };
 
 	if bound.item
 	then
@@ -2173,12 +2264,84 @@ local function compileHasFood(ctx, node)
 		end
 	end
 
-	if op.near == true and ctx.opts.eatNear == false
-	then
-		warn(ctx, getText("IGUI_AutoPilot_E_P_NearOff", ctx.line), bound.near.tok, "nearOff", nil);
-	end
+	warnNearOff(ctx, bound, op.near, op.walk);
 
 	return { k = food and "hasFood" or "hasDrink", op = op };
+end
+
+-- ============================================================================================================
+-- Autonomy (26/11/2026, ANALISI-AUTONOMIA.md 3.4, 3.8): have_fun(), has_fun(), has_smoke(); what smoke() and have_fun()
+-- need
+-- ============================================================================================================
+
+-- have_fun(...) / has_fun(...): where to look and what (near, walk, snacks: nil = not written, the default true)
+local function funOp(ctx, bound)
+	local op = { near = boolArg(bound, "near"), walk = boolArg(bound, "walk"), snacks = boolArg(bound, "snacks") };
+
+	warnNearOff(ctx, bound, op.near, op.walk);
+
+	return op;
+end
+
+-- has_fun(...): what have_fun() would look for, or nil (the problem is said)
+local function compileHasFun(ctx, node)
+	local bound = bindArgs(ctx, node.fn, Lang.condCalls.has_fun, node.args);
+
+	if bound == nil
+	then
+		return nil;
+	end
+
+	return { k = "hasFun", op = funOp(ctx, bound) };
+end
+
+-- has_smoke(...): what smoke() would look for (a named smoke, or any), or nil (the problem is said)
+local function compileHasSmoke(ctx, node)
+	local bound = bindArgs(ctx, node.fn, Lang.condCalls.has_smoke, node.args);
+
+	if bound == nil
+	then
+		return nil;
+	end
+
+	local op = {};
+
+	if bound.item
+	then
+		op.itemTypes = resolveItem(ctx, bound.item.tok);
+
+		if op.itemTypes == nil
+		then
+			return nil;
+		end
+
+		op.itemText = bound.item.v;
+	end
+
+	return { k = "hasSmoke", op = op };
+end
+
+-- what a smoke() / have_fun() line needs ("Attrezzi e materiali", 4.5), in words and in data (entry.body, and for
+-- have_fun near, walk, snacks as the line will use them)
+local function bodyNeeds(ctx, name, action)
+	local written = textOf(ctx, 1);
+	local entry = { line = ctx.line, body = name, recipeText = written, materials = {}, tools = {}, skills = {} };
+	local part = nil;
+
+	if name == "have_fun"
+	then
+		entry.near = action.near ~= false and ctx.opts.eatNear ~= false;
+		entry.walk = entry.near and action.walk ~= false;
+		entry.snacks = action.snacks ~= false;
+		part = getText(entry.snacks and "IGUI_AutoPilot_E_NeedsFun" or "IGUI_AutoPilot_E_NeedsFunRead",
+			whereText(entry.near, entry.walk, "IGUI_AutoPilot_E_NeedsWhereOn", "IGUI_AutoPilot_E_NeedsWhereReach",
+				"IGUI_AutoPilot_E_NeedsWhereNear"));
+	else
+		part = getText("IGUI_AutoPilot_E_NeedsSmoke");
+	end
+
+	entry.text = getText("IGUI_AutoPilot_E_Needs", ctx.line, written, part);
+	table.insert(ctx.result.requirements, entry);
 end
 
 -- a node as a condition, or nil
@@ -2222,8 +2385,9 @@ compileBool = function(ctx, node)
 		return { k = "state", word = node.lower, moodle = Lang.moodles[node.lower] };
 	elseif node.k == "name" and Lang.percents[node.lower]
 	then
-		-- endurance alone: the endurance moodle is shown (as exerted); craving alone: the game has started the
-		-- nicotine withdrawal (16.1). endurance still tells the engine the macro rests by itself (11.4)
+		-- endurance alone: the endurance moodle is shown (as exerted); craving alone: a smoker in withdrawal while the
+		-- game shows the stress moodle (26/11/2026, ANALISI-AUTONOMIA.md 2.3; Run:evalCondition reads it). endurance
+		-- still tells the engine the macro rests by itself (11.4)
 		if node.lower == "endurance"
 		then
 			ctx.moodlesSeen.ENDURANCE = true;
@@ -2268,6 +2432,12 @@ compileBool = function(ctx, node)
 	elseif node.k == "call" and (node.fn == "has_food" or node.fn == "has_drink")
 	then
 		return compileHasFood(ctx, node);
+	elseif node.k == "call" and node.fn == "has_fun"
+	then
+		return compileHasFun(ctx, node);
+	elseif node.k == "call" and node.fn == "has_smoke"
+	then
+		return compileHasSmoke(ctx, node);
 	elseif node.k == "call" and node.fn == "bench_free"
 	then
 		local bound = bindArgs(ctx, "bench_free", Lang.condCalls.bench_free, node.args);
@@ -3159,6 +3329,33 @@ local function compileSmelt(ctx, bound)
 	addAction(ctx, action, times);
 end
 
+-- walk_to(x, y, z) (26/11/2026, ANALISI-AUTONOMIA.md 3.1): a square by its numbers, z 0 when not written. The action
+-- has spot and placeName ("x, y, z"), no place; result.placeRefs notes it with a place of its own (kind "ground"), so the
+-- start checks its distance like a place's (Run:placeRefusal: "12625, 4705, 0 e' a 45 caselle da qui...").
+local function compileSpot(ctx, bound)
+	if bound.y == nil
+	then
+		lineError(ctx, getText("IGUI_AutoPilot_E_P_Usage", ctx.line, Lang.calls.walk_to.usage));
+
+		return;
+	end
+
+	local x, y = bound.place.v, bound.y.v;
+	local z = bound.z and bound.z.v or 0;
+	local text = x .. ", " .. y .. ", " .. z;
+
+	if x < 0 or y < 0 or x > Lang.maxNumber or y > Lang.maxNumber or z < Lang.minFloor or z > Lang.maxFloor
+	then
+		lineError(ctx, getText("IGUI_AutoPilot_E_P_BadSpot", ctx.line, text), bound.place.tok);
+
+		return;
+	end
+
+	table.insert(ctx.result.placeRefs, { line = ctx.line, name = text, spot = true,
+		place = { kind = "ground", x = x, y = y, z = z, name = text } });
+	addAction(ctx, { op = "ACTION", kind = "walk_to", spot = { x = x, y = y, z = z }, placeName = text }, 1);
+end
+
 -- take / put / drop / equip / walk_to (waves 2 and 3): the items (or "made" in put and drop), the place, n=, hand=
 local function compileItems(ctx, name, bound)
 	local action = { op = "ACTION", kind = name };
@@ -3167,6 +3364,21 @@ local function compileItems(ctx, name, bound)
 
 	if transfersOff(ctx, first)
 	then
+		return;
+	end
+
+	-- walk_to: a square by its numbers, or a place's name alone (never with numbers after it)
+	if name == "walk_to" and bound.place.k == "num"
+	then
+		compileSpot(ctx, bound);
+
+		return;
+	end
+
+	if name == "walk_to" and (bound.y or bound.z)
+	then
+		lineError(ctx, getText("IGUI_AutoPilot_E_P_Usage", ctx.line, Lang.calls.walk_to.usage));
+
 		return;
 	end
 
@@ -3242,34 +3454,50 @@ local function compileBody(ctx, name, bound)
 
 	if name == "exercise"
 	then
-		local wanted = string.lower(bound.type.v);
-		local id = Lang.exerciseAlias[wanted] or wanted;
-		local known = false;
+		-- without the type one at random, without the minutes until the game stops it for fatigue (26/11/2026,
+		-- ANALISI-AUTONOMIA.md 3.6): exercise and minutes stay nil
+		if bound.type
+		then
+			local wanted = string.lower(bound.type.v);
+			local id = Lang.exerciseAlias[wanted] or wanted;
+			local known = false;
 
-		for i, exercise in ipairs(Lang.exercises)
-		do
-			if exercise == id
+			for i, exercise in ipairs(Lang.exercises)
+			do
+				if exercise == id
+				then
+					known = true;
+				end
+			end
+
+			if not known
 			then
-				known = true;
+				lineError(ctx, getText("IGUI_AutoPilot_E_P_BadExercise", ctx.line, bound.type.v, table.concat(Lang.exercises, ", ")));
+
+				return;
+			end
+
+			action.exercise = id;
+		end
+
+		if bound.minutes
+		then
+			action.minutes = bound.minutes.v;
+
+			if not Lang.exerciseMinutes[action.minutes]
+			then
+				lineError(ctx, getText("IGUI_AutoPilot_E_P_BadMinutes", ctx.line));
+
+				return;
 			end
 		end
+	elseif name == "have_fun"
+	then
+		-- one source of fun (26/11/2026, ANALISI-AUTONOMIA.md 3.4): near, walk, snacks as written (nil: true)
+		local op = funOp(ctx, bound);
 
-		if not known
-		then
-			lineError(ctx, getText("IGUI_AutoPilot_E_P_BadExercise", ctx.line, bound.type.v, table.concat(Lang.exercises, ", ")));
-
-			return;
-		end
-
-		action.exercise = id;
-		action.minutes = bound.minutes and bound.minutes.v or 10;
-
-		if not Lang.exerciseMinutes[action.minutes]
-		then
-			lineError(ctx, getText("IGUI_AutoPilot_E_P_BadMinutes", ctx.line));
-
-			return;
-		end
+		action.near, action.walk, action.snacks = op.near, op.walk, op.snacks;
+		bodyNeeds(ctx, name, action);
 	elseif name == "rest"
 	then
 		action.seat = bound.seat and string.lower(bound.seat.v) or "nearest";
@@ -3318,6 +3546,12 @@ local function compileBody(ctx, name, bound)
 		then
 			return;
 		end
+
+		-- what a smoke needs (26/11/2026): something to smoke and to light it with
+		if name == "smoke"
+		then
+			bodyNeeds(ctx, name, action);
+		end
 	end
 
 	addAction(ctx, action, 1);
@@ -3346,9 +3580,39 @@ local function parseCall(ctx, first)
 
 	if spec == nil
 	then
+		local habit = Lang.habitCalls[name];
+		local written = #args.pos > 0;
+
+		for key in pairs(args.kw)
+		do
+			written = true;
+		end
+
+		if habit and habit.bare and written
+		then
+			habit = nil;
+		end
+
 		if Lang.condCalls[name]
 		then
 			lineError(ctx, getText("IGUI_AutoPilot_E_P_CondAlone", ctx.line, first.text), first);
+		elseif habit
+		then
+			-- the call to write, with the arguments as written (move(1, 2, 0): walk_to(1, 2, 0))
+			local call = Lang.callExamples[habit.call];
+
+			if written
+			then
+				call = habit.call .. string.sub(ctx.code, ctx.tokens[2].s, ctx.tokens[#ctx.tokens].e);
+			end
+
+			if habit.english
+			then
+				lineError(ctx, getText("IGUI_AutoPilot_E_P_UnknownCommand", ctx.line, textOf(ctx, 1)) .. ". " ..
+					getText("IGUI_AutoPilot_E_P_Maybe", call), first);
+			else
+				lineError(ctx, getText("IGUI_AutoPilot_E_P_Italian", ctx.line, first.text, call), first);
+			end
 		elseif Lang.italian[name]
 		then
 			lineError(ctx, getText("IGUI_AutoPilot_E_P_Italian", ctx.line, first.text, Lang.italian[name]), first);
@@ -3557,6 +3821,17 @@ local function oldOrItalian(ctx, first)
 	if Lang.italian[word]
 	then
 		lineError(ctx, getText("IGUI_AutoPilot_E_P_Italian", ctx.line, first.text, Lang.italian[word]), first);
+
+		return true;
+	end
+
+	-- an English word of another language written by habit (move 1 2 0): maybe the call (26/11/2026)
+	local habit = Lang.habitCalls[word];
+
+	if habit and habit.english
+	then
+		lineError(ctx, getText("IGUI_AutoPilot_E_P_UnknownCommand", ctx.line, textOf(ctx, 1)) .. ". " ..
+			getText("IGUI_AutoPilot_E_P_Maybe", Lang.callExamples[habit.call]), first);
 
 		return true;
 	end
@@ -4172,8 +4447,9 @@ end
 -- A state word alone (if hungry:, when craving:, while not tired:, stop_if(bleeding)) is a yes / no the run works out
 -- once per pass (MacroRun.lua, Run:newStates): "the game shows this state now". A moodle word: the game's own level
 -- (Moodles.getMoodleLevel) is 1 or more, so the game's thresholds are never copied here; endurance: as exerted (the
--- endurance moodle, at 75% or less); craving: the game has started adding the nicotine withdrawal (above 0). With a
--- number: a moodle's level, endurance and craving in percent, as before.
+-- endurance moodle, at 75% or less); craving: a smoker in withdrawal while the game shows the stress moodle ("Teso",
+-- 26/11/2026, ANALISI-AUTONOMIA.md 2.3; before it was the withdrawal above 0, five times earlier than the moodle). With
+-- a number: a moodle's level, endurance and craving in percent, as before.
 --
 -- Lang.stateInfo[word] (built below, read by ZomBOT too; the texts are translation keys, the game's level names its
 -- own keys Moodles_<game>_lvl<n>):
@@ -4284,10 +4560,12 @@ local function buildStateInfo()
 		bool = { key = "IGUI_AutoPilot_E_St_Bool_endurance", level = 1 }, levels = exerted.levels,
 		use = "IGUI_AutoPilot_E_St_Use_endurance", note = "IGUI_AutoPilot_E_St_Note_endurance",
 		help = "IGUI_AutoPilot_E_St_Help_endurance", near = { 75, 50, 25, 10 } };
-	-- craving: the nicotine withdrawal of a smoker; no moodle of its own (it adds to the stress)
+	-- craving: the nicotine withdrawal of a smoker; no moodle of its own (it adds to the stress). Alone (26/11/2026,
+	-- ANALISI-AUTONOMIA.md 2.3): in withdrawal while the game shows the stress moodle, which the withdrawal alone gives
+	-- at Lang.cravingStressAt (49%): the numbers near it say the word alone
 	Lang.stateInfo.craving = { word = "craving", kind = "percent", key = "NICOTINE_WITHDRAWAL",
 		bool = { key = "IGUI_AutoPilot_E_St_Bool_craving" }, levels = {}, use = "IGUI_AutoPilot_E_St_Use_craving",
-		note = "IGUI_AutoPilot_E_St_Note_craving", help = "IGUI_AutoPilot_E_St_Help_craving", near = { 0 } };
+		note = "IGUI_AutoPilot_E_St_Note_craving", help = "IGUI_AutoPilot_E_St_Help_craving", near = { Lang.cravingStressAt } };
 
 	-- dark, hour: the words of the work (their help as the suggestions say it)
 	for i, entry in ipairs(Lang.condWordList)

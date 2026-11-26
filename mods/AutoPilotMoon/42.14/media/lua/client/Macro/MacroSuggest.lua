@@ -17,7 +17,9 @@
 --               the moodles (with their Italian names), endurance, craving, dark, hour (Lang.condWordList), has(,
 --               count(, skill(, xp_gained(, condition(, known(, not
 --   args        after "(" or "," in a call: its keyword arguments not written yet (using=, minutes=, seat=, damaged=...),
---               and after "(" the names its first argument holds (craft( -> the recipes, written with the quotes)
+--               and after "(" the names its first argument holds (craft( -> the recipes, written with the quotes);
+--               after walk_to( first "Localizza" (26/11/2026: an entry that writes nothing, action = "locate": the
+--               editor opens the square's picker), then the macro's places
 --   recipe, anyRecipe, item, skill, exercise, seat, amount   inside the quotes of an argument that holds that kind of
 --               name, or right after its "=" without the quotes (anyRecipe: every recipe, the workbenches' too, for
 --               known("..."); bench: the workbenches of at="..." and bench_free("...", wave 1), their window's name or
@@ -37,8 +39,9 @@ AutoPilotMoon.Macro.Suggest = AutoPilotMoon.Macro.Suggest or {};
 
 local S = AutoPilotMoon.Macro.Suggest;
 
--- at most this many entries (a condition offers 31 words: every moodle stays in the list before typing)
-S.maxEntries = 40;
+-- at most this many entries (a condition offers 42 words since 26/11/2026, has_fun and has_smoke: every moodle, every
+-- call and "not" stay in the list before typing)
+S.maxEntries = 48;
 S.index = nil;
 S.places = {};      -- the names of the places of the macro being written (the editor sets them at every check)
 S.texts = {};
@@ -394,8 +397,10 @@ local function codeContext(ctx, before)
 			ctx.afterComma = prev.text == ",";
 			ctx.tightComma = prev.text == "," and prev.e == ctx.from - 1;
 
-			-- after "(": the names its first argument holds, when it needs one (craft(, skill(; eat( needs nothing)
-			if prev.text == "(" and spec.pos[1] and spec.names and spec.req[1] == spec.pos[1]
+			-- after "(": the names its first argument holds, when it needs one (craft(, skill(; eat( needs nothing); the
+			-- exercises too, optional since 26/11/2026 (exercise() picks one at random) but a short list worth offering
+			if prev.text == "(" and spec.pos[1] and spec.names
+				and (spec.req[1] == spec.pos[1] or spec.names[spec.pos[1]] == "exercise")
 			then
 				ctx.names = spec.names[spec.pos[1]];
 			end
@@ -621,7 +626,8 @@ local function callEntry(name, spec)
 	then
 		entry.text = name .. "()";
 		entry.caret = string.len(name) + 1;
-		entry.reopen = spec.kw[first] == "cond";
+		-- a condition, or a name or the numbers of a square (walk_to: the places and "Localizza" follow, 26/11/2026)
+		entry.reopen = spec.kw[first] == "cond" or spec.kw[first] == "strnum";
 	else
 		entry.text = name .. "()";
 	end
@@ -1113,6 +1119,20 @@ local function argEntries(ctx, q, words)
 		end
 	end
 
+	-- right after walk_to( (26/11/2026, ANALISI-AUTONOMIA.md 3.2): "Localizza", a square clicked on the floor, its
+	-- numbers written there (the editor does it: action = "locate", nothing written by the entry itself), first
+	if ctx.call == "walk_to" and not ctx.afterComma
+	then
+		local label = text("IGUI_AutoPilot_E_Sug_Spot");
+		local b = rankSmall(q, label, { "xyz", text("IGUI_AutoPilot_E_Locate") });
+
+		if b
+		then
+			table.insert(buckets[b], 1, { label = label, detail = "x, y, z", class = "number", action = "locate",
+				helpKey = "IGUI_AutoPilot_D_How_Spot" });
+		end
+	end
+
 	if ctx.names
 	then
 		local names, waiting = nameEntries(ctx, ctx.names, q, words);
@@ -1219,6 +1239,12 @@ end
 -- nothing follows), the cursor after the call when only its ")" follow; else the entry's text with the cursor where it says, a body line one level in after a header
 -- that opens a block (when nothing follows on the line and no body is there yet), a space after a "," right before.
 function AutoPilotMoon.Macro.Suggest:apply(text, offset, ctx, entry)
+	-- an entry that does something instead of writing ("Localizza"): the text as it is
+	if entry.action
+	then
+		return text, offset;
+	end
+
 	local line, column, lineStart = S.lineAt(text, offset);
 	local startOffset = lineStart + ctx.from - 1;
 	local endOffset = lineStart + math.max(ctx.to, ctx.from - 1);

@@ -26,6 +26,11 @@
 -- destination picker of the jobs (the window steps aside while the player clicks): a name the text already uses and
 -- that is not marked yet ("Segna Carbone"), or a new place named after what is clicked; a marked place can be marked
 -- again or removed. The checker gets the macro's places (an example has none: its places are said as not marked).
+-- "Localizza" (26/11/2026, ANALISI-AUTONOMIA.md 3.2): left of "Nome nativo" (short "XY", then hidden, on a narrow
+-- window), also in Inserisci > Oggetti e posti and in the suggestions of walk_to(: the cursor's line and column
+-- remembered, the window aside while the player clicks a square of the floor (Places:pickSpot), then its numbers
+-- written there (EditorModel:insertSpot), saved at once; Esc, the right click, B change nothing; Ctrl+Z takes it back.
+-- Grey with the reason on an example and while a macro (or another job) runs.
 
 AutoPilotMoon = AutoPilotMoon or {};
 AutoPilotMoon.Macro = AutoPilotMoon.Macro or {};
@@ -710,6 +715,10 @@ function W:createChildren()
 	self.idButton = newButton(self, getText("IGUI_AutoPilot_Pick_Button"), W.onIdPick);
 	self.idButton.tooltip = getText("IGUI_AutoPilot_Pick_Button_Tooltip");
 	self.idButtonTitle = self.idButton.title;
+	-- "Localizza" (26/11/2026, ANALISI-AUTONOMIA.md 3.2): the numbers of a square clicked, written at the cursor
+	self.locateButton = newButton(self, getText("IGUI_AutoPilot_E_Locate"), W.onLocate);
+	self.locateButton.tooltip = getText("IGUI_AutoPilot_E_Locate_Tooltip");
+	self.locateButtonTitle = self.locateButton.title;
 
 	self.problemList = Editor.List:new(0, 0, 10, 10);
 	self.problemList:initialise();
@@ -928,7 +937,15 @@ function W:makeOps()
 
 	if self.cursorText
 	then
-		local beside = self.idButton and self.idButton:getIsVisible() and self.idButton or self.insertButton;
+		local beside = self.insertButton;
+
+		for i, button in ipairs({ self.idButton, self.locateButton })
+		do
+			if button and button:getIsVisible() and button:getX() < beside:getX()
+			then
+				beside = button;
+			end
+		end
 
 		op(fitText(UIFont.Small, self.cursorText, beside:getX() - pad - self.rightX), self.rightX, self.statusY, UI.textColor);
 	end
@@ -1484,6 +1501,7 @@ function W:refresh()
 	end
 
 	self.insertButton:setEnable(editable);
+	self:updateLocateButton();
 
 	-- the gutter's marks
 	self.runningLine = isRunning and Macro().Run:getRunningLine() or nil;
@@ -1958,42 +1976,197 @@ function W:onDuplicate()
 	self:show(copy, false);
 end
 
--- [editor-smart] "Nome nativo" left of Inserisci; on a narrow window its short title ("Id"), else not shown
+-- The buttons left of Inserisci, from the right: "Nome nativo" [editor-smart], then "Localizza" (26/11/2026). On a
+-- narrow window (a small screen, a big font) first "Localizza" takes its short title ("XY"), then both ("Id", "XY"),
+-- then "Localizza" goes, then "Nome nativo" too: never one over the other nor over the cursor's line, which keeps room
+-- for a few letters.
 function W:placeIdButton(y)
-	local button = self.idButton;
+	local pad = self.sizes.pad;
+	local idShort = getText("IGUI_AutoPilot_Pick_ButtonShort");
+	local locateShort = getText("IGUI_AutoPilot_E_LocateShort");
+	local buttons = { self.idButton, self.locateButton };
+	-- the titles of each layout, right to left (nil: not shown)
+	local layouts = {
+		{ self.idButtonTitle, self.locateButtonTitle },
+		{ self.idButtonTitle, locateShort },
+		{ idShort, locateShort },
+		{ idShort, nil },
+		{ nil, nil },
+	};
+	-- room kept for the start of the cursor's line ("Riga 4, c..."): with only one letter of room the two full titles
+	-- left "L..." of it (the bench at 4x, English, 1280x720)
+	local leftmost = self.rightX + measure(UIFont.Small, "MMMM");
+
+	for k, titles in ipairs(layouts)
+	do
+		local right = self.insertButton:getX();
+		local fits = true;
+		local places = {};
+
+		for i, button in ipairs(buttons)
+		do
+			local title = titles[i];
+
+			if button and title
+			then
+				if button.title ~= title
+				then
+					button:setTitle(title);
+					button:setWidthToTitle(self.sizes.button * ((title == idShort or title == locateShort) and 1 or 2));
+				end
+
+				local x = right - pad / 2 - button:getWidth();
+
+				fits = fits and x >= leftmost;
+				places[i] = x;
+				right = x;
+			end
+		end
+
+		if fits or k == #layouts
+		then
+			for i, button in ipairs(buttons)
+			do
+				if button
+				then
+					button:setVisible(places[i] ~= nil);
+
+					if places[i]
+					then
+						button:setX(places[i]);
+						button:setY(y);
+					end
+				end
+			end
+
+			return;
+		end
+	end
+end
+
+function W:onIdPick()
+	AutoPilotMoon.IdPicker:begin(self.playerNum);
+end
+
+-- ============================================================================================================
+-- "Localizza" (26/11/2026, ANALISI-AUTONOMIA.md 3.2): the cursor's line and column remembered, the macro saved, the
+-- window aside while the player clicks a square of the floor; then the numbers written there (EditorModel:insertSpot:
+-- inside a walk_to(...) they replace its arguments, on an empty line the whole walk_to(x, y, z), else x, y, z at the
+-- cursor). Esc, the right click or B: nothing changes. Ctrl+Z takes it back (the text goes through the box's setText,
+-- which the editor's history keeps: MacroEditorInput.lua).
+-- ============================================================================================================
+
+-- the button on, or grey with the reason: an example (read-only), a macro running, another job running
+function W:updateLocateButton()
+	local button = self.locateButton;
 
 	if button == nil
 	then
 		return;
 	end
 
-	local pad = self.sizes.pad;
+	local enabled = self.editable == true and self.marking == nil;
 
-	for i, title in ipairs({ self.idButtonTitle, getText("IGUI_AutoPilot_Pick_ButtonShort") })
-	do
-		if button.title ~= title
-		then
-			button:setTitle(title);
-			button:setWidthToTitle(self.sizes.button * (i == 1 and 2 or 1));
-		end
-
-		local x = self.insertButton:getX() - pad / 2 - button:getWidth();
-
-		if x >= self.rightX + measure(UIFont.Small, "M")
-		then
-			button:setX(x);
-			button:setY(y);
-			button:setVisible(true);
-
-			return;
-		end
-	end
-
-	button:setVisible(false);
+	button:setEnable(enabled);
+	button.tooltip = enabled and getText("IGUI_AutoPilot_E_Locate_Tooltip") or getText("IGUI_AutoPilot_E_LocateOff");
 end
 
-function W:onIdPick()
-	AutoPilotMoon.IdPicker:begin(self.playerNum);
+function W:onLocate()
+	local macro = self:currentMacro();
+
+	if macro == nil or not self.editable or self:isExample() or self.locating or self.marking
+	then
+		return;
+	end
+
+	if self.suggest
+	then
+		self.suggest:close();
+	end
+
+	if self.hover
+	then
+		self.hover:hide();
+	end
+
+	self:updateCursorText(true);
+
+	local where = { macro = macro, line = self.cursorLine or 1, column = self.cursorColumn or 1 };
+
+	self:saveNow();
+
+	local window = self;
+	local session = Macro().Places:pickSpot(self.player, getText("IGUI_AutoPilot_E_LocateTitle"),
+		function(spot)
+			window:onSpotChosen(where, spot);
+		end,
+		function()
+			window:onSpotCancelled(where);
+		end);
+
+	if session
+	then
+		self.locating = where;
+		self:setVisible(false);
+	end
+end
+
+function W:onSpotCancelled(where)
+	if self.locating ~= where
+	then
+		return;
+	end
+
+	self.locating = nil;
+	self:setVisible(true);
+	self:bringToTop();
+end
+
+-- chosen: the numbers written where the cursor was (the same macro, still editable), the cursor after them, said over
+-- the character's head
+function W:onSpotChosen(where, spot)
+	if self.locating ~= where
+	then
+		return;
+	end
+
+	self.locating = nil;
+	self:setVisible(true);
+	self:bringToTop();
+
+	if self:currentMacro() ~= where.macro or not self.editable
+	then
+		return;
+	end
+
+	local before = self:readText();
+	local text, line, column = Model:insertSpot(before, where.line, where.column, spot.x, spot.y, spot.z);
+
+	-- Ctrl+Z: the smart keys' history keeps the text before each setText of the editor, but they forget the text while
+	-- the window is hidden (MacroEditorInput C:poll, not typing): told again what the box held, the cursor where it was
+	local keys = self.keys;
+
+	if keys and keys.own and AutoPilotMoon.Macro.EditorInput.isOn()
+	then
+		keys:own();
+		keys.text = before;
+		keys.caret = Model:offsetOfLine(before, where.line) + where.column - 1;
+	end
+
+	self:setTextAt(text, line, column);
+	-- saved at once, as a place marked (the list's "(!)" follows the saved text: the one before had walk_to( open)
+	self:saveNow();
+	AutoPilotMoon:say("plain", getText("IGUI_AutoPilot_A_SpotWritten", Macro().Places:spotText(spot.x, spot.y, spot.z), line), self.player);
+end
+
+-- a new text in the box with the cursor at a line and column (1-based): changed (checked and saved later), in view
+function W:setTextAt(text, line, column)
+	if self.editable
+	then
+		self.entry:focus();
+	end
+
+	self:replaceText(text, Model:offsetOfLine(text, line) + math.max(0, (column or 1) - 1), false);
 end
 
 function W:onCheck()
@@ -2352,9 +2525,11 @@ function W:onInsert(button)
 	local bodyMenu = sub("IGUI_AutoPilot_E_InsertBody");
 
 	-- the food and the water (20/11/2026): carried or within reach, a can opened; only what is carried, never a can; a sink;
-	-- the bottles filled
-	for i, line in ipairs({ "exercise(\"pushups\", minutes=10)", "exercise(\"squats\", minutes=10)", "rest()", "rest(seat=\"ground\")",
-		"eat()", "eat(near=False, open_cans=False)", "drink()", "drink(source=True)", "refill()", "smoke()", "read(\"Base.BookMaintenance1\")" })
+	-- the bottles filled. The autonomy (26/11/2026, ANALISI-AUTONOMIA.md 3.4, 3.6): an exercise at random until the
+	-- game stops it for tiredness, a source of fun
+	for i, line in ipairs({ "exercise()", "exercise(\"pushups\", minutes=10)", "exercise(\"squats\", minutes=10)", "rest()", "rest(seat=\"ground\")",
+		"eat()", "eat(near=False, open_cans=False)", "drink()", "drink(source=True)", "refill()", "smoke()", "have_fun()",
+		"read(\"Base.BookMaintenance1\")" })
 	do
 		bodyMenu:addOption(line, self, W.onInsertLine, line);
 	end
@@ -2390,10 +2565,13 @@ function W:onInsert(button)
 	itemsMenu:addOption("if count(\"Base.Charcoal\") < 3:", self, W.onInsertBlock, "if count(\"Base.Charcoal\") < 3:");
 
 	for i, line in ipairs({ "take(\"Base.Charcoal\", from=\"" .. placeName .. "\", n=10)", "put(\"made\", into=\"" .. placeName .. "\")",
-		"drop(\"Base.Plank\", n=5)", "equip(\"Base.Hammer\")", "walk_to(\"" .. placeName .. "\")" })
+		"drop(\"Base.Plank\", n=5)", "equip(\"Base.Hammer\")", "walk_to(\"" .. placeName .. "\")", self:hereLine() })
 	do
 		itemsMenu:addOption(line, self, W.onInsertLine, line);
 	end
+
+	-- "Localizza" from the menu too (26/11/2026): a square clicked, its numbers at the cursor
+	itemsMenu:addOption(getText("IGUI_AutoPilot_E_Sug_Spot"), self, W.onLocate);
 
 	-- the places in the same submenu (one entry more in the Insert menu, not two: at the biggest font a 720p screen
 	-- holds no more)
@@ -2402,8 +2580,12 @@ function W:onInsert(button)
 	local whenMenu = sub("IGUI_AutoPilot_E_InsertWhen");
 
 	-- a state word alone: the game shows it (19/11/2026, MACRO-AUTOPILOT.md 16); the rest when the game stops the exercises
+	-- then the handlers of the training all day long (26/11/2026, ANALISI-AUTONOMIA.md 4): each with the condition that
+	-- something is there, so the macro does not stop when a supply ends
 	for i, pair in ipairs({ { "when hungry:", "eat()" }, { "when thirsty:", "drink()" },
-		{ "when craving:", "smoke()" }, { "when exerted >= 3:", "rest()" }, { "when panic >= 3:", "stop()" } })
+		{ "when craving:", "smoke()" }, { "when exerted >= 3:", "rest()" }, { "when panic >= 3:", "stop()" },
+		{ "when hungry and has_food():", "eat()" }, { "when thirsty and has_drink():", "drink()" },
+		{ "when craving and has_smoke():", "smoke()" }, { "when (bored or sad) and has_fun():", "have_fun()" } })
 	do
 		whenMenu:addOption(pair[1] .. " " .. pair[2], self, W.onInsertHandler, pair);
 	end
@@ -2434,13 +2616,13 @@ function W:onInsert(button)
 			end
 		end
 
-		-- food and water within reach (20/11/2026): what eat() / drink() would find now
-		if group == "food"
-		then
-			for k, call in ipairs({ "has_food", "has_drink" })
-			do
-				groupMenu:addOption(call .. "() - " .. getText("IGUI_AutoPilot_E_Cond_" .. call), self, W.onInsertText, call .. "()");
-			end
+		-- food and water within reach (20/11/2026): what eat() / drink() would find now; something to smoke, a source of
+		-- fun (26/11/2026): what smoke() / have_fun() would find now
+		local calls = (group == "food" and { "has_food", "has_drink" }) or (group == "mood" and { "has_smoke", "has_fun" }) or {};
+
+		for k, call in ipairs(calls)
+		do
+			groupMenu:addOption(call .. "() - " .. getText("IGUI_AutoPilot_E_Cond_" .. call), self, W.onInsertText, call .. "()");
 		end
 	end
 
@@ -2483,6 +2665,18 @@ end
 -- ============================================================================================================
 -- The macro's named places (waves 2-3, 19/11/2026, MacroPlaces.lua)
 -- ============================================================================================================
+
+-- walk_to(x, y, z) of the square where the character stands (Inserisci > Oggetti e posti, 26/11/2026)
+function W:hereLine()
+	local square = self.player and self.player:getSquare();
+
+	if square == nil
+	then
+		return Macro().Lang.callExamples.walk_to;
+	end
+
+	return "walk_to(" .. Macro().Places:spotText(square:getX(), square:getY(), square:getZ()) .. ")";
+end
 
 -- the places by key for the checker: the macro's own; an example has none (its places are said as not marked)
 function W:placeMap()
