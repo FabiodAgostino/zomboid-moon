@@ -2564,8 +2564,10 @@ function W:onInsert(button)
 
 	itemsMenu:addOption("if count(\"Base.Charcoal\") < 3:", self, W.onInsertBlock, "if count(\"Base.Charcoal\") < 3:");
 
-	for i, line in ipairs({ "take(\"Base.Charcoal\", from=\"" .. placeName .. "\", n=10)", "put(\"made\", into=\"" .. placeName .. "\")",
-		"drop(\"Base.Plank\", n=5)", "equip(\"Base.Hammer\")", "walk_to(\"" .. placeName .. "\")", self:hereLine() })
+	-- take without from= (26/11/2026, 1.6.1): from the containers within reach, after a walk_to(x, y, z)
+	for i, line in ipairs({ "take(\"Base.Charcoal\", from=\"" .. placeName .. "\", n=10)", "take(\"Base.Charcoal\", n=10)",
+		"put(\"made\", into=\"" .. placeName .. "\")", "drop(\"Base.Plank\", n=5)", "equip(\"Base.Hammer\")",
+		"walk_to(\"" .. placeName .. "\")", self:hereLine() })
 	do
 		itemsMenu:addOption(line, self, W.onInsertLine, line);
 	end

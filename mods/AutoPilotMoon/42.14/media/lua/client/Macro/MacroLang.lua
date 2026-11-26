@@ -26,6 +26,7 @@
 --   take("Item", from="Place", n=10)   put("Item", into="Place")   put("made", into="Place")   drop("Item", n=5)
 --   equip("Item", hand="both")   walk_to("Place");  conditions count("Item", at="Place") >= 3, space_left() < 5,
 --   space_left(at="Place")   (waves 2 and 3, 19/11/2026: items and the macro's named places)
+--   take("Item", n=1)   (26/11/2026, 1.6.1: without from=, from the containers within reach where the character stands)
 --   walk_to(12625, 4705, 0)   exercise()   have_fun()   eat(walk=False)   conditions has_fun(), has_smoke()
 --   (autonomy, 26/11/2026, ANALISI-AUTONOMIA.md 3: a square by its numbers, a negative number written -1, an exercise
 --   at random until the game stops it for fatigue, one source of fun a line, the walk to food within 8 squares;
@@ -40,7 +41,7 @@
 --   result.requirements  what each craft line needs ("Attrezzi e materiali", 4.5): { line, recipe (id), recipeText,
 --                     materials, tools ({ text, amount, types, tags, sharp }), skills ({ skill, name, level }), text };
 --                     eat / drink / refill / smoke / have_fun lines: body (the command), near, walk, source, snacks
---                     (have_fun), text
+--                     (have_fun), text; a take line without from= (1.6.1): body = "take", reach = true, text
 --   result.actionCount  actions of the main program;  result.uses = { rest = true, ... } the body actions used
 --   result.notReady   the resolver's indexes are not built yet (nothing else is filled)
 -- opts: player (for "you do not know the recipe yet"), maxActions, maxLoops (the server's limits, for the warnings),
@@ -64,7 +65,8 @@
 --           itemText, n (nil = all), hand (equip: "primary" / "secondary" / "both", nil = by the item), placeKey (the
 --           place's name in lower case), placeName (as written), place (the macro's place, nil when not marked or not
 --           known: opts.places); walk_to(x, y, z) (3.1): spot = { x = x, y = y, z = z } and placeName "x, y, z", no
---           place nor placeKey
+--           place nor placeKey; take without from= (1.6.1): reach = true, no place, placeKey nor placeName (the
+--           containers within reach where the character stands)
 --   WAIT    line, ms, seconds
 --   LOOP    line, mode "times" / "possible" / "while" / "forever", n, cond, condText, endIndex, firstAction, synthetic
 --   END     line, loopIndex
@@ -380,8 +382,11 @@ Lang.calls = {
 	-- waves 2 and 3 (19/11/2026): items in and out of the macro's named places (marked with a click in the editor),
 	-- onto the floor, into the hands; the walk to a place. names "place": a place of the macro; "cargo": the items
 	-- and "made" (what the run made); "hand": Lang.hands
-	take = { pos = { "item" }, kw = { item = "str", from = "str", n = "num" }, req = { "item", "from" },
-		usage = "take(\"Item\", from=\"Place\", n=10)", action = true, names = { item = "item", from = "place" } },
+	-- take without from= (26/11/2026, 1.6.1, MACRO-AUTOPILOT.md 21): from the containers within reach where the
+	-- character stands (no walk: the macro walks first with walk_to)
+	take = { pos = { "item" }, kw = { item = "str", from = "str", n = "num" }, req = { "item" },
+		usage = "take(\"Item\", n=10)  /  take(\"Item\", from=\"Place\", n=10)", action = true,
+		names = { item = "item", from = "place" } },
 	put = { pos = { "item" }, kw = { item = "str", into = "str", n = "num" }, req = { "item", "into" },
 		usage = "put(\"Item\", into=\"Place\")", action = true, names = { item = "cargo", into = "place" } },
 	drop = { pos = { "item" }, kw = { item = "str", n = "num" }, req = { "item" }, usage = "drop(\"Item\", n=5)", action = true,
@@ -3356,7 +3361,27 @@ local function compileSpot(ctx, bound)
 	addAction(ctx, { op = "ACTION", kind = "walk_to", spot = { x = x, y = y, z = z }, placeName = text }, 1);
 end
 
--- take / put / drop / equip / walk_to (waves 2 and 3): the items (or "made" in put and drop), the place, n=, hand=
+-- what a take("X") line without from= needs ("Attrezzi e materiali", 4.5; 26/11/2026, 1.6.1): the item in a container
+-- within reach where the character stands, in words (the game's name of a single type, else as written) and in data for
+-- ZomBOT (entry.body = "take", entry.reach = true)
+local function takeReachNeeds(ctx, bound, action)
+	local types = action.itemTypes or {};
+	local name = bound.item.v;
+
+	if #types == 1 and ctx.resolver.itemName
+	then
+		name = ctx.resolver:itemName(types[1]) or name;
+	end
+
+	local written = textOf(ctx, 1);
+
+	table.insert(ctx.result.requirements, { line = ctx.line, body = "take", recipeText = written, reach = true,
+		materials = {}, tools = {}, skills = {},
+		text = getText("IGUI_AutoPilot_E_Needs", ctx.line, written, getText("IGUI_AutoPilot_E_NeedsTakeReach", name)) });
+end
+
+-- take / put / drop / equip / walk_to (waves 2 and 3): the items (or "made" in put and drop), the place, n=, hand=;
+-- take without from= (1.6.1): reach = true, the containers within reach
 local function compileItems(ctx, name, bound)
 	local action = { op = "ACTION", kind = name };
 	local placeNode = bound.from or bound.into or bound.place;
@@ -3443,6 +3468,11 @@ local function compileItems(ctx, name, bound)
 		end
 
 		action.placeKey, action.place, action.placeName = key, place, placeNode.v;
+	elseif name == "take"
+	then
+		-- without from= (26/11/2026, 1.6.1): the containers within reach where the character stands
+		action.reach = true;
+		takeReachNeeds(ctx, bound, action);
 	end
 
 	addAction(ctx, action, 1);

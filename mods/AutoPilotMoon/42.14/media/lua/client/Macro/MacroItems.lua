@@ -8,6 +8,15 @@
 --                              then one transfer action of the game per item into the main inventory
 --                              (ISInventoryTransferUtil.newInventoryTransferAction), only what fits there
 --                              (ItemContainer.hasRoomFor, the test of the game's own "Grab")
+--   take("X", n=N)             (26/11/2026, 1.6.1, MACRO-AUTOPILOT.md 21) without from=: from the containers within reach
+--                              where the character stands, never a walk (the macro walks first with walk_to): the
+--                              loot window's, as eat() reads them (Food:nearContainers: never the character's own
+--                              inventory, a corpse, a ZomBOT gravestone, a container locked for the character, a square
+--                              of a safehouse it may not use), and of those never the floor nor a part of a vehicle
+--                              (Items:reachContainers). The same steps as with from= after the walk: the containers
+--                              never opened asked for and awaited, the same transfers, the same "wait for the object".
+--                              Nothing of that kind there: MacroR_NothingReach ("nothing" kind: a "while possible"
+--                              ends well); no answer from the server: MacroR_NotSeenAt with the containers' names.
 --   put("X", into="P", n=N)    the walk, then one transfer per item into the first container of the place with room
 --                              (Destination:findRoom, the jobs' rule); a place of ground: onto its floor
 --   drop("X", n=N)             the inventory's "Drop" (ISInventoryPaneContextMenu.dropItem): onto the floor here
@@ -44,6 +53,7 @@
 -- Items:confirm(run, pending) -> "busy" / "done" / "fail", text   (only with the character idle)
 -- Items:probe(player, op) -> nil (it can be done now) or the reason's text ("Adesso si puo' fare?")
 -- Items:countAt(player, types, place), Items:spaceLeft(player, place): the conditions count(at=) and space_left()
+-- Items:reachContainers(player) -> { { container, name } } what take("X") without from= reads
 
 AutoPilotMoon = AutoPilotMoon or {};
 AutoPilotMoon.Macro = AutoPilotMoon.Macro or {};
@@ -74,6 +84,11 @@ end
 
 local function Wait()
 	return AutoPilotMoon.Wait;
+end
+
+-- the containers within reach of eat() (MacroFood.lua), read by take("X") without from= too
+local function Food()
+	return AutoPilotMoon.Macro.Food;
 end
 
 -- the text of the reason of a stop (or an end: MacroDoneItems), its key remembered for the notifications (the event's
@@ -121,7 +136,10 @@ end
 Items.itemLabel = itemLabel;
 
 function AutoPilotMoon.Macro.Items:describe(op)
-	if op.kind == "take"
+	if op.kind == "take" and op.reach
+	then
+		return getText("IGUI_AutoPilot_P_Now_MacroTakeReach", itemLabel(op));
+	elseif op.kind == "take"
 	then
 		return getText("IGUI_AutoPilot_P_Now_MacroTake", itemLabel(op), op.placeName or "");
 	elseif op.kind == "put"
@@ -307,14 +325,18 @@ end
 
 -- What the place's containers hold, arrived from the server (bug of 1.2.0: checkExplored says "explored" at once and
 -- the line said "not there" in the same frame): a container never opened is asked for as the loot window does, and
--- its answer awaited with the engine's wait (Wait:loadState). Returns false (wait, the step comes again), or true and
--- uncertain (true: no answer seen, an empty container or a server that did not answer).
-local function contentsLoaded(run, op, place, containers)
+-- its answer awaited with the engine's wait (Wait:loadState). label: the place's name; names (take without from=, 1.6.1):
+-- the containers' names, the label then the names of those awaited. Returns false (wait, the step comes again), or true,
+-- uncertain (true: no answer seen, an empty container or a server that did not answer) and the label of the wait (nil
+-- when nothing was awaited).
+local function contentsLoaded(run, op, label, containers, names)
 	local w = run.loadWait;
 
 	if w == nil or w.op ~= op
 	then
 		w = nil;
+
+		local awaited = {};
 
 		for i, container in ipairs(containers)
 		do
@@ -323,14 +345,20 @@ local function contentsLoaded(run, op, place, containers)
 			if Wait():loadState(container) ~= "loaded"
 			then
 				-- a short wait (Wait.loadMinMs at most, unless the answer keeps coming): the panel says it at once
-				w = w or Wait():new(run.player, { label = place.name, waitingAfterMs = 0 });
+				w = w or Wait():new(run.player, { label = label, waitingAfterMs = 0 });
 				w:expectLoaded(container);
+				table.insert(awaited, { name = names and names[i] or label });
 			end
 		end
 
 		if w == nil
 		then
-			return true, false;
+			return true, false, nil;
+		end
+
+		if names
+		then
+			w.label = Food():names(awaited);
 		end
 
 		w.op = op;
@@ -341,14 +369,14 @@ local function contentsLoaded(run, op, place, containers)
 
 	if answer == "busy"
 	then
-		AutoPilotMoon.Progress:setActivity("IGUI_AutoPilot_P_Now_MacroExplore", place.name);
+		AutoPilotMoon.Progress:setActivity("IGUI_AutoPilot_P_Now_MacroExplore", w.label);
 
-		return false, false;
+		return false, false, nil;
 	end
 
 	run.loadWait = nil;
 
-	return true, info.uncertain;
+	return true, info.uncertain, w.label;
 end
 
 -- the items of the types a place holds that the character may take (bags inside included, as the loot window shows
@@ -403,47 +431,42 @@ local function fittingInInventory(player, list, max)
 	return result;
 end
 
-local function startTake(run, op)
-	local player = run.player;
-	local place, resolved, why = placeOf(player, op, run.center);
+-- The containers take("X") without from= reads (26/11/2026, 1.6.1, MACRO-AUTOPILOT.md 21): those of the loot window
+-- within reach where the character stands, as eat() reads them (Food:nearContainers: never the character's own
+-- inventory, a corpse, a ZomBOT gravestone, a container locked for the character, a square of a safehouse it may not
+-- use), and of those never the floor (take() takes only from a container, as with from=) nor a part of a vehicle
+-- (never a place either, DT5). { { container, name } } in the loot window's order.
+function AutoPilotMoon.Macro.Items:reachContainers(player)
+	local list = {};
 
-	if place == nil
-	then
-		return nil, why, nil;
-	end
-
-	if place.kind == "ground"
-	then
-		return nil, whyText("IGUI_AutoPilot_A_MacroR_PlaceGround", place.name), nil;
-	end
-
-	local moving, walkWhy, walkKind = reach(run, op, place, resolved);
-
-	if moving
-	then
-		return nil, walkWhy, walkKind;
-	end
-
-	local loaded, uncertain = contentsLoaded(run, op, place, resolved.containers);
-
-	if not loaded
-	then
-		return nil, nil, "wait";
-	end
-
-	local list = takeable(player, op, resolved.containers);
-
-	if #list == 0
-	then
-		if uncertain
+	for i, entry in ipairs(Food():nearContainers(player))
+	do
+		if entry.group == 2 and entry.container:getType() ~= "floor"
 		then
-			-- no answer from the server: never "not there" (a "while possible" would end as if done)
-			return nil, whyText("IGUI_AutoPilot_A_MacroR_NotSeenAt", place.name), nil;
+			table.insert(list, entry);
 		end
-
-		return nil, whyText("IGUI_AutoPilot_A_MacroR_NothingAt", place.name, itemLabel(op)), "nothing";
 	end
 
+	return list;
+end
+
+-- the containers of reachContainers and their names, as two lists
+local function reachLists(player)
+	local containers, names = {}, {};
+
+	for i, entry in ipairs(Items:reachContainers(player))
+	do
+		table.insert(containers, entry.container);
+		table.insert(names, entry.name);
+	end
+
+	return containers, names;
+end
+
+-- the game's transfers of the items chosen of list (what fits in the inventory, at most what the line and the run may
+-- still move), one per item, each awaited by id in the inventory
+local function queueTake(run, op, list, place)
+	local player = run.player;
 	local chosen = fittingInInventory(player, list, wanted(run, op));
 
 	if #chosen == 0
@@ -470,6 +493,82 @@ local function startTake(run, op)
 	end
 
 	return { kind = "take", module = "items", entries = entries, place = place, wait = wait };
+end
+
+-- take("X", n=N) without from= (1.6.1): no walk, the containers within reach where the character stands
+local function startTakeReach(run, op)
+	local player = run.player;
+	local containers, names = reachLists(player);
+	local loaded, uncertain, awaited = contentsLoaded(run, op, nil, containers, names);
+
+	if not loaded
+	then
+		return nil, nil, "wait";
+	end
+
+	local list = takeable(player, op, containers);
+
+	if #list == 0
+	then
+		if uncertain
+		then
+			-- no answer from the server: never "not there" (a "while possible" would end as if done)
+			return nil, whyText("IGUI_AutoPilot_A_MacroR_NotSeenAt", awaited or ""), nil;
+		end
+
+		return nil, whyText("IGUI_AutoPilot_A_MacroR_NothingReach", itemLabel(op)), "nothing";
+	end
+
+	return queueTake(run, op, list, nil);
+end
+
+local function startTake(run, op)
+	if op.reach
+	then
+		return startTakeReach(run, op);
+	end
+
+	local player = run.player;
+	local place, resolved, why = placeOf(player, op, run.center);
+
+	if place == nil
+	then
+		return nil, why, nil;
+	end
+
+	if place.kind == "ground"
+	then
+		return nil, whyText("IGUI_AutoPilot_A_MacroR_PlaceGround", place.name), nil;
+	end
+
+	local moving, walkWhy, walkKind = reach(run, op, place, resolved);
+
+	if moving
+	then
+		return nil, walkWhy, walkKind;
+	end
+
+	local loaded, uncertain = contentsLoaded(run, op, place.name, resolved.containers);
+
+	if not loaded
+	then
+		return nil, nil, "wait";
+	end
+
+	local list = takeable(player, op, resolved.containers);
+
+	if #list == 0
+	then
+		if uncertain
+		then
+			-- no answer from the server: never "not there" (a "while possible" would end as if done)
+			return nil, whyText("IGUI_AutoPilot_A_MacroR_NotSeenAt", place.name), nil;
+		end
+
+		return nil, whyText("IGUI_AutoPilot_A_MacroR_NothingAt", place.name, itemLabel(op)), "nothing";
+	end
+
+	return queueTake(run, op, list, place);
 end
 
 local function startPut(run, op)
@@ -866,10 +965,59 @@ end
 -- "Adesso si puo' fare?" (nothing queued, no walk)
 -- ============================================================================================================
 
+-- take("X") without from= (1.6.1): what is within reach now. A container whose contents have not arrived from the server
+-- is asked for, as eat()'s "Adesso si puo' fare?" does (Food: the loot window asks for them by itself); still not there:
+-- yes, and the containers it will look into (the run awaits them)
+local function probeReach(player, op)
+	local containers, loading = {}, {};
+
+	for i, entry in ipairs(Items:reachContainers(player))
+	do
+		local state = Wait():loadState(entry.container);
+
+		if state == "unknown"
+		then
+			Wait():explore(entry.container, player);
+			state = Wait():loadState(entry.container);
+		end
+
+		if state == "loaded"
+		then
+			table.insert(containers, entry.container);
+		else
+			table.insert(loading, entry);
+		end
+	end
+
+	local list = takeable(player, op, containers);
+
+	if #list == 0
+	then
+		if #loading > 0
+		then
+			return nil, getText("IGUI_AutoPilot_E_NowLook", Food():names(loading));
+		end
+
+		return getText("IGUI_AutoPilot_A_MacroR_NothingReach", itemLabel(op));
+	end
+
+	if #fittingInInventory(player, list, 1) == 0
+	then
+		return getText("IGUI_AutoPilot_A_MacroR_TooHeavy", itemLabel(op));
+	end
+
+	return nil;
+end
+
 function AutoPilotMoon.Macro.Items:probe(player, op)
 	if not Items:isEnabled()
 	then
 		return getText("IGUI_AutoPilot_A_MacroR_TransfersOff");
+	end
+
+	if op.kind == "take" and op.reach
+	then
+		return probeReach(player, op);
 	end
 
 	local center = Run():center(player);
